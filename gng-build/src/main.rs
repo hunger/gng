@@ -17,11 +17,13 @@
 use eyre::Result;
 use gumdrop::Options;
 
-/// Define command line arguments for `gng-build`.
 #[derive(Debug, Options)]
 struct Args {
     #[options(help = "print help message")]
     help: bool,
+
+    #[options(help = "config file to read", meta = "<FILE>")]
+    config: Option<String>,
 
     #[options(command)]
     command: Option<Command>,
@@ -37,8 +39,8 @@ enum Command {
 /// Command line arguments for the `help` command.
 #[derive(Debug, Options)]
 struct HelpArgs {
-    #[options(free)]
-    free: Vec<String>,
+    #[options(free, help = "further arguments")]
+    args: Vec<String>,
 }
 
 /// Entry point of the `gng-build` binary.
