@@ -1,0 +1,13 @@
+[package]
+name = "gng_shared"
+version = "0.1.0"
+authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
+edition = "2018"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+categories = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
+keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
+repository = "<PRIVATE_REPOSITORY>"
+
+[dependencies]
+thiserror = { version = "1.0.22" }

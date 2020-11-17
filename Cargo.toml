@@ -1,0 +1,3 @@
+[workspace]
+members = ["gng_shared", "gng-build"]
+
