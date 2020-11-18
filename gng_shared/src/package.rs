@@ -7,10 +7,13 @@ use std::convert::From;
 use std::convert::TryFrom;
 
 /// A `Version` number
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Version {
+    /// The distributions package version `epoch`
     epoch: u32,
+    /// The upstream `version`
     version: String,
+    /// The distributions package `release` version
     release: String,
 }
 
@@ -75,8 +78,6 @@ impl From<&Version> for String {
 impl Version {
     /// Create a package `Version` from an `epoch`, a `version` and an `release`
     pub fn new(epoch: u32, version: &str, release: &str) -> crate::Result<Version> {
-        dbg!("Version::new({:?} : {:?} - {:?})", epoch, version, release);
-
         if version.is_empty() {
             return Err(crate::Error::ConversionError(
                 "Version part of a package version can not be empty.",
@@ -125,27 +126,9 @@ impl Version {
     }
 }
 
-/*
-/// A `Hash` used to validate a file
-#[derive(Debug)]
-pub struct Hash {
-    algorithm: String,
-    value: String,
-}
-
-/// A `Source`
-#[derive(Debug)]
-pub struct Source {
-    url: String,
-    hash: Option<Hash>,
-    signing_keys: Vec<String>,
-    extract: bool,
-}
-*/
-
 /// A package `Name`
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq)]
-struct Name(String);
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub struct Name(String);
 
 impl TryFrom<&str> for Name {
     type Error = crate::Error;
@@ -196,40 +179,41 @@ impl std::fmt::Display for Name {
     }
 }
 
-/*
 /// Package `MetaData`
+#[derive(derive_builder::Builder, Clone, Debug)]
+#[builder(try_setter, setter(into))]
 pub struct MetaData {
-    name: Name,
-    version: Version,
-    description: String,
-    url: Option<String>,
-    bug_url: Option<String>,
-    license: String,
+    /// The package `name`
+    pub name: Name,
+    /// The package `version`
+    pub version: Version,
+    /// A short description of the package
+    pub description: String,
+    /// The upstream `url`
+    pub url: String,
+    /// The upstream bug tracker url
+    #[builder(default = "String::new()")]
+    pub bug_url: String,
+    /// The upstream license
+    pub license: String,
 
-    conflicts: Vec<String>,
-    provides: Vec<String>,
+    /// The other packages this Package conflicts with
+    #[builder(default = "vec!()")]
+    pub conflicts: Vec<Name>,
+    /// Abstract interfaces provided by this package
+    #[builder(default = "vec!()")]
+    pub provides: Vec<Name>,
 }
 
-/// Configuration for a Source package
-pub struct SourcePackage {
-    meta: MetaData,
-
-    sources: Vec<Source>,
-
-    dependencies: Vec<String>,
-    build_dependencies: Vec<String>,
-    check_dependencies: Vec<String>,
-    optional_dependencies: Vec<String>,
-
-    packaging_options: Vec<String>,
-}
-*/
+/// A binary package in the package database
+pub type Package = MetaData;
 
 #[cfg(test)]
 mod tests {
     use std::convert::From;
     use std::convert::TryFrom;
 
+    use super::Name;
     use super::Version;
 
     #[test]
@@ -329,26 +313,26 @@ mod tests {
     // Name:
     #[test]
     fn test_package_name_ok() {
-        let name = super::Name::new("test").unwrap();
-        assert_eq!(name, super::Name("test".to_string()));
+        let name = Name::new("test").unwrap();
+        assert_eq!(name, Name("test".to_string()));
 
-        let name = super::Name::try_from("9_foobar__").unwrap();
+        let name = Name::try_from("9_foobar__").unwrap();
         assert_eq!(name.0, "9_foobar__".to_string());
     }
 
     #[test]
     fn test_package_name_not_ok() {
-        assert!(super::Name::new("").is_err());
-        assert!(super::Name::new("töst").is_err());
-        assert!(super::Name::new("teSt").is_err());
-        assert!(super::Name::new("Test").is_err());
-        assert!(super::Name::new("_foobar").is_err());
-        assert!(super::Name::new("").is_err());
+        assert!(Name::new("").is_err());
+        assert!(Name::new("töst").is_err());
+        assert!(Name::new("teSt").is_err());
+        assert!(Name::new("Test").is_err());
+        assert!(Name::new("_foobar").is_err());
+        assert!(Name::new("").is_err());
     }
 
     #[test]
     fn test_package_name_conversion() {
-        let name = super::Name::try_from("9_foobar__").unwrap();
+        let name = Name::try_from("9_foobar__").unwrap();
         assert_eq!(name.0, "9_foobar__".to_string());
         assert_eq!(String::from(&name), "9_foobar__".to_string());
     }
