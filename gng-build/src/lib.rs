@@ -13,17 +13,3 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
-
-/// Just a Test
-// FIXME: Remove me!
-pub fn test() -> u32 {
-    42
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

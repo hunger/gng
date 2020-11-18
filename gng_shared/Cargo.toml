@@ -10,4 +10,6 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "<PRIVATE_REPOSITORY>"
 
 [dependencies]
+serde = { version = "1.0.117" }
 thiserror = { version = "1.0.22" }
+toml = { version = "0.5.7" }

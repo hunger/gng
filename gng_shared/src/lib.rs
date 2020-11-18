@@ -14,10 +14,23 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+/// `Error` type for the `gng_shared` library
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    /// Parsing a toml file failed.
+    #[error("Parse error.")]
+    ParseError(#[from] toml::de::Error),
+    /// Conversion error.
+    #[error("Conversion error: {0}")]
+    ConversionError(&'static str),
+
+    /// Not sure what actually went wrong...
+    #[error("unknown error")]
+    Unknown,
 }
+
+/// `Result` type for the `gng_shared` library
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub mod config;
+pub mod package;
