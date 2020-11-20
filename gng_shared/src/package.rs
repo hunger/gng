@@ -6,6 +6,40 @@
 use std::convert::From;
 use std::convert::TryFrom;
 
+/// A 'Url'
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Url(String);
+
+impl Url {
+    /// Create a new `Url` from a string input
+    pub fn new(value: &str) -> crate::Result<Url> {
+        if !value.contains("://") {
+            return Err(crate::Error::ConversionError("A URL must contain ://."));
+        }
+        Ok(Url(value.to_string()))
+    }
+}
+
+impl TryFrom<&str> for Url {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Url::new(value)
+    }
+}
+
+impl std::fmt::Display for Url {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:}", self.0)
+    }
+}
+
+impl From<&Url> for String {
+    fn from(version: &Url) -> Self {
+        format!("{:}", &version)
+    }
+}
+
 /// A `Version` number
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Version {
@@ -15,64 +49,6 @@ pub struct Version {
     version: String,
     /// The distributions package `release` version
     release: String,
-}
-
-impl std::fmt::Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match (
-            self.epoch != 0,
-            !self.version.is_empty(),
-            !self.release.is_empty(),
-        ) {
-            (false, true, false) => write!(f, "{:}", self.version),
-            (false, true, true) => write!(f, "{:}-{:}", self.version, self.release),
-            (true, true, false) => write!(f, "{:}:{:}", self.epoch, self.version),
-            (true, true, true) => write!(f, "{:}:{:}-{:}", self.epoch, self.version, self.release),
-            (_, false, _) => unreachable!("Version was invalid during Display!"),
-        }
-    }
-}
-
-impl TryFrom<&str> for Version {
-    type Error = crate::Error;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let epoch;
-        let version;
-        let release;
-
-        let input = &value[..];
-
-        let mut index = input.chars().position(|c| c == ':').unwrap_or(0);
-        if index > 0 {
-            epoch = input[..index]
-                .parse::<u32>()
-                .or(Err(crate::Error::ConversionError(
-                    "Invalid epoch value in version string found.",
-                )))?;
-            index += 1;
-        } else {
-            epoch = 0;
-        }
-
-        let input = &value[index..];
-        let index = input.chars().position(|c| c == '-').unwrap_or(0);
-        if index > 0 {
-            version = &input[..index];
-            release = &input[(index + 1)..];
-        } else {
-            version = input;
-            release = "";
-        }
-
-        Version::new(epoch, version, release)
-    }
-}
-
-impl From<&Version> for String {
-    fn from(version: &Version) -> Self {
-        format!("{:}", &version)
-    }
 }
 
 impl Version {
@@ -123,6 +99,64 @@ impl Version {
             version: version.to_string(),
             release: release.to_string(),
         })
+    }
+}
+
+impl TryFrom<&str> for Version {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let epoch;
+        let version;
+        let release;
+
+        let input = &value[..];
+
+        let mut index = input.chars().position(|c| c == ':').unwrap_or(0);
+        if index > 0 {
+            epoch = input[..index]
+                .parse::<u32>()
+                .or(Err(crate::Error::ConversionError(
+                    "Invalid epoch value in version string found.",
+                )))?;
+            index += 1;
+        } else {
+            epoch = 0;
+        }
+
+        let input = &value[index..];
+        let index = input.chars().position(|c| c == '-').unwrap_or(0);
+        if index > 0 {
+            version = &input[..index];
+            release = &input[(index + 1)..];
+        } else {
+            version = input;
+            release = "";
+        }
+
+        Version::new(epoch, version, release)
+    }
+}
+
+impl std::fmt::Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (
+            self.epoch != 0,
+            !self.version.is_empty(),
+            !self.release.is_empty(),
+        ) {
+            (false, true, false) => write!(f, "{:}", self.version),
+            (false, true, true) => write!(f, "{:}-{:}", self.version, self.release),
+            (true, true, false) => write!(f, "{:}:{:}", self.epoch, self.version),
+            (true, true, true) => write!(f, "{:}:{:}-{:}", self.epoch, self.version, self.release),
+            (_, false, _) => unreachable!("Version was invalid during Display!"),
+        }
+    }
+}
+
+impl From<&Version> for String {
+    fn from(version: &Version) -> Self {
+        format!("{:}", &version)
     }
 }
 
@@ -190,10 +224,10 @@ pub struct MetaData {
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
-    pub url: String,
+    pub url: Url,
     /// The upstream bug tracker url
-    #[builder(default = "String::new()")]
-    pub bug_url: String,
+    #[builder(default = "None")]
+    pub bug_url: Option<Url>,
     /// The upstream license
     pub license: String,
 
@@ -206,7 +240,11 @@ pub struct MetaData {
 }
 
 /// A binary package in the package database
-pub type Package = MetaData;
+#[derive(Clone, Debug)]
+pub struct Package {
+    /// Package `MetaData`
+    pub meta: MetaData,
+}
 
 #[cfg(test)]
 mod tests {
@@ -214,7 +252,28 @@ mod tests {
     use std::convert::TryFrom;
 
     use super::Name;
+    use super::Url;
     use super::Version;
+
+    #[test]
+    fn test_package_url_ok() {
+        let url = Url::new("https://foo.bar/").unwrap();
+        assert_eq!(url.0, "https://foo.bar/");
+
+        assert_eq!(
+            Url::try_from("file:///some/where/").unwrap(),
+            Url::new("file:///some/where/").unwrap()
+        )
+    }
+
+    #[test]
+    fn test_package_url_not_ok() {
+        assert!(Url::new("").is_err());
+        assert!(Url::new("/foo/bar").is_err());
+
+        assert!(Url::try_from("").is_err());
+        assert!(Url::try_from("/foo/bar").is_err());
+    }
 
     #[test]
     fn test_package_version_ok() {
