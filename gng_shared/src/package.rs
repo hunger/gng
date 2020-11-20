@@ -3,6 +3,7 @@
 
 //! Package configuration
 
+use itertools::Itertools;
 use std::convert::From;
 use std::convert::TryFrom;
 
@@ -35,8 +36,59 @@ impl std::fmt::Display for Url {
 }
 
 impl From<&Url> for String {
-    fn from(version: &Url) -> Self {
-        format!("{:}", &version)
+    fn from(url: &Url) -> Self {
+        format!("{:}", &url)
+    }
+}
+
+/// A GPG key id (16 hex values)
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GpgKeyId(String);
+
+impl GpgKeyId {
+    /// Create a new `Url` from a string input
+    pub fn new(value: &str) -> crate::Result<GpgKeyId> {
+        let value = value.to_lowercase();
+        if !value
+            .chars()
+            .all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c == ' ') || (c == '-'))
+        {
+            return Err(crate::Error::ConversionError(
+                "A GPG Key ID must be hex with optional ' ' or '-' characters.",
+            ));
+        }
+        let value = value
+            .chars()
+            .filter(|c| (*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'f'))
+            .chunks(4)
+            .into_iter()
+            .map(|c| c.format(""))
+            .join(" ");
+        if value.chars().count() != (16 + 3) {
+            return Err(crate::Error::ConversionError(
+                "A GPG Key ID must contain 16 hex digits.",
+            ));
+        }
+        Ok(GpgKeyId(value))
+    }
+}
+impl TryFrom<&str> for GpgKeyId {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        GpgKeyId::new(value)
+    }
+}
+
+impl std::fmt::Display for GpgKeyId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:}", self.0)
+    }
+}
+
+impl From<&GpgKeyId> for String {
+    fn from(key_id: &GpgKeyId) -> Self {
+        format!("{:}", &key_id)
     }
 }
 
@@ -251,6 +303,7 @@ mod tests {
     use std::convert::From;
     use std::convert::TryFrom;
 
+    use super::GpgKeyId;
     use super::Name;
     use super::Url;
     use super::Version;
@@ -267,12 +320,21 @@ mod tests {
     }
 
     #[test]
-    fn test_package_url_not_ok() {
-        assert!(Url::new("").is_err());
-        assert!(Url::new("/foo/bar").is_err());
+    fn test_package_gpg_key_id_ok() {
+        let key_id = GpgKeyId::new("aB-c D1---23   4EFAB5678").unwrap();
+        assert_eq!(key_id.0, "abcd 1234 efab 5678");
 
-        assert!(Url::try_from("").is_err());
-        assert!(Url::try_from("/foo/bar").is_err());
+        assert_eq!(
+            GpgKeyId::try_from("aB-c D1---23   4EFAB5678").unwrap(),
+            GpgKeyId::new("ABCD1234EFAB5678").unwrap()
+        )
+    }
+
+    #[test]
+    fn test_package_gpg_key_id_not_ok() {
+        assert!(GpgKeyId::new("").is_err());
+        assert!(GpgKeyId::new("aB-c D1---23   4EFA5G78").is_err());
+        assert!(GpgKeyId::new("aB-c D1---23   4EFAB5678 0").is_err());
     }
 
     #[test]
