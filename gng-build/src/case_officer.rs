@@ -74,6 +74,34 @@ fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
     }
 }
 
+fn build_agent_inside() -> PathBuf {
+    PathBuf::from("/gng/build-agent")
+}
+
+fn pkgsrc_inside() -> PathBuf {
+    PathBuf::from("/gng/pkgsrc")
+}
+
+fn src_inside() -> PathBuf {
+    PathBuf::from("/gng/src")
+}
+
+fn inst_inside() -> PathBuf {
+    PathBuf::from("/gng/inst")
+}
+
+fn pkg_inside() -> PathBuf {
+    PathBuf::from("/gng/pkg")
+}
+
+fn setenv(name: &str, value: &Path) -> OsString {
+    let mut result = OsString::from("--setenv=");
+    result.push(name);
+    result.push("=");
+    result.push(value.as_os_str());
+    result
+}
+
 // ----------------------------------------------------------------------
 // - CaseOfficer:
 // ----------------------------------------------------------------------
@@ -81,11 +109,12 @@ fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
 /// The controller of the `gng-build-agent`
 #[derive(Debug)]
 pub struct CaseOfficer {
-    package_directory: PathBuf,
+    pkgsrc_directory: PathBuf,
 
     root_directory: tempfile::TempDir,
-    install_directory: tempfile::TempDir,
-    result_directory: tempfile::TempDir,
+    src_directory: tempfile::TempDir,
+    inst_directory: tempfile::TempDir,
+    pkg_directory: tempfile::TempDir,
 
     agent: PathBuf,
 
@@ -97,7 +126,7 @@ impl CaseOfficer {
     #[tracing::instrument]
     pub fn new(
         work_directory: &Path,
-        package_directory: &Path,
+        pkgsrc_directory: &Path,
         agent: &Path,
     ) -> crate::Result<Self> {
         let nspawn_binary = Path::new("/usr/bin/systemd-nspawn");
@@ -111,22 +140,33 @@ impl CaseOfficer {
             .tempdir_in(&work_directory)?;
         prepare_for_systemd_nspawn(&root_dir.path())?;
 
-        let install_dir = tempfile::Builder::new()
-            .prefix("ínstall-")
+        let pkgsrc_dir = tempfile::Builder::new()
+            .prefix("pkgsrc-")
             .rand_bytes(6)
             .tempdir_in(&work_directory)?;
 
-        let result_dir = tempfile::Builder::new()
-            .prefix("result-")
+        let src_dir = tempfile::Builder::new()
+            .prefix("src-")
+            .rand_bytes(6)
+            .tempdir_in(&work_directory)?;
+
+        let inst_dir = tempfile::Builder::new()
+            .prefix("ínst-")
+            .rand_bytes(6)
+            .tempdir_in(&work_directory)?;
+
+        let pkg_dir = tempfile::Builder::new()
+            .prefix("pkg-")
             .rand_bytes(6)
             .tempdir_in(&work_directory)?;
 
         Ok(CaseOfficer {
-            package_directory: package_directory.to_path_buf(),
+            pkgsrc_directory: pkgsrc_directory.to_path_buf(),
 
             root_directory: root_dir,
-            install_directory: install_dir,
-            result_directory: result_dir,
+            src_directory: src_dir,
+            inst_directory: inst_dir,
+            pkg_directory: pkg_dir,
 
             agent: agent.to_path_buf(),
             nspawn_binary: nspawn_binary.to_path_buf(),
@@ -137,83 +177,48 @@ impl CaseOfficer {
         let mut extra = match mode {
             crate::Mode::IDLE => vec![],
             crate::Mode::QUERY => vec![
-                OsString::from("--read-only"),
-                bind(
-                    true,
-                    self.install_directory.path(),
-                    &Path::new("/gng/install"),
-                ),
-                bind(
-                    true,
-                    self.result_directory.path(),
-                    &Path::new("/gng/results"),
-                ),
-                OsString::from("/gng/build-agent"),
+                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
+                bind(true, &self.src_directory.path(), &src_inside()),
+                bind(true, self.inst_directory.path(), &inst_inside()),
+                bind(true, self.pkg_directory.path(), &pkg_inside()),
+                build_agent_inside().as_os_str().to_owned(),
                 OsString::from("query"),
             ],
             crate::Mode::BUILD => vec![
-                OsString::from("--read-only"),
-                bind(
-                    true,
-                    self.install_directory.path(),
-                    &Path::new("/gng/install"),
-                ),
-                bind(
-                    true,
-                    self.result_directory.path(),
-                    &Path::new("/gng/results"),
-                ),
-                OsString::from("/gng/build-agent"),
+                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
+                bind(false, &self.src_directory.path(), &src_inside()),
+                bind(true, self.inst_directory.path(), &inst_inside()),
+                bind(true, self.pkg_directory.path(), &pkg_inside()),
+                build_agent_inside().as_os_str().to_owned(),
                 OsString::from("build"),
             ],
             crate::Mode::CHECK => vec![
-                OsString::from("--read-only"),
-                bind(
-                    true,
-                    self.install_directory.path(),
-                    &Path::new("/gng/install"),
-                ),
-                bind(
-                    true,
-                    self.result_directory.path(),
-                    &Path::new("/gng/results"),
-                ),
-                OsString::from("/gng/build-agent"),
+                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
+                bind(false, &self.src_directory.path(), &src_inside()),
+                bind(true, self.inst_directory.path(), &inst_inside()),
+                bind(true, self.pkg_directory.path(), &pkg_inside()),
+                build_agent_inside().as_os_str().to_owned(),
                 OsString::from("check"),
             ],
             crate::Mode::INSTALL => vec![
-                OsString::from("--read-only"),
-                bind(
-                    false,
-                    self.install_directory.path(),
-                    &Path::new("/gng/install"),
-                ),
+                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
+                bind(true, &self.src_directory.path(), &src_inside()),
+                bind(false, self.inst_directory.path(), &inst_inside()),
+                bind(true, self.pkg_directory.path(), &pkg_inside()),
                 overlay(&vec![
                     self.root_directory.path().join("usr"),
-                    self.install_directory.path().to_path_buf(),
+                    self.inst_directory.path().to_path_buf(),
                     PathBuf::from("/usr"),
                 ]),
-                bind(
-                    true,
-                    self.result_directory.path(),
-                    &Path::new("/gng/results"),
-                ),
-                OsString::from("/gng/build-agent"),
+                build_agent_inside().as_os_str().to_owned(),
                 OsString::from("install"),
             ],
             crate::Mode::PACKAGE => vec![
-                OsString::from("--read-only"),
-                bind(
-                    true,
-                    self.install_directory.path(),
-                    &Path::new("/gng/install"),
-                ),
-                bind(
-                    true,
-                    self.result_directory.path(),
-                    &Path::new("/gng/results"),
-                ),
-                OsString::from("/gng/build-agent"),
+                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
+                bind(true, &self.src_directory.path(), &src_inside()),
+                bind(true, self.inst_directory.path(), &inst_inside()),
+                bind(false, self.pkg_directory.path(), &pkg_inside()),
+                build_agent_inside().as_os_str().to_owned(),
                 OsString::from("package"),
             ],
         };
@@ -235,6 +240,12 @@ impl CaseOfficer {
                 OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
                 OsString::from("--console=interactive"),
                 OsString::from("--tmpfs=/gng"),
+                OsString::from("--read-only"),
+                setenv("GNG_BUILD_AGENT", &build_agent_inside()),
+                setenv("GNG_PKGSRC_DIR", &pkgsrc_inside()),
+                setenv("GNG_SRC_DIR", &src_inside()),
+                setenv("GNG_INST_DIR", &inst_inside()),
+                setenv("GNG_PKG_DIR", &pkg_inside()),
             ];
 
             let rust_log = std::env::var("RUST_LOG");

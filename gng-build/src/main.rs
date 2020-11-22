@@ -39,7 +39,7 @@ struct Args {
 
     /// The directory with the package build information
     #[structopt(parse(from_os_str), value_name = "DIR")]
-    package_dir: PathBuf,
+    pkgsrc_dir: PathBuf,
 }
 
 // ----------------------------------------------------------------------
@@ -62,7 +62,7 @@ fn main() -> eyre::Result<()> {
     tracing::debug!("Command line arguments: {:#?}", args);
 
     let mut case_officer =
-        gng_build::case_officer::CaseOfficer::new(&args.work_dir, &args.package_dir, &args.agent)
+        gng_build::case_officer::CaseOfficer::new(&args.work_dir, &args.pkgsrc_dir, &args.agent)
             .wrap_err("Failed to initialize build container environment.")?;
 
     case_officer.process()?;

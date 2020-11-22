@@ -69,7 +69,7 @@ impl Mode {
     fn next(self) -> Self {
         match self {
             Mode::IDLE => Mode::IDLE,
-            Mode::QUERY => Mode::BUILD,
+            Mode::QUERY => Mode::BUILD, // default entry point
             Mode::BUILD => Mode::CHECK,
             Mode::CHECK => Mode::INSTALL,
             Mode::INSTALL => Mode::PACKAGE,

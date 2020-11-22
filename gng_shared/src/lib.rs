@@ -14,6 +14,10 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
+// ----------------------------------------------------------------------
+// - Error Handling:
+// ----------------------------------------------------------------------
+
 /// `Error` type for the `gng_shared` library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -33,6 +37,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn is_root() -> bool {
     nix::unistd::Uid::effective().is_root()
 }
+
+// ----------------------------------------------------------------------
+// - Sub-Modules:
+// ----------------------------------------------------------------------
 
 pub mod config;
 pub mod package;
