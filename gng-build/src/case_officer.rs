@@ -236,6 +236,14 @@ impl CaseOfficer {
                 OsString::from("--console=interactive"),
                 OsString::from("--tmpfs=/gng"),
             ];
+
+            let rust_log = std::env::var("RUST_LOG");
+            if rust_log.is_ok() {
+                let mut env_var = OsString::from("--setenv=RUST_LOG=");
+                env_var.push(rust_log.unwrap());
+                result.push(env_var)
+            }
+
             result.append(&mut extra);
             result
         }
