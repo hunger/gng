@@ -15,7 +15,7 @@ impl Url {
     /// Create a new `Url` from a string input
     pub fn new(value: &str) -> crate::Result<Url> {
         if !value.contains("://") {
-            return Err(crate::Error::ConversionError("A URL must contain ://."));
+            return Err(crate::Error::Conversion("A URL must contain ://."));
         }
         Ok(Url(value.to_string()))
     }
@@ -53,7 +53,7 @@ impl GpgKeyId {
             .chars()
             .all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c == ' ') || (c == '-'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 "A GPG Key ID must be hex with optional ' ' or '-' characters.",
             ));
         }
@@ -65,7 +65,7 @@ impl GpgKeyId {
             .map(|c| c.format(""))
             .join(" ");
         if value.chars().count() != (16 + 3) {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 "A GPG Key ID must contain 16 hex digits.",
             ));
         }
@@ -107,7 +107,7 @@ impl Version {
     /// Create a package `Version` from an `epoch`, a `version` and an `release`
     pub fn new(epoch: u32, version: &str, release: &str) -> crate::Result<Version> {
         if version.is_empty() {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 "Version part of a package version can not be empty.",
             ));
         }
@@ -115,7 +115,7 @@ impl Version {
             .chars()
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_') || (c == '.'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package version must consist of numbers, lowercase letters, '.' or '_' characters only.",
             ));
         }
@@ -124,7 +124,7 @@ impl Version {
             .take(1)
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package version must start with a numbers or lowercase letter.",
             ));
         }
@@ -132,7 +132,7 @@ impl Version {
             .chars()
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_') || (c == '.'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.",
             ));
         }
@@ -141,7 +141,7 @@ impl Version {
             .take(1)
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package version release must start with a numbers or lowercase letter.",
             ));
         }
@@ -168,7 +168,7 @@ impl TryFrom<&str> for Version {
         if index > 0 {
             epoch = input[..index]
                 .parse::<u32>()
-                .or(Err(crate::Error::ConversionError(
+                .or(Err(crate::Error::Conversion(
                     "Invalid epoch value in version string found.",
                 )))?;
             index += 1;
@@ -234,16 +234,14 @@ impl Name {
     /// Create a package 'Name' from a '&str'
     pub fn new(value: &str) -> crate::Result<Name> {
         if value.is_empty() {
-            return Err(crate::Error::ConversionError(
-                &"Package name can not be empty.",
-            ));
+            return Err(crate::Error::Conversion(&"Package name can not be empty."));
         }
         if !value
             .chars()
             .take(1)
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package name must start with a number or lowercase letter.",
             ));
         }
@@ -251,7 +249,7 @@ impl Name {
             .chars()
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_'))
         {
-            return Err(crate::Error::ConversionError(
+            return Err(crate::Error::Conversion(
                 &"Package name must consist of numbers, lowercase letter or '_' characters only.",
             ));
         }

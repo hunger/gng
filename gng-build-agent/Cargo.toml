@@ -1,0 +1,15 @@
+[package]
+name = "gng-build-agent"
+version = "0.1.0"
+authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gng_shared = { path = "../gng_shared" }
+
+eyre = { version = "0.6.3" }
+structopt = { version = "0.3.20" }
+tracing = { version = "0.1.21" }
+tracing-subscriber = { version = "0.2.15" }

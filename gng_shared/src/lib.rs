@@ -17,12 +17,9 @@
 /// `Error` type for the `gng_shared` library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// Parsing a toml file failed.
-    #[error("Parse error.")]
-    ParseError(#[from] toml::de::Error),
     /// Conversion error.
     #[error("Conversion error: {0}")]
-    ConversionError(&'static str),
+    Conversion(&'static str),
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]
@@ -31,6 +28,11 @@ pub enum Error {
 
 /// `Result` type for the `gng_shared` library
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Return `true` if the program is run by the `root` user.
+pub fn is_root() -> bool {
+    nix::unistd::Uid::effective().is_root()
+}
 
 pub mod config;
 pub mod package;

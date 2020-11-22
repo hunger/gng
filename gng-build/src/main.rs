@@ -14,43 +14,58 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
-use eyre::Result;
-use gumdrop::Options;
+use std::path::PathBuf;
 
-#[derive(Debug, Options)]
+use eyre::{eyre, WrapErr};
+use structopt::StructOpt;
+
+// - Helper:
+// ----------------------------------------------------------------------
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "gng-build", about = "A package builder for GnG.")]
 struct Args {
-    #[options(help = "print help message")]
-    help: bool,
+    /// configuration file to read
+    #[structopt(long, parse(from_os_str), value_name = "FILE")]
+    config: Option<PathBuf>,
 
-    #[options(help = "config file to read", meta = "<FILE>")]
-    config: Option<String>,
+    /// the directory to work in
+    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    work_dir: PathBuf,
 
-    #[options(command)]
-    command: Option<Command>,
+    /// The build agent to use
+    #[structopt(long, parse(from_os_str), value_name = "EXECUTABLE")]
+    agent: PathBuf,
+
+    /// The directory with the package build information
+    #[structopt(parse(from_os_str), value_name = "DIR")]
+    package_dir: PathBuf,
 }
 
-/// Define the commands understood by `gng-build`.
-#[derive(Debug, Options)]
-enum Command {
-    #[options(help = "show help for a command")]
-    Help(HelpArgs),
-}
-
-/// Command line arguments for the `help` command.
-#[derive(Debug, Options)]
-struct HelpArgs {
-    #[options(free, help = "further arguments")]
-    args: Vec<String>,
-}
+// ----------------------------------------------------------------------
+// - Entry Point:
+// ----------------------------------------------------------------------
 
 /// Entry point of the `gng-build` binary.
-fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+fn main() -> eyre::Result<()> {
+    tracing_subscriber::fmt::try_init()
+        .map_err(|e| eyre!(e))
+        .wrap_err("Failed to set up logging")?;
     tracing::trace!("Tracing subscriber initialized.");
 
-    let args = Args::parse_args_default_or_exit();
+    if !gng_shared::is_root() {
+        return Err(eyre!("This application needs to be run by root."));
+    }
 
-    println!("{:#?}", args);
+    let args = Args::from_args();
+
+    tracing::debug!("Command line arguments: {:#?}", args);
+
+    let mut case_officer =
+        gng_build::case_officer::CaseOfficer::new(&args.work_dir, &args.package_dir, &args.agent)
+            .wrap_err("Failed to initialize build container environment.")?;
+
+    case_officer.process()?;
 
     Ok(())
 }
