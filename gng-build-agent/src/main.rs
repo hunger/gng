@@ -15,7 +15,6 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
 use eyre::{eyre, WrapErr};
-use runestick::FromValue;
 use structopt::StructOpt;
 
 use std::path::Path;

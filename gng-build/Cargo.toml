@@ -13,6 +13,7 @@ repository = "<PRIVATE_REPOSITORY>"
 gng_shared = { path = "../gng_shared" }
 
 eyre = { version = "0.6.3" }
+lazy_static = { version = "1.4.0" }
 structopt = { version = "0.3.20" }
 tempfile = { version = "3.1.0" }
 thiserror = { version = "1.0.22" }

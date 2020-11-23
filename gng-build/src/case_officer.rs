@@ -53,6 +53,11 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
 }
 
 fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
+    lazy_static::lazy_static! {
+        static ref PREFIX: String =
+            std::env::var("GNG_AGENT_OUTPUT_PREFIX").unwrap_or(String::from("AGENT> "));
+    }
+
     let reader = BufReader::new(child.stdout.take().ok_or_else(|| {
         crate::Error::AgentError(String::from("Could not capture stdout of gng-build-agent."))
     })?);
@@ -60,7 +65,7 @@ fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
     reader
         .lines()
         .filter_map(|line| line.ok())
-        .for_each(|line| println!("AGENT> {}", line));
+        .for_each(|line| println!("{}{}", *PREFIX, line));
 
     let exit_status = child.wait()?;
 
@@ -139,11 +144,6 @@ impl CaseOfficer {
             .rand_bytes(6)
             .tempdir_in(&work_directory)?;
         prepare_for_systemd_nspawn(&root_dir.path())?;
-
-        let pkgsrc_dir = tempfile::Builder::new()
-            .prefix("pkgsrc-")
-            .rand_bytes(6)
-            .tempdir_in(&work_directory)?;
 
         let src_dir = tempfile::Builder::new()
             .prefix("src-")

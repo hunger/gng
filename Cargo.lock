@@ -275,6 +275,7 @@ version = "0.1.0"
 dependencies = [
  "eyre",
  "gng_shared",
+ "lazy_static",
  "structopt",
  "tempfile",
  "thiserror",
