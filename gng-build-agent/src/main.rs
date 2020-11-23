@@ -14,13 +14,14 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
+use gng_build_shared::{cnt, env};
+
 use eyre::{eyre, WrapErr};
+use rune::EmitDiagnostics as _;
 use structopt::StructOpt;
 
 use std::path::Path;
 use std::sync::Arc;
-
-use gng_build_shared::{cnt, env};
 
 // - Helpers:
 // ----------------------------------------------------------------------
@@ -50,15 +51,6 @@ fn update_env(key: &str, default: &str) -> String {
     result
 }
 
-fn ls(path: &Path) {
-    let paths = std::fs::read_dir(&path).unwrap();
-
-    println!("Contents of {:?}:", &path);
-    for path in paths {
-        println!("    {}", path.unwrap().path().display())
-    }
-}
-
 // ----------------------------------------------------------------------
 // - Entry Point:
 // ----------------------------------------------------------------------
@@ -84,18 +76,6 @@ fn main() -> eyre::Result<()> {
         std::env::var(env::GNG_AGENT_MESSAGE_PREFIX).unwrap_or(String::from("MSG:"));
     std::env::remove_var(env::GNG_AGENT_MESSAGE_PREFIX);
 
-    for p in vec![
-        Path::new("/"),
-        Path::new("/etc"),
-        Path::new("/usr"),
-        Path::new("/gng"),
-        Path::new("/gng/pkgsrc"),
-    ]
-    .into_iter()
-    {
-        ls(p);
-    }
-
     let context = runestick::Context::with_default_modules()?;
     let mut sources = rune::Sources::new();
 
@@ -108,16 +88,29 @@ fn main() -> eyre::Result<()> {
     let mut errors = rune::Errors::new();
     let mut warnings = rune::Warnings::new();
 
-    let unit = rune::load_sources(
+    let unit = match rune::load_sources(
         &context,
         &rune::Options::default(),
         &mut sources,
         &mut errors,
         &mut warnings,
-    )?;
+    ) {
+        Ok(unit) => unit,
+        Err(rune::LoadSourcesError) => {
+            let mut writer = termcolor::StandardStream::stdout(termcolor::ColorChoice::Auto);
+            errors.emit_diagnostics(&mut writer, &sources)?;
+            return Ok(());
+        }
+    };
+
+    if !warnings.is_empty() {
+        let mut writer = termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto);
+        warnings.emit_diagnostics(&mut writer, &sources)?;
+    }
 
     let vm = runestick::Vm::new(Arc::new(context), Arc::new(unit));
-    let output = vm.execute(&["main"], ())?.complete()?;
+    let output = vm.complete()?;
+    println!("Script result: {:?}.", output);
 
     Ok(())
 }

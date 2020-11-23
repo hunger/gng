@@ -171,35 +171,46 @@ impl CaseOfficer {
         src_ro: bool,
         inst_ro: bool,
         pkg_ro: bool,
+        extra_args: &mut Vec<OsString>,
         mode_arg: &str,
     ) -> Vec<OsString> {
-        vec![
+        let mut result = vec![
             bind(pkgsrc_ro, &self.pkgsrc_directory, &cnt::GNG_PKGSRC_DIR),
             bind(src_ro, &self.src_directory.path(), &cnt::GNG_SRC_DIR),
             bind(inst_ro, self.inst_directory.path(), &cnt::GNG_INST_DIR),
             bind(pkg_ro, self.pkg_directory.path(), &cnt::GNG_PKG_DIR),
-            cnt::GNG_BUILD_AGENT_EXECUTABLE.as_os_str().to_owned(),
-            OsString::from(mode_arg),
-        ]
+        ];
+        result.append(extra_args);
+
+        result.push(cnt::GNG_BUILD_AGENT_EXECUTABLE.as_os_str().to_owned());
+        result.push(OsString::from(mode_arg));
+
+        result
     }
 
     fn mode_arguments(&self, mode: &crate::Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
             crate::Mode::IDLE => vec![],
-            crate::Mode::QUERY => self.mode_args(true, true, true, true, "query"),
-            crate::Mode::BUILD => self.mode_args(true, false, true, true, "build"),
-            crate::Mode::CHECK => self.mode_args(true, false, true, true, "check"),
-            crate::Mode::INSTALL => {
-                let mut v = self.mode_args(true, true, false, true, "install");
-                v.push(overlay(&vec![
+            crate::Mode::QUERY => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
+            crate::Mode::BUILD => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
+            crate::Mode::CHECK => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
+            crate::Mode::INSTALL => self.mode_args(
+                true,
+                true,
+                false,
+                true,
+                &mut vec![overlay(&vec![
                     self.root_directory.path().join("usr"),
                     self.inst_directory.path().to_path_buf(),
                     PathBuf::from("/usr"),
-                ]));
-                v
+                ])],
+                "install",
+            ),
+            crate::Mode::PACKAGE => {
+                self.mode_args(true, true, true, false, &mut Vec::new(), "package")
             }
-            crate::Mode::PACKAGE => self.mode_args(true, true, true, false, "package"),
         };
+
         if extra.is_empty() {
             extra
         } else {

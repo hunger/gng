@@ -295,6 +295,7 @@ dependencies = [
  "rune",
  "runestick",
  "structopt",
+ "termcolor",
  "tracing",
  "tracing-subscriber",
 ]
