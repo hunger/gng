@@ -7,6 +7,10 @@ use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+use rand::Rng;
+
+use gng_build_shared::{cnt, env};
+
 // - Helper:
 // ----------------------------------------------------------------------
 
@@ -52,10 +56,10 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
     result
 }
 
-fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
+fn handle_agent_input(mut child: std::process::Child, message_prefix: String) -> crate::Result<()> {
     lazy_static::lazy_static! {
         static ref PREFIX: String =
-            std::env::var("GNG_AGENT_OUTPUT_PREFIX").unwrap_or(String::from("AGENT> "));
+            std::env::var(env::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
     }
 
     let reader = BufReader::new(child.stdout.take().ok_or_else(|| {
@@ -79,32 +83,20 @@ fn handle_agent_input(mut child: std::process::Child) -> crate::Result<()> {
     }
 }
 
-fn build_agent_inside() -> PathBuf {
-    PathBuf::from("/gng/build-agent")
-}
-
-fn pkgsrc_inside() -> PathBuf {
-    PathBuf::from("/gng/pkgsrc")
-}
-
-fn src_inside() -> PathBuf {
-    PathBuf::from("/gng/src")
-}
-
-fn inst_inside() -> PathBuf {
-    PathBuf::from("/gng/inst")
-}
-
-fn pkg_inside() -> PathBuf {
-    PathBuf::from("/gng/pkg")
-}
-
-fn setenv(name: &str, value: &Path) -> OsString {
+fn setenv(name: &str, value: &str) -> OsString {
     let mut result = OsString::from("--setenv=");
     result.push(name);
     result.push("=");
-    result.push(value.as_os_str());
+    result.push(value);
     result
+}
+
+fn random_string(len: usize) -> String {
+    let mut rng = rand::thread_rng();
+    std::iter::repeat(())
+        .map(|()| rng.sample(rand::distributions::Alphanumeric))
+        .take(len)
+        .collect::<String>()
 }
 
 // ----------------------------------------------------------------------
@@ -173,54 +165,40 @@ impl CaseOfficer {
         })
     }
 
-    fn mode_arguments(&self, mode: &crate::Mode) -> Vec<std::ffi::OsString> {
+    fn mode_args(
+        &self,
+        pkgsrc_ro: bool,
+        src_ro: bool,
+        inst_ro: bool,
+        pkg_ro: bool,
+        mode_arg: &str,
+    ) -> Vec<OsString> {
+        vec![
+            bind(pkgsrc_ro, &self.pkgsrc_directory, &cnt::GNG_PKGSRC_DIR),
+            bind(src_ro, &self.src_directory.path(), &cnt::GNG_SRC_DIR),
+            bind(inst_ro, self.inst_directory.path(), &cnt::GNG_INST_DIR),
+            bind(pkg_ro, self.pkg_directory.path(), &cnt::GNG_PKG_DIR),
+            cnt::GNG_BUILD_AGENT_EXECUTABLE.as_os_str().to_owned(),
+            OsString::from(mode_arg),
+        ]
+    }
+
+    fn mode_arguments(&self, mode: &crate::Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
             crate::Mode::IDLE => vec![],
-            crate::Mode::QUERY => vec![
-                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
-                bind(true, &self.src_directory.path(), &src_inside()),
-                bind(true, self.inst_directory.path(), &inst_inside()),
-                bind(true, self.pkg_directory.path(), &pkg_inside()),
-                build_agent_inside().as_os_str().to_owned(),
-                OsString::from("query"),
-            ],
-            crate::Mode::BUILD => vec![
-                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
-                bind(false, &self.src_directory.path(), &src_inside()),
-                bind(true, self.inst_directory.path(), &inst_inside()),
-                bind(true, self.pkg_directory.path(), &pkg_inside()),
-                build_agent_inside().as_os_str().to_owned(),
-                OsString::from("build"),
-            ],
-            crate::Mode::CHECK => vec![
-                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
-                bind(false, &self.src_directory.path(), &src_inside()),
-                bind(true, self.inst_directory.path(), &inst_inside()),
-                bind(true, self.pkg_directory.path(), &pkg_inside()),
-                build_agent_inside().as_os_str().to_owned(),
-                OsString::from("check"),
-            ],
-            crate::Mode::INSTALL => vec![
-                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
-                bind(true, &self.src_directory.path(), &src_inside()),
-                bind(false, self.inst_directory.path(), &inst_inside()),
-                bind(true, self.pkg_directory.path(), &pkg_inside()),
-                overlay(&vec![
+            crate::Mode::QUERY => self.mode_args(true, true, true, true, "query"),
+            crate::Mode::BUILD => self.mode_args(true, false, true, true, "build"),
+            crate::Mode::CHECK => self.mode_args(true, false, true, true, "check"),
+            crate::Mode::INSTALL => {
+                let mut v = self.mode_args(true, true, false, true, "install");
+                v.push(overlay(&vec![
                     self.root_directory.path().join("usr"),
                     self.inst_directory.path().to_path_buf(),
                     PathBuf::from("/usr"),
-                ]),
-                build_agent_inside().as_os_str().to_owned(),
-                OsString::from("install"),
-            ],
-            crate::Mode::PACKAGE => vec![
-                bind(true, &self.pkgsrc_directory, &pkgsrc_inside()),
-                bind(true, &self.src_directory.path(), &src_inside()),
-                bind(true, self.inst_directory.path(), &inst_inside()),
-                bind(false, self.pkg_directory.path(), &pkg_inside()),
-                build_agent_inside().as_os_str().to_owned(),
-                OsString::from("package"),
-            ],
+                ]));
+                v
+            }
+            crate::Mode::PACKAGE => self.mode_args(true, true, true, false, "package"),
         };
         if extra.is_empty() {
             extra
@@ -241,11 +219,15 @@ impl CaseOfficer {
                 OsString::from("--console=interactive"),
                 OsString::from("--tmpfs=/gng"),
                 OsString::from("--read-only"),
-                setenv("GNG_BUILD_AGENT", &build_agent_inside()),
-                setenv("GNG_PKGSRC_DIR", &pkgsrc_inside()),
-                setenv("GNG_SRC_DIR", &src_inside()),
-                setenv("GNG_INST_DIR", &inst_inside()),
-                setenv("GNG_PKG_DIR", &pkg_inside()),
+                setenv(
+                    env::GNG_BUILD_AGENT,
+                    &cnt::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
+                ),
+                setenv(env::GNG_PKGSRC_DIR, &cnt::GNG_PKGSRC_DIR.to_str().unwrap()),
+                setenv(env::GNG_SRC_DIR, &cnt::GNG_SRC_DIR.to_str().unwrap()),
+                setenv(env::GNG_INST_DIR, &cnt::GNG_INST_DIR.to_str().unwrap()),
+                setenv(env::GNG_PKG_DIR, &cnt::GNG_PKG_DIR.to_str().unwrap()),
+                setenv(env::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
             ];
 
             let rust_log = std::env::var("RUST_LOG");
@@ -265,8 +247,10 @@ impl CaseOfficer {
     fn switch_mode(&mut self, new_mode: &crate::Mode) -> crate::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
+        let message_prefix = random_string(8);
+
         // Start agent:
-        let nspawn_args = self.mode_arguments(new_mode);
+        let nspawn_args = self.mode_arguments(new_mode, &message_prefix);
         assert!(!nspawn_args.is_empty());
 
         tracing::debug!(
@@ -281,7 +265,7 @@ impl CaseOfficer {
             .stdout(std::process::Stdio::piped())
             .spawn()?;
 
-        handle_agent_input(child)?;
+        handle_agent_input(child, message_prefix)?;
 
         Ok(())
     }

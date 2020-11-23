@@ -20,6 +20,8 @@ use structopt::StructOpt;
 use std::path::Path;
 use std::sync::Arc;
 
+use gng_build_shared::{cnt, env};
+
 // - Helpers:
 // ----------------------------------------------------------------------
 
@@ -73,10 +75,14 @@ fn main() -> eyre::Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    let pkgsrc_dir = update_env("GNG_PKGSRC_DIR", "/gng/pkgsrc");
-    let src_dir = update_env("GNG_SRC_DIR", "/gng/src");
-    let inst_dir = update_env("GNG_INST_DIR", "/gng/inst");
-    let pkg_dir = update_env("GNG_PKG_DIR", "/gng/pkg");
+    let pkgsrc_dir = update_env(env::GNG_PKGSRC_DIR, cnt::GNG_PKGSRC_DIR.to_str().unwrap());
+    let src_dir = update_env(env::GNG_SRC_DIR, cnt::GNG_SRC_DIR.to_str().unwrap());
+    let inst_dir = update_env(env::GNG_INST_DIR, cnt::GNG_INST_DIR.to_str().unwrap());
+    let pkg_dir = update_env(env::GNG_PKG_DIR, cnt::GNG_PKG_DIR.to_str().unwrap());
+
+    let message_prefix =
+        std::env::var(env::GNG_AGENT_MESSAGE_PREFIX).unwrap_or(String::from("MSG:"));
+    std::env::remove_var(env::GNG_AGENT_MESSAGE_PREFIX);
 
     for p in vec![
         Path::new("/"),
@@ -93,10 +99,11 @@ fn main() -> eyre::Result<()> {
     let context = runestick::Context::with_default_modules()?;
     let mut sources = rune::Sources::new();
 
-    sources.insert(
-        runestick::Source::from_path(&Path::new(&pkgsrc_dir).join("build.rune"))
-            .wrap_err(format!("Failed to load \"{}/build.rune\".", &pkgsrc_dir))?,
-    );
+    let build_rn = Path::new(&pkgsrc_dir).join("build.rn");
+    sources.insert(runestick::Source::from_path(&build_rn).wrap_err(format!(
+        "Failed to load \"{}\".",
+        &build_rn.to_string_lossy()
+    ))?);
 
     let mut errors = rune::Errors::new();
     let mut warnings = rune::Warnings::new();

@@ -10,10 +10,12 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "<PRIVATE_REPOSITORY>"
 
 [dependencies]
+gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
 
 eyre = { version = "0.6.3" }
 lazy_static = { version = "1.4.0" }
+rand = { version = "0.7.3" }
 structopt = { version = "0.3.20" }
 tempfile = { version = "3.1.0" }
 thiserror = { version = "1.0.22" }
