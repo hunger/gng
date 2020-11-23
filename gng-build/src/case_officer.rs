@@ -17,7 +17,7 @@ use gng_build_shared::{cnt, env};
 const BUILDER_MACHINE_ID: &str = "0bf95bb771364ef997e1df5eb3b26422";
 
 #[tracing::instrument]
-fn prepare_for_systemd_nspawn(root_directory: &Path) -> crate::Result<()> {
+fn prepare_for_systemd_nspawn(root_directory: &Path) -> eyre::Result<()> {
     std::fs::create_dir(root_directory.join("usr"))?;
     std::fs::create_dir(root_directory.join("tmp"))?;
     std::fs::create_dir(root_directory.join("run"))?;
@@ -56,15 +56,18 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
     result
 }
 
-fn handle_agent_input(mut child: std::process::Child, message_prefix: String) -> crate::Result<()> {
+fn handle_agent_input(mut child: std::process::Child, message_prefix: String) -> eyre::Result<()> {
     lazy_static::lazy_static! {
         static ref PREFIX: String =
             std::env::var(env::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
     }
 
-    let reader = BufReader::new(child.stdout.take().ok_or_else(|| {
-        crate::Error::AgentError(String::from("Could not capture stdout of gng-build-agent."))
-    })?);
+    let reader = BufReader::new(
+        child
+            .stdout
+            .take()
+            .ok_or_else(|| eyre::eyre!("Could not capture stdout of gng-build-agent."))?,
+    );
 
     reader
         .lines()
@@ -75,11 +78,11 @@ fn handle_agent_input(mut child: std::process::Child, message_prefix: String) ->
 
     match exit_status.code() {
         Some(0) => Ok(()),
-        Some(exit_code) => Err(crate::Error::AgentError(format!(
+        Some(exit_code) => Err(eyre::eyre!(format!(
             "Agent failed with exit-status: {}.",
             exit_code
         ))),
-        None => Err(crate::Error::AgentError(format!("Agent killed by signal."))),
+        None => Err(eyre::eyre!(format!("Agent killed by signal."))),
     }
 }
 
@@ -121,14 +124,10 @@ pub struct CaseOfficer {
 impl CaseOfficer {
     /// Create a new `CaseOfficer`
     #[tracing::instrument]
-    pub fn new(
-        work_directory: &Path,
-        pkgsrc_directory: &Path,
-        agent: &Path,
-    ) -> crate::Result<Self> {
+    pub fn new(work_directory: &Path, pkgsrc_directory: &Path, agent: &Path) -> eyre::Result<Self> {
         let nspawn_binary = Path::new("/usr/bin/systemd-nspawn");
         if !nspawn_binary.is_file() {
-            return Err(crate::Error::FileMissing(nspawn_binary.to_path_buf()));
+            return Err(eyre::eyre!("systemd-nspawn binary not found."));
         }
 
         let root_dir = tempfile::Builder::new()
@@ -255,7 +254,7 @@ impl CaseOfficer {
 
     /// Switch into a new `Mode` of operation
     #[tracing::instrument]
-    fn switch_mode(&mut self, new_mode: &crate::Mode) -> crate::Result<()> {
+    fn switch_mode(&mut self, new_mode: &crate::Mode) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
         let message_prefix = random_string(8);
@@ -264,7 +263,7 @@ impl CaseOfficer {
         let nspawn_args = self.mode_arguments(new_mode, &message_prefix);
         assert!(!nspawn_args.is_empty());
 
-        tracing::debug!(
+        tracing::trace!(
             "Starting systemd-nspawn process with arguments {:?}.",
             nspawn_args
         );
@@ -282,7 +281,7 @@ impl CaseOfficer {
     }
 
     /// Process a build
-    pub fn process(&mut self) -> crate::Result<()> {
+    pub fn process(&mut self) -> eyre::Result<()> {
         let mut mode = crate::Mode::default();
 
         while mode != crate::Mode::IDLE {

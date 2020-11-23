@@ -15,30 +15,6 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
 // ----------------------------------------------------------------------
-// - Error Handling:
-// ----------------------------------------------------------------------
-
-/// `Error` type for the `gng_shared` library
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    /// IO Error
-    #[error("IO Error")]
-    IoError(#[from] std::io::Error),
-    /// An expected file could not be found:
-    #[error("File missing: {0} was expected to exist.")]
-    FileMissing(std::path::PathBuf),
-    /// Error setting up a `gng-build-agent`:
-    #[error("Agent error: {0}")]
-    AgentError(String),
-    /// Not sure what actually went wrong...
-    #[error("unknown error")]
-    Unknown,
-}
-
-/// `Result` type for the `gng_shared` library
-pub type Result<T> = std::result::Result<T, Error>;
-
-// ----------------------------------------------------------------------
 // - Modes:
 // ----------------------------------------------------------------------
 
