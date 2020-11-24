@@ -15,7 +15,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
 use gng_build_agent::engine::EngineBuilder;
-use gng_build_shared::{cnt, env};
+use gng_build_shared::constants::container as cc;
+use gng_build_shared::constants::environment as ce;
 
 use structopt::StructOpt;
 
@@ -51,8 +52,8 @@ fn get_env(key: &str, default: &str) -> String {
 
 fn get_message_prefix() -> String {
     let message_prefix =
-        std::env::var(env::GNG_AGENT_MESSAGE_PREFIX).unwrap_or(String::from("MSG:"));
-    std::env::remove_var(env::GNG_AGENT_MESSAGE_PREFIX);
+        std::env::var(ce::GNG_AGENT_MESSAGE_PREFIX).unwrap_or(String::from("MSG:"));
+    std::env::remove_var(ce::GNG_AGENT_MESSAGE_PREFIX);
 
     message_prefix
 }
@@ -74,30 +75,29 @@ fn main() -> eyre::Result<()> {
 
     let message_prefix = get_message_prefix();
 
-    let pkgsrc_dir = get_env(env::GNG_PKGSRC_DIR, cnt::GNG_PKGSRC_DIR.to_str().unwrap());
+    let pkgsrc_dir = get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKGSRC_DIR.to_str().unwrap());
 
     let mut engine_builder = EngineBuilder::default();
     engine_builder.push_constant("PKGSRC_DIR", pkgsrc_dir.clone().into());
     engine_builder.push_constant(
         "SRC_DIR",
-        get_env(env::GNG_PKGSRC_DIR, cnt::GNG_PKGSRC_DIR.to_str().unwrap()).into(),
+        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKGSRC_DIR.to_str().unwrap()).into(),
     );
     engine_builder.push_constant(
         "INST_DIR",
-        get_env(env::GNG_PKGSRC_DIR, cnt::GNG_INST_DIR.to_str().unwrap()).into(),
+        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_INST_DIR.to_str().unwrap()).into(),
     );
     engine_builder.push_constant(
         "PKG_DIR",
-        get_env(env::GNG_PKGSRC_DIR, cnt::GNG_PKG_DIR.to_str().unwrap()).into(),
+        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKG_DIR.to_str().unwrap()).into(),
     );
 
     let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
     let pkg_name = engine.evaluate::<String>("name")?;
     let pkg_version = engine.evaluate::<String>("version")?;
 
-    let build_result = engine.evaluate::<()>("let br = build(); br")?;
-
     println!("Building version {} of \"{}\".", pkg_version, pkg_name);
+    engine.call::<()>("build")?;
 
     Ok(())
 }

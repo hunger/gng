@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 
 use rand::Rng;
 
-use gng_build_shared::{cnt, env};
+use gng_build_shared::constants::container as cc;
+use gng_build_shared::constants::environment as ce;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -59,7 +60,7 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
 fn handle_agent_input(mut child: std::process::Child, message_prefix: String) -> eyre::Result<()> {
     lazy_static::lazy_static! {
         static ref PREFIX: String =
-            std::env::var(env::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
+            std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
     }
 
     let reader = BufReader::new(
@@ -174,14 +175,14 @@ impl CaseOfficer {
         mode_arg: &str,
     ) -> Vec<OsString> {
         let mut result = vec![
-            bind(pkgsrc_ro, &self.pkgsrc_directory, &cnt::GNG_PKGSRC_DIR),
-            bind(src_ro, &self.src_directory.path(), &cnt::GNG_SRC_DIR),
-            bind(inst_ro, self.inst_directory.path(), &cnt::GNG_INST_DIR),
-            bind(pkg_ro, self.pkg_directory.path(), &cnt::GNG_PKG_DIR),
+            bind(pkgsrc_ro, &self.pkgsrc_directory, &cc::GNG_PKGSRC_DIR),
+            bind(src_ro, &self.src_directory.path(), &cc::GNG_SRC_DIR),
+            bind(inst_ro, self.inst_directory.path(), &cc::GNG_INST_DIR),
+            bind(pkg_ro, self.pkg_directory.path(), &cc::GNG_PKG_DIR),
         ];
         result.append(extra_args);
 
-        result.push(cnt::GNG_BUILD_AGENT_EXECUTABLE.as_os_str().to_owned());
+        result.push(cc::GNG_BUILD_AGENT_EXECUTABLE.as_os_str().to_owned());
         result.push(OsString::from(mode_arg));
 
         result
@@ -230,14 +231,14 @@ impl CaseOfficer {
                 OsString::from("--tmpfs=/gng"),
                 OsString::from("--read-only"),
                 setenv(
-                    env::GNG_BUILD_AGENT,
-                    &cnt::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
+                    ce::GNG_BUILD_AGENT,
+                    &cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
                 ),
-                setenv(env::GNG_PKGSRC_DIR, &cnt::GNG_PKGSRC_DIR.to_str().unwrap()),
-                setenv(env::GNG_SRC_DIR, &cnt::GNG_SRC_DIR.to_str().unwrap()),
-                setenv(env::GNG_INST_DIR, &cnt::GNG_INST_DIR.to_str().unwrap()),
-                setenv(env::GNG_PKG_DIR, &cnt::GNG_PKG_DIR.to_str().unwrap()),
-                setenv(env::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
+                setenv(ce::GNG_PKGSRC_DIR, &cc::GNG_PKGSRC_DIR.to_str().unwrap()),
+                setenv(ce::GNG_SRC_DIR, &cc::GNG_SRC_DIR.to_str().unwrap()),
+                setenv(ce::GNG_INST_DIR, &cc::GNG_INST_DIR.to_str().unwrap()),
+                setenv(ce::GNG_PKG_DIR, &cc::GNG_PKG_DIR.to_str().unwrap()),
+                setenv(ce::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
             ];
 
             let rust_log = std::env::var("RUST_LOG");
