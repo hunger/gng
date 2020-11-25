@@ -21,10 +21,10 @@
 /// The `Mode` of operation
 #[derive(Clone, Debug, PartialEq)]
 pub enum Mode {
-    /// The `gng-build-agent` is idle
-    IDLE,
     /// The `gng-build-agent` is run in `query` mode
     QUERY,
+    /// The `gng-build-agent` is run in `prepare` mode
+    PREPARE,
     /// The `gng-build-agent` is run in `build` mode
     BUILD,
     /// The `gng-build-agent` is run in `check` mode
@@ -42,14 +42,15 @@ impl Default for Mode {
 }
 
 impl Mode {
-    fn next(self) -> Self {
+    /// The next mode to go to
+    pub fn next(self) -> Option<Self> {
         match self {
-            Mode::IDLE => Mode::IDLE,
-            Mode::QUERY => Mode::BUILD, // default entry point
-            Mode::BUILD => Mode::CHECK,
-            Mode::CHECK => Mode::INSTALL,
-            Mode::INSTALL => Mode::PACKAGE,
-            Mode::PACKAGE => Mode::IDLE,
+            Mode::QUERY => Some(Mode::PREPARE), // default entry point
+            Mode::PREPARE => Some(Mode::BUILD), // default entry point
+            Mode::BUILD => Some(Mode::CHECK),
+            Mode::CHECK => Some(Mode::INSTALL),
+            Mode::INSTALL => Some(Mode::PACKAGE),
+            Mode::PACKAGE => None,
         }
     }
 }

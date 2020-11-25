@@ -3,12 +3,37 @@
 
 //! The script engine driving the `gng-build-agent`
 
-use eyre::WrapErr;
+use gng_shared::package::{Name, Version};
 
+use eyre::WrapErr;
+use rhai::{ImmutableString, RegisterResultFn};
+
+use std::convert::TryFrom;
 use std::path::Path;
 
 // - Helpers:
 // ----------------------------------------------------------------------
+
+// - Custom Functions:
+// ----------------------------------------------------------------------
+
+fn name_constructor(
+    name: ImmutableString,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    match Name::try_from(name.as_str()) {
+        Err(e) => Err(e.to_string().into()),
+        Ok(v) => Ok(rhai::Dynamic::from(v)),
+    }
+}
+
+fn version_constructor(
+    version: ImmutableString,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    match Version::try_from(version.as_str()) {
+        Err(e) => Err(e.to_string().into()),
+        Ok(v) => Ok(rhai::Dynamic::from(v)),
+    }
+}
 
 // ----------------------------------------------------------------------
 // - Engine:
@@ -44,14 +69,19 @@ impl<'a> EngineBuilder<'a> {
 
     /// Evaluate a script fil
     pub fn eval_pkgsrc_directory(&mut self, pkgsrc_dir: &Path) -> eyre::Result<Engine<'a>> {
-        let engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
+        let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
 
         let build_file = Path::new(pkgsrc_dir).join("build.rhai");
         let build_file_str = build_file.to_string_lossy().into_owned();
 
-        let ast = engine.compile_file_with_scope(&mut scope, build_file)?;
+        engine
+            .register_type::<Name>()
+            .register_type::<Version>()
+            .register_result_fn("n", name_constructor)
+            .register_result_fn("v", version_constructor);
 
+        let ast = engine.compile_file_with_scope(&mut scope, build_file)?;
         engine.eval_ast_with_scope(&mut scope, &ast)?;
 
         Ok(Engine {

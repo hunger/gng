@@ -17,6 +17,7 @@
 use gng_build_agent::engine::EngineBuilder;
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
+use gng_shared::package::{Name, Version};
 
 use structopt::StructOpt;
 
@@ -34,6 +35,8 @@ use std::path::Path;
 enum Args {
     /// query package definition file
     QUERY,
+    /// prepare the sources for the build
+    PREPARE,
     /// run the actual build process
     BUILD,
     /// Run tests and other checks
@@ -93,8 +96,8 @@ fn main() -> eyre::Result<()> {
     );
 
     let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
-    let pkg_name = engine.evaluate::<String>("name")?;
-    let pkg_version = engine.evaluate::<String>("version")?;
+    let pkg_name = engine.evaluate::<Name>("name")?;
+    let pkg_version = engine.evaluate::<Version>("version")?;
 
     println!("Building version {} of \"{}\".", pkg_version, pkg_name);
     engine.call::<()>("build")?;

@@ -3,14 +3,16 @@
 
 //! A object used to handle `gng-build-agent`s
 
+use crate::Mode;
+
+use gng_build_shared::constants::container as cc;
+use gng_build_shared::constants::environment as ce;
+
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use rand::Rng;
-
-use gng_build_shared::constants::container as cc;
-use gng_build_shared::constants::environment as ce;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -188,13 +190,16 @@ impl CaseOfficer {
         result
     }
 
-    fn mode_arguments(&self, mode: &crate::Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
+    fn mode_arguments(&self, mode: &Option<Mode>, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
-            crate::Mode::IDLE => vec![],
-            crate::Mode::QUERY => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
-            crate::Mode::BUILD => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
-            crate::Mode::CHECK => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
-            crate::Mode::INSTALL => self.mode_args(
+            None => vec![],
+            Some(Mode::QUERY) => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
+            Some(Mode::PREPARE) => {
+                self.mode_args(true, false, true, true, &mut Vec::new(), "prepare")
+            }
+            Some(Mode::BUILD) => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
+            Some(Mode::CHECK) => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
+            Some(Mode::INSTALL) => self.mode_args(
                 true,
                 true,
                 false,
@@ -206,7 +211,7 @@ impl CaseOfficer {
                 ])],
                 "install",
             ),
-            crate::Mode::PACKAGE => {
+            Some(Mode::PACKAGE) => {
                 self.mode_args(true, true, true, false, &mut Vec::new(), "package")
             }
         };
@@ -255,7 +260,7 @@ impl CaseOfficer {
 
     /// Switch into a new `Mode` of operation
     #[tracing::instrument]
-    fn switch_mode(&mut self, new_mode: &crate::Mode) -> eyre::Result<()> {
+    fn switch_mode(&mut self, new_mode: &Option<Mode>) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
         let message_prefix = random_string(8);
@@ -283,11 +288,11 @@ impl CaseOfficer {
 
     /// Process a build
     pub fn process(&mut self) -> eyre::Result<()> {
-        let mut mode = crate::Mode::default();
+        let mut mode = Some(Mode::default());
 
-        while mode != crate::Mode::IDLE {
+        while mode.is_some() {
             self.switch_mode(&mode)?;
-            mode = mode.next()
+            mode = mode.expect("is_some() was true above!").next();
         }
 
         Ok(())
