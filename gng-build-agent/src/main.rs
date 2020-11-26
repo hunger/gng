@@ -96,10 +96,10 @@ fn main() -> eyre::Result<()> {
     );
 
     let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
-    let pkg_name = engine.evaluate::<Name>("name")?;
+    let pkg_base_name = engine.evaluate::<Name>("base")?;
     let pkg_version = engine.evaluate::<Version>("version")?;
 
-    println!("Building version {} of \"{}\".", pkg_version, pkg_name);
+    println!("Building version {} of \"{}\".", pkg_version, pkg_base_name);
     engine.call::<()>("build")?;
 
     Ok(())
