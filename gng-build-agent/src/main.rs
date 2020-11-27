@@ -14,10 +14,9 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
-use gng_build_agent::engine::EngineBuilder;
+use gng_build_agent::source_package::SourcePackage;
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
-use gng_shared::package::{Name, Version};
 
 use structopt::StructOpt;
 
@@ -61,7 +60,38 @@ fn get_message_prefix() -> String {
     message_prefix
 }
 
+fn send_message(message_prefix: &str, message_type: &str, message: &str) {
+    println!("MSG_{}_{}: {}", message_prefix, message_type, message);
+}
+
 // ----------------------------------------------------------------------
+// - Commands:
+// ----------------------------------------------------------------------
+fn query(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    Ok(())
+}
+
+fn prepare(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    todo!();
+}
+
+fn build(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    todo!();
+}
+
+fn check(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    todo!();
+}
+
+fn install(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    todo!();
+}
+
+fn package(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+    todo!();
+}
+
+// ----------------------------------------------------
 // - Entry Point:
 // ----------------------------------------------------------------------
 
@@ -80,7 +110,7 @@ fn main() -> eyre::Result<()> {
 
     let pkgsrc_dir = get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKGSRC_DIR.to_str().unwrap());
 
-    let mut engine_builder = EngineBuilder::default();
+    let mut engine_builder = gng_build_agent::engine::EngineBuilder::default();
     engine_builder.push_constant("PKGSRC_DIR", pkgsrc_dir.clone().into());
     engine_builder.push_constant(
         "SRC_DIR",
@@ -95,12 +125,24 @@ fn main() -> eyre::Result<()> {
         get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKG_DIR.to_str().unwrap()).into(),
     );
 
-    let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
-    let pkg_base_name = engine.evaluate::<Name>("base")?;
-    let pkg_version = engine.evaluate::<Version>("version")?;
+    let source_package = gng_build_agent::source_package::SourcePackage::new(
+        engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?,
+    )?;
 
-    println!("Building version {} of \"{}\".", pkg_version, pkg_base_name);
-    engine.call::<()>("build")?;
+    tracing::trace!("Read build.rhai file for {}", source_package);
 
-    Ok(())
+    send_message(
+        &message_prefix,
+        "DATA",
+        &serde_json::to_string(&source_package)?,
+    );
+
+    match args {
+        Args::QUERY => query(&source_package, &message_prefix),
+        Args::PREPARE => prepare(&source_package, &message_prefix),
+        Args::BUILD => build(&source_package, &message_prefix),
+        Args::CHECK => check(&source_package, &message_prefix),
+        Args::INSTALL => install(&source_package, &message_prefix),
+        Args::PACKAGE => package(&source_package, &message_prefix),
+    }
 }

@@ -12,6 +12,8 @@ gng_shared = { path = "../gng_shared" }
 
 eyre = { version = "0.6.3" }
 rhai = { version = "0.19.5", features = [ "sync", "only_i64" ] }
+serde = { version = "1.0.117" }
+serde_json = { version = "1.0.59" }
 structopt = { version = "0.3.20" }
 tracing = { version = "0.1.21" }
 tracing-subscriber = { version = "0.2.15" }

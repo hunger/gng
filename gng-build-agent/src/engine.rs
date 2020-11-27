@@ -3,7 +3,7 @@
 
 //! The script engine driving the `gng-build-agent`
 
-use gng_shared::package::{Name, Version};
+use gng_shared::package::{Hash, Name, Version};
 
 use eyre::WrapErr;
 use rhai::{ImmutableString, RegisterResultFn};
@@ -14,13 +14,29 @@ use std::path::Path;
 // - Helpers:
 // ----------------------------------------------------------------------
 
+fn register_simple_type<T>(engine: &mut rhai::Engine)
+where
+    T: Clone + PartialEq + Send + Sync + 'static,
+{
+    engine.register_type::<T>();
+}
+
+fn register_custom_types(engine: &mut rhai::Engine) {
+    register_simple_type::<Hash>(engine);
+    engine.register_result_fn("h", hash_constructor);
+    register_simple_type::<Name>(engine);
+    engine.register_result_fn("n", name_constructor);
+    register_simple_type::<Version>(engine);
+    engine.register_result_fn("v", version_constructor);
+}
+
 // - Custom Functions:
 // ----------------------------------------------------------------------
 
 fn name_constructor(
     name: ImmutableString,
 ) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Name::try_from(name.as_str()) {
+    match Name::try_from(name.to_string()) {
         Err(e) => Err(e.to_string().into()),
         Ok(v) => Ok(rhai::Dynamic::from(v)),
     }
@@ -29,7 +45,16 @@ fn name_constructor(
 fn version_constructor(
     version: ImmutableString,
 ) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Version::try_from(version.as_str()) {
+    match Version::try_from(version.to_string()) {
+        Err(e) => Err(e.to_string().into()),
+        Ok(v) => Ok(rhai::Dynamic::from(v)),
+    }
+}
+
+fn hash_constructor(
+    version: ImmutableString,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    match Hash::try_from(version.to_string()) {
         Err(e) => Err(e.to_string().into()),
         Ok(v) => Ok(rhai::Dynamic::from(v)),
     }
@@ -72,14 +97,13 @@ impl<'a> EngineBuilder<'a> {
         let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
 
+        // Push default values
+        scope.push("bug_url", String::new());
+
         let build_file = Path::new(pkgsrc_dir).join("build.rhai");
         let build_file_str = build_file.to_string_lossy().into_owned();
 
-        engine
-            .register_type::<Name>()
-            .register_type::<Version>()
-            .register_result_fn("n", name_constructor)
-            .register_result_fn("v", version_constructor);
+        register_custom_types(&mut engine);
 
         let ast = engine.compile_file_with_scope(&mut scope, build_file)?;
         engine.eval_ast_with_scope(&mut scope, &ast)?;
@@ -113,6 +137,25 @@ impl<'a> Engine<'a> {
                 "Failed to extract \"{}\" from {}.",
                 expression, &self.script_file
             ))
+    }
+
+    /// Evaluate an expression holing an Array
+    pub fn evaluate_array<T>(&mut self, expression: &str) -> eyre::Result<Vec<T>>
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        let array = self.evaluate::<rhai::Array>(expression)?;
+
+        let mut result = Vec::<T>::with_capacity(array.len());
+        for d in array {
+            let t = d.try_cast::<T>();
+            if t.is_none() {
+                return Err(eyre::eyre!("Unexpected type found in array."));
+            }
+            result.push(t.unwrap());
+        }
+
+        Ok(result)
     }
 
     /// Call a function (without arguments!)

@@ -228,6 +228,8 @@ dependencies = [
  "gng_build_shared",
  "gng_shared",
  "rhai",
+ "serde",
+ "serde_json",
  "structopt",
  "tracing",
  "tracing-subscriber",

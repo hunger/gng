@@ -59,7 +59,7 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
     result
 }
 
-fn handle_agent_input(mut child: std::process::Child, message_prefix: String) -> eyre::Result<()> {
+fn handle_agent_input(mut child: std::process::Child, _message_prefix: String) -> eyre::Result<()> {
     lazy_static::lazy_static! {
         static ref PREFIX: String =
             std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
