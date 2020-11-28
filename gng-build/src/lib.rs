@@ -60,3 +60,4 @@ impl Mode {
 // ----------------------------------------------------------------------
 
 pub mod case_officer;
+pub mod message_handler;

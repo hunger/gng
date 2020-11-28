@@ -60,6 +60,35 @@ pub mod constants {
     }
 }
 
+/// Types of messages going from `gng-build-agent` back to `gng-build`
+#[derive(Clone, Debug, PartialEq)]
+pub enum MessageType {
+    /// Source package data
+    DATA,
+}
+
+impl std::convert::TryFrom<String> for MessageType {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if &value == "DATA" {
+            Ok(MessageType::DATA)
+        } else {
+            Err(format!("Failed to convert {} to MessageType", value))
+        }
+    }
+}
+
+impl std::convert::From<&MessageType> for String {
+    fn from(mt: &MessageType) -> Self {
+        let result = match mt {
+            MessageType::DATA => String::from("DATA"),
+        };
+        assert_eq!(result.len(), 4);
+        result
+    }
+}
+
 // ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------

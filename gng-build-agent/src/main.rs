@@ -60,8 +60,13 @@ fn get_message_prefix() -> String {
     message_prefix
 }
 
-fn send_message(message_prefix: &str, message_type: &str, message: &str) {
-    println!("MSG_{}_{}: {}", message_prefix, message_type, message);
+fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageType, message: &str) {
+    println!(
+        "MSG_{}_{}: {}",
+        message_prefix,
+        String::from(message_type),
+        message
+    );
 }
 
 // ----------------------------------------------------------------------
@@ -133,7 +138,7 @@ fn main() -> eyre::Result<()> {
 
     send_message(
         &message_prefix,
-        "DATA",
+        &gng_build_shared::MessageType::DATA,
         &serde_json::to_string(&source_package)?,
     );
 

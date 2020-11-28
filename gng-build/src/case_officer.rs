@@ -3,11 +3,13 @@
 
 //! A object used to handle `gng-build-agent`s
 
+use crate::message_handler::MessageHandler;
 use crate::Mode;
 
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
 
+use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -18,6 +20,8 @@ use rand::Rng;
 // ----------------------------------------------------------------------
 
 const BUILDER_MACHINE_ID: &str = "0bf95bb771364ef997e1df5eb3b26422";
+
+const MESSAGE_PREFIX_LEN: usize = 8;
 
 #[tracing::instrument]
 fn prepare_for_systemd_nspawn(root_directory: &Path) -> eyre::Result<()> {
@@ -59,36 +63,6 @@ fn overlay(paths: &Vec<PathBuf>) -> OsString {
     result
 }
 
-fn handle_agent_input(mut child: std::process::Child, _message_prefix: String) -> eyre::Result<()> {
-    lazy_static::lazy_static! {
-        static ref PREFIX: String =
-            std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
-    }
-
-    let reader = BufReader::new(
-        child
-            .stdout
-            .take()
-            .ok_or_else(|| eyre::eyre!("Could not capture stdout of gng-build-agent."))?,
-    );
-
-    reader
-        .lines()
-        .filter_map(|line| line.ok())
-        .for_each(|line| println!("{}{}", *PREFIX, line));
-
-    let exit_status = child.wait()?;
-
-    match exit_status.code() {
-        Some(0) => Ok(()),
-        Some(exit_code) => Err(eyre::eyre!(format!(
-            "Agent failed with exit-status: {}.",
-            exit_code
-        ))),
-        None => Err(eyre::eyre!(format!("Agent killed by signal."))),
-    }
-}
-
 fn setenv(name: &str, value: &str) -> OsString {
     let mut result = OsString::from("--setenv=");
     result.push(name);
@@ -105,12 +79,35 @@ fn random_string(len: usize) -> String {
         .collect::<String>()
 }
 
+fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a str, &'a str) {
+    if line.len() < 4 /* "MSG_" */ + MESSAGE_PREFIX_LEN + 7
+    /* "_TYPE: " */
+    {
+        return ("", line);
+    }
+    if !line.starts_with("MSG_") {
+        return ("", line);
+    }
+
+    if &line[4..4 + MESSAGE_PREFIX_LEN] != message_prefix {
+        return ("", line);
+    }
+
+    if !line[4 + MESSAGE_PREFIX_LEN + 1 + 4..].starts_with(": ") {
+        return ("", line);
+    }
+
+    (
+        &line[4 + MESSAGE_PREFIX_LEN + 1..4 + MESSAGE_PREFIX_LEN + 1 + 4],
+        &line[4 + MESSAGE_PREFIX_LEN + 8..],
+    )
+}
+
 // ----------------------------------------------------------------------
 // - CaseOfficer:
 // ----------------------------------------------------------------------
 
 /// The controller of the `gng-build-agent`
-#[derive(Debug)]
 pub struct CaseOfficer {
     pkgsrc_directory: PathBuf,
 
@@ -122,11 +119,12 @@ pub struct CaseOfficer {
     agent: PathBuf,
 
     nspawn_binary: PathBuf,
+
+    message_handlers: Vec<Box<dyn MessageHandler>>,
 }
 
 impl CaseOfficer {
     /// Create a new `CaseOfficer`
-    #[tracing::instrument]
     pub fn new(work_directory: &Path, pkgsrc_directory: &Path, agent: &Path) -> eyre::Result<Self> {
         let nspawn_binary = Path::new("/usr/bin/systemd-nspawn");
         if !nspawn_binary.is_file() {
@@ -154,6 +152,11 @@ impl CaseOfficer {
             .rand_bytes(6)
             .tempdir_in(&work_directory)?;
 
+        let mut handlers: Vec<Box<dyn MessageHandler>> = Vec::new();
+        handlers.push(Box::new(
+            crate::message_handler::ImmutableSourceDataHandler::default(),
+        ));
+
         Ok(CaseOfficer {
             pkgsrc_directory: pkgsrc_directory.to_path_buf(),
 
@@ -164,6 +167,8 @@ impl CaseOfficer {
 
             agent: agent.to_path_buf(),
             nspawn_binary: nspawn_binary.to_path_buf(),
+
+            message_handlers: handlers,
         })
     }
 
@@ -190,16 +195,13 @@ impl CaseOfficer {
         result
     }
 
-    fn mode_arguments(&self, mode: &Option<Mode>, message_prefix: &str) -> Vec<std::ffi::OsString> {
+    fn mode_arguments(&self, mode: &Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
-            None => vec![],
-            Some(Mode::QUERY) => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
-            Some(Mode::PREPARE) => {
-                self.mode_args(true, false, true, true, &mut Vec::new(), "prepare")
-            }
-            Some(Mode::BUILD) => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
-            Some(Mode::CHECK) => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
-            Some(Mode::INSTALL) => self.mode_args(
+            Mode::QUERY => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
+            Mode::PREPARE => self.mode_args(true, false, true, true, &mut Vec::new(), "prepare"),
+            Mode::BUILD => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
+            Mode::CHECK => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
+            Mode::INSTALL => self.mode_args(
                 true,
                 true,
                 false,
@@ -211,59 +213,53 @@ impl CaseOfficer {
                 ])],
                 "install",
             ),
-            Some(Mode::PACKAGE) => {
-                self.mode_args(true, true, true, false, &mut Vec::new(), "package")
-            }
+            Mode::PACKAGE => self.mode_args(true, true, true, false, &mut Vec::new(), "package"),
         };
 
-        if extra.is_empty() {
-            extra
-        } else {
-            let mut result = vec![
-                OsString::from("--quiet"),
-                OsString::from("--settings=off"),
-                OsString::from("--register=off"),
-                // OsString::from("-U"), // --private-users=pick or no user name-spacing
-                OsString::from("--private-network"),
-                OsString::from("--resolv-conf=off"),
-                OsString::from("--timezone=off"),
-                OsString::from("--link-journal=no"),
-                bind(true, &self.agent, &Path::new("/gng/build-agent")),
-                OsString::from("--directory"),
-                OsString::from(self.root_directory.path().as_os_str()),
-                OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
-                OsString::from("--console=interactive"),
-                OsString::from("--tmpfs=/gng"),
-                OsString::from("--read-only"),
-                setenv(
-                    ce::GNG_BUILD_AGENT,
-                    &cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
-                ),
-                setenv(ce::GNG_PKGSRC_DIR, &cc::GNG_PKGSRC_DIR.to_str().unwrap()),
-                setenv(ce::GNG_SRC_DIR, &cc::GNG_SRC_DIR.to_str().unwrap()),
-                setenv(ce::GNG_INST_DIR, &cc::GNG_INST_DIR.to_str().unwrap()),
-                setenv(ce::GNG_PKG_DIR, &cc::GNG_PKG_DIR.to_str().unwrap()),
-                setenv(ce::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
-            ];
+        let mut result = vec![
+            OsString::from("--quiet"),
+            OsString::from("--settings=off"),
+            OsString::from("--register=off"),
+            // OsString::from("-U"), // --private-users=pick or no user name-spacing
+            OsString::from("--private-network"),
+            OsString::from("--resolv-conf=off"),
+            OsString::from("--timezone=off"),
+            OsString::from("--link-journal=no"),
+            bind(true, &self.agent, &Path::new("/gng/build-agent")),
+            OsString::from("--directory"),
+            OsString::from(self.root_directory.path().as_os_str()),
+            OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
+            OsString::from("--console=interactive"),
+            OsString::from("--tmpfs=/gng"),
+            OsString::from("--read-only"),
+            setenv(
+                ce::GNG_BUILD_AGENT,
+                &cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
+            ),
+            setenv(ce::GNG_PKGSRC_DIR, &cc::GNG_PKGSRC_DIR.to_str().unwrap()),
+            setenv(ce::GNG_SRC_DIR, &cc::GNG_SRC_DIR.to_str().unwrap()),
+            setenv(ce::GNG_INST_DIR, &cc::GNG_INST_DIR.to_str().unwrap()),
+            setenv(ce::GNG_PKG_DIR, &cc::GNG_PKG_DIR.to_str().unwrap()),
+            setenv(ce::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
+        ];
 
-            let rust_log = std::env::var("RUST_LOG");
-            if rust_log.is_ok() {
-                let mut env_var = OsString::from("--setenv=RUST_LOG=");
-                env_var.push(rust_log.unwrap());
-                result.push(env_var)
-            }
-
-            result.append(&mut extra);
-            result
+        let rust_log = std::env::var("RUST_LOG");
+        if rust_log.is_ok() {
+            let mut env_var = OsString::from("--setenv=RUST_LOG=");
+            env_var.push(rust_log.unwrap());
+            result.push(env_var)
         }
+
+        result.append(&mut extra);
+
+        result
     }
 
     /// Switch into a new `Mode` of operation
-    #[tracing::instrument]
-    fn switch_mode(&mut self, new_mode: &Option<Mode>) -> eyre::Result<()> {
+    fn switch_mode(&mut self, new_mode: &Mode) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
-        let message_prefix = random_string(8);
+        let message_prefix = random_string(MESSAGE_PREFIX_LEN);
 
         // Start agent:
         let nspawn_args = self.mode_arguments(new_mode, &message_prefix);
@@ -281,9 +277,64 @@ impl CaseOfficer {
             .stdout(std::process::Stdio::piped())
             .spawn()?;
 
-        handle_agent_input(child, message_prefix)?;
+        self.handle_agent_output(child, new_mode, message_prefix)?;
 
         Ok(())
+    }
+
+    fn process_line(&mut self, mode: &Mode, message_prefix: &str, line: &str) -> eyre::Result<()> {
+        lazy_static::lazy_static! {
+            static ref PREFIX: String =
+                std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
+        }
+
+        let (message_type, line) = find_type_and_contents(&message_prefix, &line);
+        if message_type == "" {
+            println!("{}{}", *PREFIX, line);
+        } else {
+            tracing::debug!("{}MSG_{}: {}", *PREFIX, message_type, line);
+
+            let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
+                .map_err(|e| eyre::eyre!(e))?;
+            for h in self.message_handlers.iter_mut() {
+                if h.handle(mode, &message_type, line)? {
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_agent_output(
+        &mut self,
+        mut child: std::process::Child,
+        mode: &Mode,
+        message_prefix: String,
+    ) -> eyre::Result<()> {
+        let reader = BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or_else(|| eyre::eyre!("Could not capture stdout of gng-build-agent."))?,
+        );
+
+        for line in reader.lines() {
+            match line {
+                Ok(line) => self.process_line(mode, &message_prefix, &line)?,
+                Err(e) => return Err(eyre::eyre!(e)),
+            }
+        }
+
+        let exit_status = child.wait()?;
+
+        match exit_status.code() {
+            Some(0) => Ok(()),
+            Some(exit_code) => Err(eyre::eyre!(format!(
+                "Agent failed with exit-status: {}.",
+                exit_code
+            ))),
+            None => Err(eyre::eyre!(format!("Agent killed by signal."))),
+        }
     }
 
     /// Process a build
@@ -291,8 +342,9 @@ impl CaseOfficer {
         let mut mode = Some(Mode::default());
 
         while mode.is_some() {
-            self.switch_mode(&mode)?;
-            mode = mode.expect("is_some() was true above!").next();
+            let m = mode.expect("Mode was some!");
+            self.switch_mode(&m)?;
+            mode = m.next();
         }
 
         Ok(())
