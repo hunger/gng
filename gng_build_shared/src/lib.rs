@@ -92,3 +92,7 @@ impl std::convert::From<&MessageType> for String {
 // ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------
+
+mod source_package;
+
+pub use source_package::Source;

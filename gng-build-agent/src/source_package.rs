@@ -3,7 +3,8 @@
 
 //! A `SourcePackage` and related code
 
-use gng_shared::package::{Hash, Name, Url, Version};
+use gng_build_shared::Source;
+use gng_shared::{Name, Url, Version};
 
 use std::convert::TryFrom;
 
@@ -28,6 +29,8 @@ pub struct SourcePackage<'a> {
 
     build_dependencies: Vec<Name>,
     check_dependencies: Vec<Name>,
+
+    packages: Vec<Source>,
 }
 
 impl<'a> SourcePackage<'a> {
@@ -41,6 +44,8 @@ impl<'a> SourcePackage<'a> {
         let build_dependencies = engine.evaluate_array::<Name>("build_dependencies")?;
         let check_dependencies = engine.evaluate_array::<Name>("check_dependencies")?;
 
+        let packages = engine.evaluate_array::<Source>("sources")?;
+
         Ok(SourcePackage {
             engine,
             source_name,
@@ -50,6 +55,7 @@ impl<'a> SourcePackage<'a> {
             bug_url,
             build_dependencies,
             check_dependencies,
+            packages,
         })
     }
 

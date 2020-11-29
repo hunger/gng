@@ -3,7 +3,7 @@
 
 //! The script engine driving the `gng-build-agent`
 
-use gng_shared::package::{Hash, Name, Version};
+use gng_shared::{Hash, Name, Version};
 
 use rhai::{ImmutableString, RegisterResultFn};
 
@@ -149,20 +149,31 @@ impl<'a> Engine<'a> {
     /// Evaluate an expression holing an Array
     pub fn evaluate_array<T>(&mut self, expression: &str) -> crate::Result<Vec<T>>
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + Sync + serde::de::DeserializeOwned + 'static,
     {
         let array = self.evaluate::<rhai::Array>(expression)?;
 
         let mut result = Vec::<T>::with_capacity(array.len());
-        for d in array {
-            let t = d.try_cast::<T>();
-            if t.is_none() {
-                return Err(crate::Error::Conversion(format!(
-                    "Failed to convert Array value when evaluating {}",
-                    expression
-                )));
+        for d in array.iter() {
+            let d = d.flatten_clone();
+            let d_str = d.to_string();
+            println!("Dynamic in string: {} => {}.", d.type_name(), d_str);
+            if d.type_name() == "map" {
+                result.push(rhai::serde::from_dynamic::<T>(&d).map_err(|e| {
+                    crate::Error::Script(
+                        format!(
+                            "Failed to deserialize Array value \"{}\" for expression {}",
+                            d_str, expression
+                        ),
+                        e.to_string(),
+                    )
+                })?);
+            } else {
+                result.push(d.try_cast::<T>().ok_or(crate::Error::Conversion(format!(
+                    "Failed to cast Array value \"{}\" for expression {}",
+                    d_str, expression
+                )))?);
             }
-            result.push(t.unwrap());
         }
 
         Ok(result)

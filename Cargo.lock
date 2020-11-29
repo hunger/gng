@@ -240,7 +240,9 @@ dependencies = [
 name = "gng_build_shared"
 version = "0.1.0"
 dependencies = [
+ "gng_shared",
  "lazy_static",
+ "serde",
 ]
 
 [[package]]
@@ -545,6 +547,7 @@ checksum = "bd065a4bf338d9d243022bf88e7b71d33ec94c2cd9b2e7ce1a22b4ed16000fdb"
 dependencies = [
  "instant",
  "rhai_codegen",
+ "serde",
  "smallvec",
 ]
 

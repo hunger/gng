@@ -3,23 +3,7 @@
 
 //! `A source package configuration
 
-use gng_shared::package::{GpgKeyId, Hash, Name, Url};
-
-/// A `Source` that needs building
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Source {
-    /// A `Url` To get the `Source` from
-    pub url: Url,
-
-    /// Does this source file need unpacking?
-    pub unpack: bool,
-
-    /// A set of GPG keys used to sign `Source`
-    pub signing_keys: Vec<GpgKeyId>,
-
-    /// Validation values:
-    pub hashes: Vec<Hash>,
-}
+use gng_shared::{GpgKeyId, Hash, Name, Url};
 
 /// A description for a `SourcePackage`
 pub struct SourcePackage {

@@ -10,7 +10,8 @@ use itertools::Itertools;
 // ----------------------------------------------------------------------
 
 /// A GPG key id (16 hex values)
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "String", into = "String")]
 pub struct GpgKeyId(String);
 
 impl GpgKeyId {

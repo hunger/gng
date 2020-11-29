@@ -3,57 +3,48 @@
 
 //! `A source package configuration
 
-// FIXME: Find a better place for this!
+use gng_shared::{GpgKeyId, Hash, Url};
 
-use gng_shared::package::GpgKeyId;
-use gng_shared::package::Name;
-use gng_shared::package::Url;
-
-/// A supported hashing algorithm:
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum HashAlgorithm {
-    /// No hash validation needed
-    NONE(),
-    /// SHA 256
-    SHA256([u8; 32]),
-    /// SHA 512
-    SHA512([u8; 64]),
+fn always_true() -> bool {
+    true
 }
 
-/// A `Hash`
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Hash {
-    /// The `HashAlgorithm` used by this hash
-    pub algorithm: HashAlgorithm,
-    /// The value of the hash operation:
-    pub value: HashValue,
+fn empty_key_vec() -> Vec<GpgKeyId> {
+    Vec::new()
+}
+
+fn empty_hash_vec() -> Vec<Hash> {
+    Vec::new()
 }
 
 /// A `Source` that needs building
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Source {
     /// A `Url` To get the `Source` from
     pub url: Url,
 
     /// Does this source file need unpacking?
+    #[serde(default = "always_true")]
     pub unpack: bool,
 
     /// A set of GPG keys used to sign `Source`
+    #[serde(default = "empty_key_vec")]
     pub signing_keys: Vec<GpgKeyId>,
 
     /// Validation values:
+    #[serde(default = "empty_hash_vec")]
     pub hashes: Vec<Hash>,
 }
 
-/// A description for a `SourcePackage`
-pub struct SourcePackage {
-    /// Source package `MetaData`
+// /// A description for a `SourcePackage`
+// pub struct SourcePackage {
+//     /// Source package `MetaData`
 
-    /// The list of `Source`s to build:
-    pub sources: Vec<Source>,
+//     /// The list of `Source`s to build:
+//     pub sources: Vec<Source>,
 
-    /// The build-time only dependencies
-    pub build_dependencies: Vec<Name>,
-    /// The check-time only dependencies
-    pub check_dependencies: Vec<Name>,
-}
+//     /// The build-time only dependencies
+//     pub build_dependencies: Vec<Name>,
+//     /// The check-time only dependencies
+//     pub check_dependencies: Vec<Name>,
+// }
