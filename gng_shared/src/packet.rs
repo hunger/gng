@@ -144,6 +144,12 @@ impl std::convert::TryFrom<String> for Hash {
     }
 }
 
+impl std::default::Default for Hash {
+    fn default() -> Self {
+        Hash::NONE()
+    }
+}
+
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
@@ -159,7 +165,7 @@ impl std::fmt::Display for Hash {
 // ----------------------------------------------------------------------
 
 /// A package `Name`
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialOrd, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct Name(String);
 
@@ -192,7 +198,7 @@ impl Name {
 
 impl std::convert::From<Name> for String {
     fn from(name: Name) -> Self {
-        format!("{:}", &name)
+        name.0.clone()
     }
 }
 
@@ -206,7 +212,7 @@ impl std::convert::TryFrom<String> for Name {
 
 impl std::fmt::Display for Name {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:}", self.0)
+        write!(f, "{:}", &self.0)
     }
 }
 
@@ -231,7 +237,7 @@ impl Url {
 
 impl std::convert::From<Url> for String {
     fn from(url: Url) -> Self {
-        format!("{:}", &url)
+        url.0.clone()
     }
 }
 
@@ -245,7 +251,7 @@ impl std::convert::TryFrom<String> for Url {
 
 impl std::fmt::Display for Url {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:}", self.0)
+        write!(f, "{:}", &self.0)
     }
 }
 
@@ -314,6 +320,20 @@ impl Version {
             release: release.to_string(),
         })
     }
+
+    /// Return the epoch of a `Version`
+    pub fn epoch(&self) -> u32 {
+        self.epoch
+    }
+
+    /// Return the epoch of a `Version`
+    pub fn version(&self) -> String {
+        self.version.clone()
+    }
+    /// Return the epoch of a `Version`
+    pub fn release(&self) -> String {
+        self.release.clone()
+    }
 }
 
 impl std::convert::From<Version> for String {
@@ -375,13 +395,13 @@ impl std::fmt::Display for Version {
 }
 
 // ----------------------------------------------------------------------
-// - Package:
+// - Packet:
 // ----------------------------------------------------------------------
 
 /// `Package` meta data
 #[derive(derive_builder::Builder, Clone, Debug)]
 #[builder(try_setter, setter(into))]
-pub struct Package {
+pub struct Packet {
     /// The package `name`
     pub name: Name,
     /// The package `version`
@@ -394,7 +414,7 @@ pub struct Package {
     #[builder(default = "None")]
     pub bug_url: Option<Url>,
     /// The upstream license
-    pub license: Vec<String>,
+    pub license: String,
 
     /// The other packages this Package conflicts with
     #[builder(default = "vec!()")]
@@ -409,6 +429,12 @@ pub struct Package {
     /// Abstract interfaces provided by this package
     #[builder(default = "vec!()")]
     pub optional_dependencies: Vec<Name>,
+}
+
+impl std::cmp::PartialEq for Packet {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.version == other.version
+    }
 }
 
 // ----------------------------------------------------------------------

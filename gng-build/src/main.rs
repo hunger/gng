@@ -23,7 +23,7 @@ use structopt::StructOpt;
 // ----------------------------------------------------------------------
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "gng-build", about = "A package builder for GnG.")]
+#[structopt(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
     #[structopt(long, parse(from_os_str), value_name = "FILE")]
@@ -37,7 +37,7 @@ struct Args {
     #[structopt(long, parse(from_os_str), value_name = "EXECUTABLE")]
     agent: PathBuf,
 
-    /// The directory with the package build information
+    /// The directory with the build information
     #[structopt(parse(from_os_str), value_name = "DIR")]
     pkgsrc_dir: PathBuf,
 }

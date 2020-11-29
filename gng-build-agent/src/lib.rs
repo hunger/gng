@@ -42,4 +42,4 @@ pub type Result<T> = std::result::Result<T, Error>;
 // ----------------------------------------------------------------------
 
 pub mod engine;
-pub mod source_package;
+pub mod source_packet;

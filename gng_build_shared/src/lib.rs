@@ -63,7 +63,7 @@ pub mod constants {
 /// Types of messages going from `gng-build-agent` back to `gng-build`
 #[derive(Clone, Debug, PartialEq)]
 pub enum MessageType {
-    /// Source package data
+    /// Source packet data
     DATA,
 }
 
@@ -93,6 +93,6 @@ impl std::convert::From<&MessageType> for String {
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 
-mod source_package;
+mod source_packet;
 
-pub use source_package::Source;
+pub use source_packet::{PacketDefinition, Source};

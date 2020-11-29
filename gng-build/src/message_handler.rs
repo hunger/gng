@@ -67,14 +67,14 @@ impl MessageHandler for ImmutableSourceDataHandler {
         if self.source_data.as_ref().expect("was some before!") == message {
             Ok(false)
         } else {
-            return Err(eyre::eyre!("Source package data changed, aborting!"));
+            return Err(eyre::eyre!("Source data changed, aborting!"));
         }
     }
 
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         if self.source_data.is_none() {
             return Err(eyre::eyre!(
-                "No source package data received during QUERY mode call."
+                "No source data received during QUERY mode call."
             ));
         }
 

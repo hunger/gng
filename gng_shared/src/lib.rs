@@ -47,6 +47,6 @@ pub fn is_root() -> bool {
 // ----------------------------------------------------------------------
 
 pub mod config;
-mod package;
+mod packet;
 
-pub use package::{GpgKeyId, Hash, Name, Package, Url, Version};
+pub use packet::{GpgKeyId, Hash, Name, Packet, Url, Version};

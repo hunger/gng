@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! A `SourcePackage` and related code
+//! A `SourcePacket` and related code
 
-use gng_build_shared::Source;
+use gng_build_shared::{PacketDefinition, Source};
 use gng_shared::{Name, Url, Version};
 
 use std::convert::TryFrom;
@@ -15,9 +15,9 @@ use std::convert::TryFrom;
 // - Source Package:
 // ----------------------------------------------------------------------
 
-/// A description of a `SourcePackage`
+/// A description of a `SourcePacket`
 #[derive(serde::Serialize)]
-pub struct SourcePackage<'a> {
+pub struct SourcePacket<'a> {
     #[serde(skip)]
     engine: crate::engine::Engine<'a>,
 
@@ -30,12 +30,13 @@ pub struct SourcePackage<'a> {
     build_dependencies: Vec<Name>,
     check_dependencies: Vec<Name>,
 
-    packages: Vec<Source>,
+    sources: Vec<Source>,
+    packages: Vec<PacketDefinition>,
 }
 
-impl<'a> SourcePackage<'a> {
-    /// Create a new `SourcePackage`
-    pub fn new(mut engine: crate::engine::Engine<'a>) -> eyre::Result<SourcePackage<'a>> {
+impl<'a> SourcePacket<'a> {
+    /// Create a new `SourcePacket`
+    pub fn new(mut engine: crate::engine::Engine<'a>) -> eyre::Result<SourcePacket<'a>> {
         let source_name = engine.evaluate::<Name>("source_name")?;
         let version = engine.evaluate::<Version>("version")?;
         let license = engine.evaluate::<String>("license")?;
@@ -44,9 +45,10 @@ impl<'a> SourcePackage<'a> {
         let build_dependencies = engine.evaluate_array::<Name>("build_dependencies")?;
         let check_dependencies = engine.evaluate_array::<Name>("check_dependencies")?;
 
-        let packages = engine.evaluate_array::<Source>("sources")?;
+        let sources = engine.evaluate_array::<Source>("sources")?;
+        let packages = engine.evaluate_array::<PacketDefinition>("packages")?;
 
-        Ok(SourcePackage {
+        Ok(SourcePacket {
             engine,
             source_name,
             version,
@@ -55,6 +57,7 @@ impl<'a> SourcePackage<'a> {
             bug_url,
             build_dependencies,
             check_dependencies,
+            sources,
             packages,
         })
     }
@@ -75,14 +78,8 @@ impl<'a> SourcePackage<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for SourcePackage<'a> {
+impl<'a> std::fmt::Display for SourcePacket<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}@{}", self.source_name, self.version)
-    }
-}
-
-impl<'a> std::fmt::Debug for SourcePackage<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<SOURCE PACKAGE DEBUG>")
     }
 }

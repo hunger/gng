@@ -14,7 +14,7 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
-use gng_build_agent::source_package::SourcePackage;
+use gng_build_agent::source_packet::SourcePacket;
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
 
@@ -28,11 +28,11 @@ use std::path::Path;
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "gng-build-agent",
-    about = "A package build agent for GnG.",
+    about = "A packet build agent for GnG.",
     rename_all = "kebab"
 )]
 enum Args {
-    /// query package definition file
+    /// query packet definition file
     QUERY,
     /// prepare the sources for the build
     PREPARE,
@@ -42,7 +42,7 @@ enum Args {
     CHECK,
     /// move the build results to their final location in the filesystem
     INSTALL,
-    /// package the installed files
+    /// package the installed files into `Packet`s
     PACKAGE,
 }
 
@@ -72,27 +72,27 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 // ----------------------------------------------------------------------
 // - Commands:
 // ----------------------------------------------------------------------
-fn query(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn query(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     Ok(())
 }
 
-fn prepare(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn prepare(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     todo!();
 }
 
-fn build(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn build(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     todo!();
 }
 
-fn check(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn check(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     todo!();
 }
 
-fn install(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn install(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     todo!();
 }
 
-fn package(_source_package: &SourcePackage, _message_prefix: &str) -> eyre::Result<()> {
+fn package(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
     todo!();
 }
 
@@ -130,24 +130,24 @@ fn main() -> eyre::Result<()> {
         get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKG_DIR.to_str().unwrap()).into(),
     );
 
-    let source_package = gng_build_agent::source_package::SourcePackage::new(
+    let source_packet = gng_build_agent::source_packet::SourcePacket::new(
         engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?,
     )?;
 
-    tracing::trace!("Read build.rhai file for {}", source_package);
+    tracing::trace!("Read build.rhai file for {}", source_packet);
 
     send_message(
         &message_prefix,
         &gng_build_shared::MessageType::DATA,
-        &serde_json::to_string(&source_package)?,
+        &serde_json::to_string(&source_packet)?,
     );
 
     match args {
-        Args::QUERY => query(&source_package, &message_prefix),
-        Args::PREPARE => prepare(&source_package, &message_prefix),
-        Args::BUILD => build(&source_package, &message_prefix),
-        Args::CHECK => check(&source_package, &message_prefix),
-        Args::INSTALL => install(&source_package, &message_prefix),
-        Args::PACKAGE => package(&source_package, &message_prefix),
+        Args::QUERY => query(&source_packet, &message_prefix),
+        Args::PREPARE => prepare(&source_packet, &message_prefix),
+        Args::BUILD => build(&source_packet, &message_prefix),
+        Args::CHECK => check(&source_packet, &message_prefix),
+        Args::INSTALL => install(&source_packet, &message_prefix),
+        Args::PACKAGE => package(&source_packet, &message_prefix),
     }
 }

@@ -3,34 +3,93 @@
 
 //! The script engine driving the `gng-build-agent`
 
+use gng_build_shared::{PacketDefinition, Source};
 use gng_shared::{Hash, Name, Version};
 
-use rhai::{ImmutableString, RegisterResultFn};
+use rhai::{ImmutableString, RegisterFn, RegisterResultFn};
 
 use std::convert::TryFrom;
 use std::path::Path;
+use std::string::ToString;
 
 // - Helpers:
 // ----------------------------------------------------------------------
 
-fn register_simple_type<T>(engine: &mut rhai::Engine)
+fn register_simple_type<T>(engine: &mut rhai::Engine, name: &str)
 where
-    T: Clone + PartialEq + Send + Sync + 'static,
+    T: Clone
+        + PartialEq
+        + Send
+        + Sync
+        + std::fmt::Display
+        + std::fmt::Debug
+        + std::cmp::PartialEq
+        + 'static,
 {
-    engine.register_type::<T>();
+    engine.register_type_with_name::<T>(name);
+    engine
+        .register_fn("to_string", |t: &mut T| t.to_string())
+        .register_fn("print", |t: &mut T| t.to_string())
+        .register_fn("debug", |t: &mut T| format!("{:?}", t))
+        .register_fn("+", |s: &str, t: T| format!("{}{}", s, t))
+        .register_fn("+", |t: &mut T, s: &str| format!("{}{}", t, s))
+        .register_fn("+=", |s: &mut ImmutableString, t: T| {
+            *s += ImmutableString::from(t.to_string());
+        })
+        .register_fn("push", |list: &mut rhai::Array, item: T| {
+            list.push(rhai::Dynamic::from(item));
+        })
+        .register_fn("+=", |list: &mut rhai::Array, item: T| {
+            list.push(rhai::Dynamic::from(item));
+        })
+        .register_fn(
+            "insert",
+            |list: &mut rhai::Array, position: i64, item: T| {
+                if position <= 0 {
+                    list.insert(0, rhai::Dynamic::from(item));
+                } else if (position as usize) >= list.len() - 1 {
+                    list.push(rhai::Dynamic::from(item));
+                } else {
+                    list.insert(position as usize, rhai::Dynamic::from(item));
+                }
+            },
+        )
+        .register_fn("pad", |list: &mut rhai::Array, len: i64, item: T| {
+            if len as usize > list.len() {
+                list.resize(len as usize, rhai::Dynamic::from(item));
+            }
+        })
+        .register_fn("==", |item1: &mut T, item2: T| item1 == &item2);
 }
 
 fn register_custom_types(engine: &mut rhai::Engine) {
-    register_simple_type::<Hash>(engine);
+    register_simple_type::<Hash>(engine, "Hash");
     engine.register_result_fn("h", hash_constructor);
-    register_simple_type::<Name>(engine);
+    register_simple_type::<Name>(engine, "Name");
     engine.register_result_fn("n", name_constructor);
-    register_simple_type::<Version>(engine);
-    engine.register_result_fn("v", version_constructor);
+    register_simple_type::<PacketDefinition>(engine, "Packet");
+    engine.register_result_fn("packet", packet_constructor);
+    register_simple_type::<Source>(engine, "Source");
+    engine.register_result_fn("source", source_constructor);
+    register_simple_type::<Version>(engine, "Version");
+    engine
+        .register_get("epoch", version_get_epoch)
+        .register_get("version", version_get_version)
+        .register_get("release", version_get_release)
+        .register_result_fn("v", version_constructor);
 }
 
 // - Custom Functions:
 // ----------------------------------------------------------------------
+
+fn hash_constructor(
+    version: ImmutableString,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    match Hash::try_from(version.to_string()) {
+        Err(e) => Err(e.to_string().into()),
+        Ok(v) => Ok(rhai::Dynamic::from(v)),
+    }
+}
 
 fn name_constructor(
     name: ImmutableString,
@@ -39,6 +98,20 @@ fn name_constructor(
         Err(e) => Err(e.to_string().into()),
         Ok(v) => Ok(rhai::Dynamic::from(v)),
     }
+}
+
+fn packet_constructor(
+    input: rhai::Map,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    let result = rhai::serde::from_dynamic::<PacketDefinition>(&rhai::Dynamic::from(input))?;
+    Ok(rhai::Dynamic::from(result))
+}
+
+fn source_constructor(
+    input: rhai::Map,
+) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
+    let result = rhai::serde::from_dynamic::<Source>(&rhai::Dynamic::from(input))?;
+    Ok(rhai::Dynamic::from(result))
 }
 
 fn version_constructor(
@@ -50,13 +123,16 @@ fn version_constructor(
     }
 }
 
-fn hash_constructor(
-    version: ImmutableString,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Hash::try_from(version.to_string()) {
-        Err(e) => Err(e.to_string().into()),
-        Ok(v) => Ok(rhai::Dynamic::from(v)),
-    }
+fn version_get_epoch(version: &mut Version) -> rhai::INT {
+    version.epoch() as rhai::INT
+}
+
+fn version_get_version(version: &mut Version) -> String {
+    version.version()
+}
+
+fn version_get_release(version: &mut Version) -> String {
+    version.release()
 }
 
 // ----------------------------------------------------------------------
@@ -157,23 +233,11 @@ impl<'a> Engine<'a> {
         for d in array.iter() {
             let d = d.flatten_clone();
             let d_str = d.to_string();
-            println!("Dynamic in string: {} => {}.", d.type_name(), d_str);
-            if d.type_name() == "map" {
-                result.push(rhai::serde::from_dynamic::<T>(&d).map_err(|e| {
-                    crate::Error::Script(
-                        format!(
-                            "Failed to deserialize Array value \"{}\" for expression {}",
-                            d_str, expression
-                        ),
-                        e.to_string(),
-                    )
-                })?);
-            } else {
-                result.push(d.try_cast::<T>().ok_or(crate::Error::Conversion(format!(
-                    "Failed to cast Array value \"{}\" for expression {}",
-                    d_str, expression
-                )))?);
-            }
+
+            result.push(d.try_cast::<T>().ok_or(crate::Error::Conversion(format!(
+                "Failed to cast Array value \"{}\" for expression \"{}\"",
+                d_str, expression
+            )))?);
         }
 
         Ok(result)
