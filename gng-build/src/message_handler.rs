@@ -19,6 +19,9 @@ pub trait MessageHandler {
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> eyre::Result<bool>;
+
+    /// Verify output of `gng-build-agent` after that has quit successfully:
+    fn verify(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
 }
 
 // ----------------------------------------------------------------------
@@ -27,12 +30,16 @@ pub trait MessageHandler {
 
 /// Break out of the
 pub struct ImmutableSourceDataHandler {
-    source_data: Option<String>,
+    source_data: Option<String>, // FIXME: Store a hash to save space!
+    was_set_in_current_mode: bool,
 }
 
 impl Default for ImmutableSourceDataHandler {
     fn default() -> Self {
-        ImmutableSourceDataHandler { source_data: None }
+        ImmutableSourceDataHandler {
+            source_data: None,
+            was_set_in_current_mode: false,
+        }
     }
 }
 
@@ -47,6 +54,11 @@ impl MessageHandler for ImmutableSourceDataHandler {
             return Ok(false);
         }
 
+        if self.was_set_in_current_mode {
+            return Err(eyre::eyre!("DATA message received twice in one mode!"));
+        }
+        self.was_set_in_current_mode = true;
+
         if self.source_data.is_none() {
             self.source_data = Some(String::from(message));
             return Ok(false);
@@ -57,5 +69,17 @@ impl MessageHandler for ImmutableSourceDataHandler {
         } else {
             return Err(eyre::eyre!("Source package data changed, aborting!"));
         }
+    }
+
+    fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+        if self.source_data.is_none() {
+            return Err(eyre::eyre!(
+                "No source package data received during QUERY mode call."
+            ));
+        }
+
+        self.was_set_in_current_mode = false;
+
+        Ok(())
     }
 }

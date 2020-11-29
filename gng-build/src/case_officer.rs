@@ -279,6 +279,10 @@ impl CaseOfficer {
 
         self.handle_agent_output(child, new_mode, message_prefix)?;
 
+        for h in self.message_handlers.iter_mut() {
+            h.verify(new_mode)?;
+        }
+
         Ok(())
     }
 
