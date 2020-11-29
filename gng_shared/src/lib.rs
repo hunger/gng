@@ -33,6 +33,10 @@ pub enum Error {
 /// `Result` type for the `gng_shared` library
 pub type Result<T> = std::result::Result<T, Error>;
 
+// ----------------------------------------------------------------------
+// - Functions:
+// ----------------------------------------------------------------------
+
 /// Return `true` if the program is run by the `root` user.
 pub fn is_root() -> bool {
     nix::unistd::Uid::effective().is_root()

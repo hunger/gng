@@ -52,6 +52,21 @@ impl<'a> SourcePackage<'a> {
             check_dependencies,
         })
     }
+
+    /// Run the `prepare` function of the build script
+    pub fn prepare(&mut self) -> crate::Result<()> {
+        self.engine.call("prepare")?
+    }
+
+    /// Run the `build` function of the build script
+    pub fn build(&mut self) -> crate::Result<()> {
+        self.engine.call("build")?
+    }
+
+    /// Run the `check` function of the build script
+    pub fn check(&mut self) -> crate::Result<()> {
+        self.engine.call("check")?
+    }
 }
 
 impl<'a> std::fmt::Display for SourcePackage<'a> {

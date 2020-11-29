@@ -231,6 +231,7 @@ dependencies = [
  "serde",
  "serde_json",
  "structopt",
+ "thiserror",
  "tracing",
  "tracing-subscriber",
 ]

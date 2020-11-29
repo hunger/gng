@@ -5,7 +5,6 @@
 
 use gng_shared::package::{Hash, Name, Version};
 
-use eyre::WrapErr;
 use rhai::{ImmutableString, RegisterResultFn};
 
 use std::convert::TryFrom;
@@ -93,7 +92,7 @@ impl<'a> EngineBuilder<'a> {
     }
 
     /// Evaluate a script fil
-    pub fn eval_pkgsrc_directory(&mut self, pkgsrc_dir: &Path) -> eyre::Result<Engine<'a>> {
+    pub fn eval_pkgsrc_directory(&mut self, pkgsrc_dir: &Path) -> crate::Result<Engine<'a>> {
         let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
 
@@ -105,15 +104,22 @@ impl<'a> EngineBuilder<'a> {
 
         register_custom_types(&mut engine);
 
-        let ast = engine.compile_file_with_scope(&mut scope, build_file)?;
-        engine.eval_ast_with_scope(&mut scope, &ast)?;
+        let ast = engine
+            .compile_file_with_scope(&mut scope, build_file)
+            .map_err(|e| {
+                crate::Error::Script(
+                    format!("Compilation of build script {} failed", build_file_str),
+                    e.to_string(),
+                )
+            })?;
+        engine.eval_ast_with_scope(&mut scope, &ast).map_err(|e| {
+            crate::Error::Script(
+                format!("Evaluation of build script {} failed", build_file_str),
+                e.to_string(),
+            )
+        })?;
 
-        Ok(Engine {
-            engine,
-            scope,
-            ast,
-            script_file: build_file_str,
-        })
+        Ok(Engine { engine, scope, ast })
     }
 }
 
@@ -122,25 +128,26 @@ pub struct Engine<'a> {
     engine: rhai::Engine,
     scope: rhai::Scope<'a>,
     ast: rhai::AST,
-    script_file: String,
 }
 
 impl<'a> Engine<'a> {
     /// Evaluate an expression
-    pub fn evaluate<T>(&mut self, expression: &str) -> eyre::Result<T>
+    pub fn evaluate<T>(&mut self, expression: &str) -> crate::Result<T>
     where
         T: Clone + Send + Sync + 'static,
     {
         self.engine
             .eval_with_scope::<T>(&mut self.scope, expression)
-            .wrap_err(format!(
-                "Failed to extract \"{}\" from {}.",
-                expression, &self.script_file
-            ))
+            .map_err(|e| {
+                crate::Error::Script(
+                    format!("Failed to evaluate expression {}", expression),
+                    e.to_string(),
+                )
+            })
     }
 
     /// Evaluate an expression holing an Array
-    pub fn evaluate_array<T>(&mut self, expression: &str) -> eyre::Result<Vec<T>>
+    pub fn evaluate_array<T>(&mut self, expression: &str) -> crate::Result<Vec<T>>
     where
         T: Clone + Send + Sync + 'static,
     {
@@ -150,7 +157,10 @@ impl<'a> Engine<'a> {
         for d in array {
             let t = d.try_cast::<T>();
             if t.is_none() {
-                return Err(eyre::eyre!("Unexpected type found in array."));
+                return Err(crate::Error::Conversion(format!(
+                    "Failed to convert Array value when evaluating {}",
+                    expression
+                )));
             }
             result.push(t.unwrap());
         }
@@ -159,13 +169,14 @@ impl<'a> Engine<'a> {
     }
 
     /// Call a function (without arguments!)
-    pub fn call<T>(&mut self, name: &str) -> eyre::Result<T>
+    pub fn call<T>(&mut self, name: &str) -> crate::Result<T>
     where
         T: Clone + Sync + Send + 'static,
     {
         self.engine
             .call_fn(&mut self.scope, &mut self.ast, name, ())
-            .map_err(|e| eyre::eyre!(e))
-            .wrap_err(format!("Failed to call {}.", name))
+            .map_err(|e| {
+                crate::Error::Script(format!("Failed to call function {}", name), e.to_string())
+            })
     }
 }

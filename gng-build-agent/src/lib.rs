@@ -15,6 +15,29 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
 // ----------------------------------------------------------------------
+// - Error Handling:
+// ----------------------------------------------------------------------
+
+/// `Error` type for the `gng_shared` library
+#[derive(Clone, thiserror::Error, Debug)]
+pub enum Error {
+    /// Script error.
+    #[error("Script error: {0}, caused be {1}")]
+    Script(String, String),
+
+    /// Conversion error.
+    #[error("Conversion error: {0}.")]
+    Conversion(String),
+
+    /// Not sure what actually went wrong...
+    #[error("unknown error")]
+    Unknown,
+}
+
+/// `Result` type for the `gng_shared` library
+pub type Result<T> = std::result::Result<T, Error>;
+
+// ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 
