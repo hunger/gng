@@ -17,6 +17,8 @@ gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
 lazy_static = { version = "1.4.0" }
 rand = { version = "0.7.3" }
+serde = { version = "1.0.117" }
+serde_json = { version = "1.0.60" }
 sha3 = { version = "0.9.1" }
 structopt = { version = "0.3.21" }
 tempfile = { version = "3.1.0" }

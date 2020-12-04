@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::{GpgKeyId, Hash, Name};
+use gng_shared::{GpgKeyId, Hash, Name, Version};
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -16,7 +16,7 @@ fn always_true() -> bool {
 // ----------------------------------------------------------------------
 
 /// A `Source` that needs building
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Source {
     /// A `Url` To get the `Source` from
     pub url: String,
@@ -67,5 +67,40 @@ pub struct PacketDefinition {
 impl std::fmt::Display for PacketDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "***PacketDefinition***")
+    }
+}
+
+// ----------------------------------------------------------------------
+// - SourcePacket:
+// ----------------------------------------------------------------------
+
+/// A description of a `SourcePacket`
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct SourcePacket {
+    /// `source_name`
+    pub source_name: Name,
+    /// `version`
+    pub version: Version,
+    /// `license`
+    pub license: String,
+    /// `url`
+    pub url: Option<String>,
+    /// `bug_url`
+    pub bug_url: Option<String>,
+
+    /// `build_dependencies`
+    pub build_dependencies: Vec<Name>,
+    /// `check_dependencies`
+    pub check_dependencies: Vec<Name>,
+
+    /// `sources`
+    pub sources: Vec<Source>,
+    /// `packets`
+    pub packets: Vec<PacketDefinition>,
+}
+
+impl std::fmt::Display for SourcePacket {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "***SourcePacket***")
     }
 }

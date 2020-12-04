@@ -14,9 +14,9 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
-use gng_build_agent::source_packet::SourcePacket;
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
+use gng_build_shared::SourcePacket;
 
 use structopt::StructOpt;
 
@@ -72,27 +72,34 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 // ----------------------------------------------------------------------
 // - Commands:
 // ----------------------------------------------------------------------
-fn query(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+
+struct Context<'a> {
+    engine: gng_build_agent::engine::Engine<'a>,
+    source_packet: SourcePacket,
+    message_prefix: String,
+}
+
+fn query(ctx: &mut Context) -> eyre::Result<()> {
     Ok(())
 }
 
-fn prepare(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+fn prepare(ctx: &mut Context) -> eyre::Result<()> {
     todo!();
 }
 
-fn build(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+fn build(ctx: &mut Context) -> eyre::Result<()> {
     todo!();
 }
 
-fn check(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+fn check(ctx: &mut Context) -> eyre::Result<()> {
     todo!();
 }
 
-fn install(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+fn install(ctx: &mut Context) -> eyre::Result<()> {
     todo!();
 }
 
-fn package(_source_packet: &SourcePacket, _message_prefix: &str) -> eyre::Result<()> {
+fn package(ctx: &mut Context) -> eyre::Result<()> {
     todo!();
 }
 
@@ -130,9 +137,9 @@ fn main() -> eyre::Result<()> {
         get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKG_DIR.to_str().unwrap()).into(),
     );
 
-    let source_packet = gng_build_agent::source_packet::SourcePacket::new(
-        engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?,
-    )?;
+    let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
+
+    let source_packet = gng_build_agent::source_packet::from_engine(&mut engine)?;
 
     tracing::trace!("Read build.rhai file for {}", source_packet);
 
@@ -142,12 +149,18 @@ fn main() -> eyre::Result<()> {
         &serde_json::to_string(&source_packet)?,
     );
 
+    let mut ctx = Context {
+        engine,
+        source_packet,
+        message_prefix,
+    };
+
     match args {
-        Args::QUERY => query(&source_packet, &message_prefix),
-        Args::PREPARE => prepare(&source_packet, &message_prefix),
-        Args::BUILD => build(&source_packet, &message_prefix),
-        Args::CHECK => check(&source_packet, &message_prefix),
-        Args::INSTALL => install(&source_packet, &message_prefix),
-        Args::PACKAGE => package(&source_packet, &message_prefix),
+        Args::QUERY => query(&mut ctx),
+        Args::PREPARE => prepare(&mut ctx),
+        Args::BUILD => build(&mut ctx),
+        Args::CHECK => check(&mut ctx),
+        Args::INSTALL => install(&mut ctx),
+        Args::PACKAGE => package(&mut ctx),
     }
 }

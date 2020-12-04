@@ -3,6 +3,7 @@
 
 //! A object used to handle messages from `gng-build-agent`
 
+use gng_build_shared::SourcePacket;
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -121,6 +122,12 @@ impl MessageHandler for ImmutableSourceDataHandler {
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct ValidateInputHandler {}
 
+impl ValidateInputHandler {
+    fn validate(&self, source_packet: &SourcePacket) -> eyre::Result<()> {
+        Ok(())
+    }
+}
+
 impl Default for ValidateInputHandler {
     fn default() -> Self {
         ValidateInputHandler {}
@@ -141,6 +148,10 @@ impl MessageHandler for ValidateInputHandler {
         if message_type != &gng_build_shared::MessageType::DATA {
             return Ok(false);
         }
+
+        let source_packet = serde_json::from_str(&message).map_err(|e| eyre::eyre!(e))?;
+
+        self.validate(&source_packet)?;
 
         Ok(false)
     }

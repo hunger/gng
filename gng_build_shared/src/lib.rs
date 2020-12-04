@@ -95,4 +95,4 @@ impl std::convert::From<&MessageType> for String {
 
 mod source_packet;
 
-pub use source_packet::{PacketDefinition, Source};
+pub use source_packet::{PacketDefinition, Source, SourcePacket};

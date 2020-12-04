@@ -99,7 +99,7 @@ fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a st
 
     (
         &line[4 + MESSAGE_PREFIX_LEN + 1..4 + MESSAGE_PREFIX_LEN + 1 + 4],
-        &line[4 + MESSAGE_PREFIX_LEN + 8..],
+        &line[4 + MESSAGE_PREFIX_LEN + 7..],
     )
 }
 
