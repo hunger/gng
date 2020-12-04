@@ -10,11 +10,11 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "<PRIVATE_REPOSITORY>"
 
 [dependencies]
-gng_build_shared = { path = "../gng_build_shared" }
-gng_shared = { path = "../gng_shared" }
 
 eyre = { version = "0.6.3" }
 glob = { version = "0.3.0" }
+gng_build_shared = { path = "../gng_build_shared" }
+gng_shared = { path = "../gng_shared" }
 lazy_static = { version = "1.4.0" }
 rand = { version = "0.7.3" }
 sha3 = { version = "0.9.1" }

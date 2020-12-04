@@ -7,11 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gng_build_shared = { path = "../gng_build_shared" }
-gng_shared = { path = "../gng_shared" }
 
 eyre = { version = "0.6.3" }
 glob = { version = "0.3.0" }
+gng_build_shared = { path = "../gng_build_shared" }
+gng_shared = { path = "../gng_shared" }
 rhai = { version = "0.19.6", features = [ "sync", "only_i64", "serde" ] }
 serde = { version = "1.0.117" }
 serde_json = { version = "1.0.60" }
