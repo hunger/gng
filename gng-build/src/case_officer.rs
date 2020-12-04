@@ -156,6 +156,9 @@ impl CaseOfficer {
         handlers.push(Box::new(
             crate::message_handler::ImmutableSourceDataHandler::default(),
         ));
+        handlers.push(Box::new(
+            crate::message_handler::ValidateInputHandler::default(),
+        ));
 
         Ok(CaseOfficer {
             pkgsrc_directory: pkgsrc_directory.to_path_buf(),
@@ -258,6 +261,10 @@ impl CaseOfficer {
     /// Switch into a new `Mode` of operation
     fn switch_mode(&mut self, new_mode: &Mode) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
+
+        for h in self.message_handlers.iter_mut() {
+            h.prepare(new_mode)?;
+        }
 
         let message_prefix = random_string(MESSAGE_PREFIX_LEN);
 

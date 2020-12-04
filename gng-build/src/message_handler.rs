@@ -3,6 +3,8 @@
 
 //! A object used to handle messages from `gng-build-agent`
 
+use sha3::{Digest, Sha3_256};
+
 // - Helper:
 // ----------------------------------------------------------------------
 
@@ -12,6 +14,9 @@
 
 /// An object used to handle messages from the `gng-build-agent`
 pub trait MessageHandler {
+    /// Verify output of `gng-build-agent` after that has quit successfully:
+    fn prepare(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
+
     /// Handle one message
     fn handle(
         &mut self,
@@ -28,22 +33,105 @@ pub trait MessageHandler {
 // - ImmutableSourceDataHandler:
 // ----------------------------------------------------------------------
 
-/// Break out of the
+/// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct ImmutableSourceDataHandler {
-    source_data: Option<String>, // FIXME: Store a hash to save space!
-    was_set_in_current_mode: bool,
+    hash: Option<Vec<u8>>,
+    first_message: bool,
+}
+
+impl ImmutableSourceDataHandler {
+    fn hash_message(&mut self, message: &str) -> Vec<u8> {
+        let mut hasher = Sha3_256::new();
+        hasher.update(message.as_bytes());
+        let mut v = Vec::with_capacity(Sha3_256::output_size());
+        v.extend_from_slice(&hasher.finalize());
+
+        v
+    }
 }
 
 impl Default for ImmutableSourceDataHandler {
     fn default() -> Self {
         ImmutableSourceDataHandler {
-            source_data: None,
-            was_set_in_current_mode: false,
+            hash: None,
+            first_message: true,
         }
     }
 }
 
 impl MessageHandler for ImmutableSourceDataHandler {
+    fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+        self.first_message = true;
+        Ok(())
+    }
+
+    fn handle(
+        &mut self,
+        _mode: &crate::Mode,
+        message_type: &gng_build_shared::MessageType,
+        message: &str,
+    ) -> eyre::Result<bool> {
+        if message_type != &gng_build_shared::MessageType::DATA {
+            self.first_message = false;
+            return Ok(false);
+        }
+
+        if !self.first_message {
+            return Err(eyre::eyre!(
+                "The build agent did not send a DATA message first!"
+            ));
+        }
+
+        self.first_message = false;
+
+        let v = self.hash_message(&message);
+
+        match self.hash.as_ref() {
+            None => {
+                self.hash = Some(v);
+                return Ok(false);
+            }
+            Some(vg) if *vg == v => {
+                return Ok(false);
+            }
+            Some(_) => {
+                return Err(eyre::eyre!("Source data changed, aborting!"));
+            }
+        }
+    }
+
+    fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+        if self.first_message {
+            return Err(eyre::eyre!("The build agent did not send any message!"));
+        }
+
+        if self.hash.is_none() {
+            return Err(eyre::eyre!(
+                "No source data received during QUERY mode call."
+            ));
+        }
+        Ok(())
+    }
+}
+
+// ----------------------------------------------------------------------
+// - ValidateInputHandler:
+// ----------------------------------------------------------------------
+
+/// Make sure the source as seen by the `gng-build-agent` stays constant
+pub struct ValidateInputHandler {}
+
+impl Default for ValidateInputHandler {
+    fn default() -> Self {
+        ValidateInputHandler {}
+    }
+}
+
+impl MessageHandler for ValidateInputHandler {
+    fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+        Ok(())
+    }
+
     fn handle(
         &mut self,
         _mode: &crate::Mode,
@@ -54,32 +142,10 @@ impl MessageHandler for ImmutableSourceDataHandler {
             return Ok(false);
         }
 
-        if self.was_set_in_current_mode {
-            return Err(eyre::eyre!("DATA message received twice in one mode!"));
-        }
-        self.was_set_in_current_mode = true;
-
-        if self.source_data.is_none() {
-            self.source_data = Some(String::from(message));
-            return Ok(false);
-        }
-
-        if self.source_data.as_ref().expect("was some before!") == message {
-            Ok(false)
-        } else {
-            return Err(eyre::eyre!("Source data changed, aborting!"));
-        }
+        Ok(false)
     }
 
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
-        if self.source_data.is_none() {
-            return Err(eyre::eyre!(
-                "No source data received during QUERY mode call."
-            ));
-        }
-
-        self.was_set_in_current_mode = false;
-
         Ok(())
     }
 }

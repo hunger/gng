@@ -17,17 +17,10 @@ use std::string::ToString;
 
 fn register_simple_type<T>(engine: &mut rhai::Engine, name: &str)
 where
-    T: Clone
-        + PartialEq
-        + Send
-        + Sync
-        + std::fmt::Display
-        + std::fmt::Debug
-        + std::cmp::PartialEq
-        + 'static,
+    T: Clone + PartialEq + Send + Sync + std::fmt::Display + std::fmt::Debug + 'static,
 {
-    engine.register_type_with_name::<T>(name);
     engine
+        .register_type_with_name::<T>(name)
         .register_fn("to_string", |t: &mut T| t.to_string())
         .register_fn("print", |t: &mut T| t.to_string())
         .register_fn("debug", |t: &mut T| format!("{:?}", t))
@@ -64,19 +57,22 @@ where
 
 fn register_custom_types(engine: &mut rhai::Engine) {
     register_simple_type::<Hash>(engine, "Hash");
-    engine.register_result_fn("h", hash_constructor);
     register_simple_type::<Name>(engine, "Name");
-    engine.register_result_fn("n", name_constructor);
     register_simple_type::<PacketDefinition>(engine, "Packet");
-    engine.register_result_fn("packet", packet_constructor);
     register_simple_type::<Source>(engine, "Source");
-    engine.register_result_fn("source", source_constructor);
     register_simple_type::<Version>(engine, "Version");
+
     engine
-        .register_get("epoch", version_get_epoch)
-        .register_get("version", version_get_version)
-        .register_get("release", version_get_release)
-        .register_result_fn("v", version_constructor);
+        .register_result_fn("h", hash_constructor)
+        .register_result_fn("n", name_constructor)
+        .register_result_fn("packet", packet_constructor)
+        .register_result_fn("source", source_constructor)
+        .register_result_fn("v", version_constructor)
+        .register_get("epoch", |v: &mut Version| v.epoch())
+        .register_get("version", |v: &mut Version| v.version())
+        .register_get("release", |v: &mut Version| v.release())
+        .register_get("algorithm", |h: &mut Hash| h.algorithm())
+        .register_get("value", |h: &mut Hash| h.value());
 }
 
 // - Custom Functions:
@@ -123,18 +119,6 @@ fn version_constructor(
     }
 }
 
-fn version_get_epoch(version: &mut Version) -> rhai::INT {
-    version.epoch() as rhai::INT
-}
-
-fn version_get_version(version: &mut Version) -> String {
-    version.version()
-}
-
-fn version_get_release(version: &mut Version) -> String {
-    version.release()
-}
-
 // ----------------------------------------------------------------------
 // - Engine:
 // ----------------------------------------------------------------------
@@ -171,9 +155,6 @@ impl<'a> EngineBuilder<'a> {
     pub fn eval_pkgsrc_directory(&mut self, pkgsrc_dir: &Path) -> crate::Result<Engine<'a>> {
         let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
-
-        // Push default values
-        scope.push("bug_url", String::new());
 
         let build_file = Path::new(pkgsrc_dir).join("build.rhai");
         let build_file_str = build_file.to_string_lossy().into_owned();

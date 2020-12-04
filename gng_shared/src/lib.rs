@@ -49,4 +49,4 @@ pub fn is_root() -> bool {
 pub mod config;
 mod packet;
 
-pub use packet::{GpgKeyId, Hash, Name, Packet, Url, Version};
+pub use packet::{GpgKeyId, Hash, Name, Packet, Version};

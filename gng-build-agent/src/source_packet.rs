@@ -4,9 +4,7 @@
 //! A `SourcePacket` and related code
 
 use gng_build_shared::{PacketDefinition, Source};
-use gng_shared::{Name, Url, Version};
-
-use std::convert::TryFrom;
+use gng_shared::{Name, Version};
 
 // - Helpers:
 // ----------------------------------------------------------------------
@@ -24,14 +22,14 @@ pub struct SourcePacket<'a> {
     source_name: Name,
     version: Version,
     license: String,
-    url: Url,
-    bug_url: Url,
+    url: Option<String>,
+    bug_url: Option<String>,
 
     build_dependencies: Vec<Name>,
     check_dependencies: Vec<Name>,
 
     sources: Vec<Source>,
-    packages: Vec<PacketDefinition>,
+    packets: Vec<PacketDefinition>,
 }
 
 impl<'a> SourcePacket<'a> {
@@ -40,25 +38,31 @@ impl<'a> SourcePacket<'a> {
         let source_name = engine.evaluate::<Name>("source_name")?;
         let version = engine.evaluate::<Version>("version")?;
         let license = engine.evaluate::<String>("license")?;
-        let url = Url::try_from(engine.evaluate::<String>("url")?)?;
-        let bug_url = Url::try_from(engine.evaluate::<String>("url")?)?;
+        let url = engine.evaluate::<String>("url").unwrap_or(String::new());
+        let bug_url = engine
+            .evaluate::<String>("bug_url")
+            .unwrap_or(String::new());
         let build_dependencies = engine.evaluate_array::<Name>("build_dependencies")?;
         let check_dependencies = engine.evaluate_array::<Name>("check_dependencies")?;
 
         let sources = engine.evaluate_array::<Source>("sources")?;
-        let packages = engine.evaluate_array::<PacketDefinition>("packages")?;
+        let packets = engine.evaluate_array::<PacketDefinition>("packets")?;
 
         Ok(SourcePacket {
             engine,
             source_name,
             version,
             license,
-            url,
-            bug_url,
+            url: if url.is_empty() { None } else { Some(url) },
+            bug_url: if bug_url.is_empty() {
+                None
+            } else {
+                Some(bug_url)
+            },
             build_dependencies,
             check_dependencies,
             sources,
-            packages,
+            packets,
         })
     }
 
@@ -75,6 +79,11 @@ impl<'a> SourcePacket<'a> {
     /// Run the `check` function of the build script
     pub fn check(&mut self) -> crate::Result<()> {
         self.engine.call("check")?
+    }
+
+    /// Run the `install` function of the build script
+    pub fn install(&mut self) -> crate::Result<()> {
+        self.engine.call("install")?
     }
 }
 

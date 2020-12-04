@@ -15,7 +15,7 @@ use itertools::Itertools;
 pub struct GpgKeyId(String);
 
 impl GpgKeyId {
-    /// Create a new `Url` from a string input
+    /// Create a new `GpgKeyId` from a string input
     pub fn new(value: &str) -> crate::Result<GpgKeyId> {
         let value = value.to_lowercase();
         if !value
@@ -119,6 +119,24 @@ impl Hash {
 
         Ok(Hash::SHA512(v))
     }
+
+    /// The hash algorithm
+    pub fn algorithm(&self) -> String {
+        match self {
+            Hash::NONE() => String::from("none"),
+            Hash::SHA256(_) => String::from("sha256"),
+            Hash::SHA512(_) => String::from("sha512"),
+        }
+    }
+
+    /// The hash value
+    pub fn value(&self) -> String {
+        match self {
+            Hash::NONE() => String::new(),
+            Hash::SHA256(v) => to_hex(&v[..]),
+            Hash::SHA512(v) => to_hex(&v[..]),
+        }
+    }
 }
 
 impl std::convert::From<Hash> for String {
@@ -153,9 +171,8 @@ impl std::default::Default for Hash {
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Hash::NONE() => write!(f, "none"),
-            Hash::SHA256(v) => write!(f, "sha256:{}", to_hex(&v[..])),
-            Hash::SHA512(v) => write!(f, "sha512:{}", to_hex(&v[..])),
+            Hash::NONE() => write!(f, "{}", self.algorithm()),
+            _ => write!(f, "{}:{}", self.algorithm(), self.value()),
         }
     }
 }
@@ -211,45 +228,6 @@ impl std::convert::TryFrom<String> for Name {
 }
 
 impl std::fmt::Display for Name {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:}", &self.0)
-    }
-}
-
-// ----------------------------------------------------------------------
-// - Url:
-// ----------------------------------------------------------------------
-
-/// A 'Url'
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct Url(String);
-
-impl Url {
-    /// Create a new `Url` from a string input
-    pub fn new(value: &str) -> crate::Result<Url> {
-        if !value.contains("://") {
-            return Err(crate::Error::Conversion("A URL must contain ://."));
-        }
-        Ok(Url(value.to_string()))
-    }
-}
-
-impl std::convert::From<Url> for String {
-    fn from(url: Url) -> Self {
-        url.0.clone()
-    }
-}
-
-impl std::convert::TryFrom<String> for Url {
-    type Error = crate::Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Url::new(&value[..])
-    }
-}
-
-impl std::fmt::Display for Url {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:}", &self.0)
     }
@@ -409,10 +387,10 @@ pub struct Packet {
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
-    pub url: Url,
+    pub url: Option<String>,
     /// The upstream bug tracker url
     #[builder(default = "None")]
-    pub bug_url: Option<Url>,
+    pub bug_url: Option<String>,
     /// The upstream license
     pub license: String,
 
@@ -446,7 +424,7 @@ mod tests {
     use std::convert::From;
     use std::convert::TryFrom;
 
-    use super::{GpgKeyId, Hash, Name, Url, Version};
+    use super::{GpgKeyId, Hash, Name, Version};
 
     #[test]
     fn test_package_gpg_key_id_ok() {
@@ -535,17 +513,6 @@ mod tests {
         let name = Name::try_from(String::from("9_foobar__")).unwrap();
         assert_eq!(name.0, String::from("9_foobar__"));
         assert_eq!(String::from(name), String::from("9_foobar__"));
-    }
-
-    #[test]
-    fn test_package_url_ok() {
-        let url = Url::new("https://foo.bar/").unwrap();
-        assert_eq!(url.0, "https://foo.bar/");
-
-        assert_eq!(
-            Url::try_from(String::from("file:///some/where/")).unwrap(),
-            Url::new("file:///some/where/").unwrap()
-        )
     }
 
     #[test]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::{GpgKeyId, Hash, Name, Url};
+use gng_shared::{GpgKeyId, Hash, Name};
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -19,7 +19,7 @@ fn always_true() -> bool {
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Source {
     /// A `Url` To get the `Source` from
-    pub url: Url,
+    pub url: String,
 
     /// Does this source file need unpacking?
     #[serde(default = "always_true")]
