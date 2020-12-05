@@ -3,10 +3,9 @@
 
 //! The script engine driving the `gng-build-agent`
 
-use gng_build_shared::{PacketDefinition, Source};
-use gng_shared::{Hash, Name, Version};
+use gng_shared::{Hash, Version};
 
-use rhai::{ImmutableString, RegisterFn, RegisterResultFn};
+use rhai::{Dynamic, EvalAltResult, ImmutableString, RegisterResultFn};
 
 use std::convert::TryFrom;
 use std::path::Path;
@@ -15,108 +14,41 @@ use std::string::ToString;
 // - Helpers:
 // ----------------------------------------------------------------------
 
-fn register_simple_type<T>(engine: &mut rhai::Engine, name: &str)
-where
-    T: Clone + PartialEq + Send + Sync + std::fmt::Display + std::fmt::Debug + 'static,
-{
+fn register_custom_functionality(engine: &mut rhai::Engine) {
     engine
-        .register_type_with_name::<T>(name)
-        .register_fn("to_string", |t: &mut T| t.to_string())
-        .register_fn("print", |t: &mut T| t.to_string())
-        .register_fn("debug", |t: &mut T| format!("{:?}", t))
-        .register_fn("+", |s: &str, t: T| format!("{}{}", s, t))
-        .register_fn("+", |t: &mut T, s: &str| format!("{}{}", t, s))
-        .register_fn("+=", |s: &mut ImmutableString, t: T| {
-            *s += ImmutableString::from(t.to_string());
-        })
-        .register_fn("push", |list: &mut rhai::Array, item: T| {
-            list.push(rhai::Dynamic::from(item));
-        })
-        .register_fn("+=", |list: &mut rhai::Array, item: T| {
-            list.push(rhai::Dynamic::from(item));
-        })
-        .register_fn(
-            "insert",
-            |list: &mut rhai::Array, position: i64, item: T| {
-                if position <= 0 {
-                    list.insert(0, rhai::Dynamic::from(item));
-                } else if (position as usize) >= list.len() - 1 {
-                    list.push(rhai::Dynamic::from(item));
-                } else {
-                    list.insert(position as usize, rhai::Dynamic::from(item));
-                }
-            },
-        )
-        .register_fn("pad", |list: &mut rhai::Array, len: i64, item: T| {
-            if len as usize > list.len() {
-                list.resize(len as usize, rhai::Dynamic::from(item));
-            }
-        })
-        .register_fn("==", |item1: &mut T, item2: T| item1 == &item2);
-}
-
-fn register_custom_types(engine: &mut rhai::Engine) {
-    register_simple_type::<Hash>(engine, "Hash");
-    register_simple_type::<Name>(engine, "Name");
-    register_simple_type::<PacketDefinition>(engine, "Packet");
-    register_simple_type::<Source>(engine, "Source");
-    register_simple_type::<Version>(engine, "Version");
-
-    engine
-        .register_result_fn("h", hash_constructor)
-        .register_result_fn("n", name_constructor)
-        .register_result_fn("packet", packet_constructor)
-        .register_result_fn("source", source_constructor)
-        .register_result_fn("v", version_constructor)
-        .register_get("epoch", |v: &mut Version| v.epoch())
-        .register_get("version", |v: &mut Version| v.version())
-        .register_get("release", |v: &mut Version| v.release())
-        .register_get("algorithm", |h: &mut Hash| h.algorithm())
-        .register_get("value", |h: &mut Hash| h.value());
+        .register_result_fn("version_epoch", version_epoch)
+        .register_result_fn("version_upstream", version_upstream)
+        .register_result_fn("version_release", version_release)
+        .register_result_fn("hash_algorithm", hash_algorithm)
+        .register_result_fn("hash_value", hash_value);
 }
 
 // - Custom Functions:
 // ----------------------------------------------------------------------
 
-fn hash_constructor(
-    version: ImmutableString,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Hash::try_from(version.to_string()) {
-        Err(e) => Err(e.to_string().into()),
-        Ok(v) => Ok(rhai::Dynamic::from(v)),
-    }
+fn version_epoch(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+    let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
+    Ok(Dynamic::from(version.epoch()))
 }
 
-fn name_constructor(
-    name: ImmutableString,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Name::try_from(name.to_string()) {
-        Err(e) => Err(e.to_string().into()),
-        Ok(v) => Ok(rhai::Dynamic::from(v)),
-    }
+fn version_upstream(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+    let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
+    Ok(version.upstream().into())
 }
 
-fn packet_constructor(
-    input: rhai::Map,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    let result = rhai::serde::from_dynamic::<PacketDefinition>(&rhai::Dynamic::from(input))?;
-    Ok(rhai::Dynamic::from(result))
+fn version_release(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+    let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
+    Ok(version.release().into())
 }
 
-fn source_constructor(
-    input: rhai::Map,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    let result = rhai::serde::from_dynamic::<Source>(&rhai::Dynamic::from(input))?;
-    Ok(rhai::Dynamic::from(result))
+fn hash_algorithm(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+    let hash = Hash::try_from(input.to_string()).map_err(|e| e.to_string())?;
+    Ok(hash.algorithm().into())
 }
 
-fn version_constructor(
-    version: ImmutableString,
-) -> std::result::Result<rhai::Dynamic, Box<rhai::EvalAltResult>> {
-    match Version::try_from(version.to_string()) {
-        Err(e) => Err(e.to_string().into()),
-        Ok(v) => Ok(rhai::Dynamic::from(v)),
-    }
+fn hash_value(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+    let hash = Hash::try_from(input.to_string()).map_err(|e| e.to_string())?;
+    Ok(hash.value().into())
 }
 
 // ----------------------------------------------------------------------
@@ -146,7 +78,7 @@ impl<'a> EngineBuilder<'a> {
     }
 
     /// Push a constant into the `Engine`
-    pub fn push_constant(&mut self, key: &str, value: rhai::Dynamic) -> &mut Self {
+    pub fn push_constant(&mut self, key: &str, value: Dynamic) -> &mut Self {
         self.scope.push_constant(String::from(key), value);
         self
     }
@@ -159,7 +91,7 @@ impl<'a> EngineBuilder<'a> {
         let build_file = Path::new(pkgsrc_dir).join("build.rhai");
         let build_file_str = build_file.to_string_lossy().into_owned();
 
-        register_custom_types(&mut engine);
+        register_custom_functionality(&mut engine);
 
         let ast = engine
             .compile_file_with_scope(&mut scope, build_file)
@@ -191,37 +123,18 @@ impl<'a> Engine<'a> {
     /// Evaluate an expression
     pub fn evaluate<T>(&mut self, expression: &str) -> crate::Result<T>
     where
-        T: Clone + Send + Sync + 'static,
+        T: Clone + Send + Sync + serde::de::DeserializeOwned + 'static,
     {
-        self.engine
-            .eval_with_scope::<T>(&mut self.scope, expression)
+        let result = self
+            .engine
+            .eval_with_scope::<Dynamic>(&mut self.scope, expression)
             .map_err(|e| {
                 crate::Error::Script(
                     format!("Failed to evaluate expression {}", expression),
                     e.to_string(),
                 )
-            })
-    }
-
-    /// Evaluate an expression holing an Array
-    pub fn evaluate_array<T>(&mut self, expression: &str) -> crate::Result<Vec<T>>
-    where
-        T: Clone + Send + Sync + serde::de::DeserializeOwned + 'static,
-    {
-        let array = self.evaluate::<rhai::Array>(expression)?;
-
-        let mut result = Vec::<T>::with_capacity(array.len());
-        for d in array.iter() {
-            let d = d.flatten_clone();
-            let d_str = d.to_string();
-
-            result.push(d.try_cast::<T>().ok_or(crate::Error::Conversion(format!(
-                "Failed to cast Array value \"{}\" for expression \"{}\"",
-                d_str, expression
-            )))?);
-        }
-
-        Ok(result)
+            })?;
+        rhai::serde::from_dynamic::<T>(&result).map_err(|e| crate::Error::Conversion(e.to_string()))
     }
 
     /// Call a function (without arguments!)

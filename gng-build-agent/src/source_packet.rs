@@ -20,11 +20,11 @@ pub fn from_engine(
     let bug_url = engine
         .evaluate::<String>("bug_url")
         .unwrap_or(String::new());
-    let build_dependencies = engine.evaluate_array::<Name>("build_dependencies")?;
-    let check_dependencies = engine.evaluate_array::<Name>("check_dependencies")?;
+    let build_dependencies = engine.evaluate::<Vec<Name>>("build_dependencies")?;
+    let check_dependencies = engine.evaluate::<Vec<Name>>("check_dependencies")?;
 
-    let sources = engine.evaluate_array::<Source>("sources")?;
-    let packets = engine.evaluate_array::<PacketDefinition>("packets")?;
+    let sources = engine.evaluate::<Vec<Source>>("sources")?;
+    let packets = engine.evaluate::<Vec<PacketDefinition>>("packets")?;
 
     Ok(SourcePacket {
         source_name,

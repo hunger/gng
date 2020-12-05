@@ -244,20 +244,20 @@ pub struct Version {
     /// The distributions package version `epoch`
     epoch: u32,
     /// The upstream `version`
-    version: String,
+    upstream: String,
     /// The distributions package `release` version
     release: String,
 }
 
 impl Version {
     /// Create a package `Version` from an `epoch`, a `version` and an `release`
-    pub fn new(epoch: u32, version: &str, release: &str) -> crate::Result<Version> {
-        if version.is_empty() {
+    pub fn new(epoch: u32, upstream: &str, release: &str) -> crate::Result<Version> {
+        if upstream.is_empty() {
             return Err(crate::Error::Conversion(
                 "Version part of a package version can not be empty.",
             ));
         }
-        if !version
+        if !upstream
             .chars()
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_') || (c == '.'))
         {
@@ -265,7 +265,7 @@ impl Version {
                 &"Package version must consist of numbers, lowercase letters, '.' or '_' characters only.",
             ));
         }
-        if !version
+        if !upstream
             .chars()
             .take(1)
             .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
@@ -294,7 +294,7 @@ impl Version {
 
         Ok(Version {
             epoch,
-            version: version.to_string(),
+            upstream: upstream.to_string(),
             release: release.to_string(),
         })
     }
@@ -305,8 +305,8 @@ impl Version {
     }
 
     /// Return the epoch of a `Version`
-    pub fn version(&self) -> String {
-        self.version.clone()
+    pub fn upstream(&self) -> String {
+        self.upstream.clone()
     }
     /// Return the epoch of a `Version`
     pub fn release(&self) -> String {
@@ -360,13 +360,13 @@ impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (
             self.epoch != 0,
-            !self.version.is_empty(),
+            !self.upstream.is_empty(),
             !self.release.is_empty(),
         ) {
-            (false, true, false) => write!(f, "{:}", self.version),
-            (false, true, true) => write!(f, "{:}-{:}", self.version, self.release),
-            (true, true, false) => write!(f, "{:}:{:}", self.epoch, self.version),
-            (true, true, true) => write!(f, "{:}:{:}-{:}", self.epoch, self.version, self.release),
+            (false, true, false) => write!(f, "{:}", self.upstream),
+            (false, true, true) => write!(f, "{:}-{:}", self.upstream, self.release),
+            (true, true, false) => write!(f, "{:}:{:}", self.epoch, self.upstream),
+            (true, true, true) => write!(f, "{:}:{:}-{:}", self.epoch, self.upstream, self.release),
             (_, false, _) => unreachable!("Version was invalid during Display!"),
         }
     }
@@ -519,7 +519,7 @@ mod tests {
     fn test_package_version_ok() {
         let version = Version::new(43, "test", "foo").unwrap();
         assert_eq!(version.epoch, 43);
-        assert_eq!(version.version, "test");
+        assert_eq!(version.upstream, "test");
         assert_eq!(version.release, "foo");
 
         assert_eq!(
@@ -583,7 +583,7 @@ mod tests {
     fn test_package_version_conversion() {
         let version = Version::try_from(String::from("42:foobar-baz")).unwrap();
         assert_eq!(version.epoch, 42);
-        assert_eq!(version.version, "foobar".to_string());
+        assert_eq!(version.upstream, "foobar".to_string());
         assert_eq!(version.release, "baz".to_string());
         assert_eq!(String::from(version), String::from("42:foobar-baz"));
 
