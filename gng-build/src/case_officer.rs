@@ -123,6 +123,12 @@ pub struct CaseOfficer {
     message_handlers: Vec<Box<dyn MessageHandler>>,
 }
 
+impl std::fmt::Debug for CaseOfficer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CaseOfficer")
+    }
+}
+
 impl CaseOfficer {
     /// Create a new `CaseOfficer`
     pub fn new(work_directory: &Path, pkgsrc_directory: &Path, agent: &Path) -> eyre::Result<Self> {
@@ -157,7 +163,7 @@ impl CaseOfficer {
             crate::message_handler::ImmutableSourceDataHandler::default(),
         ));
         handlers.push(Box::new(
-            crate::message_handler::ValidateInputHandler::default(),
+            crate::message_handler::ValidateSourcesHandler::default(),
         ));
 
         Ok(CaseOfficer {
@@ -220,6 +226,7 @@ impl CaseOfficer {
         };
 
         let mut result = vec![
+            bind(true, &self.agent, &Path::new("/gng/build-agent")),
             OsString::from("--quiet"),
             OsString::from("--settings=off"),
             OsString::from("--register=off"),
@@ -228,7 +235,6 @@ impl CaseOfficer {
             OsString::from("--resolv-conf=off"),
             OsString::from("--timezone=off"),
             OsString::from("--link-journal=no"),
-            bind(true, &self.agent, &Path::new("/gng/build-agent")),
             OsString::from("--directory"),
             OsString::from(self.root_directory.path().as_os_str()),
             OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
@@ -258,7 +264,39 @@ impl CaseOfficer {
         result
     }
 
+    #[tracing::instrument(level = "debug")]
+    fn run_agent(
+        &mut self,
+        args: &Vec<OsString>,
+        new_mode: &Mode,
+        message_prefix: String,
+    ) -> eyre::Result<()> {
+        tracing::debug!("Starting gng-build-agent in systemd-nspawn");
+        let mut child = std::process::Command::new(&self.nspawn_binary)
+            .args(args)
+            .env_clear()
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()?;
+
+        tracing::trace!("Processing output of gng-build-agent");
+        self.handle_agent_output(&mut child, new_mode, message_prefix)?;
+
+        tracing::trace!("Waiting for gng-build-agent to finish");
+        let exit_status = child.wait()?;
+
+        match exit_status.code() {
+            None => Err(eyre::eyre!("gng-build-agent was killed by a signal.")),
+            Some(code) if code == 0 => Ok(()),
+            Some(code) => Err(eyre::eyre!(
+                "gng-build-agent failed with exit code {}.",
+                code
+            )),
+        }
+    }
+
     /// Switch into a new `Mode` of operation
+    #[tracing::instrument(level = "trace")]
     fn switch_mode(&mut self, new_mode: &Mode) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
@@ -272,19 +310,7 @@ impl CaseOfficer {
         let nspawn_args = self.mode_arguments(new_mode, &message_prefix);
         assert!(!nspawn_args.is_empty());
 
-        tracing::trace!(
-            "Starting systemd-nspawn process with arguments {:?}.",
-            nspawn_args
-        );
-
-        let child = std::process::Command::new(&self.nspawn_binary)
-            .args(&nspawn_args)
-            .env_clear()
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()?;
-
-        self.handle_agent_output(child, new_mode, message_prefix)?;
+        self.run_agent(&nspawn_args, new_mode, message_prefix)?;
 
         for h in self.message_handlers.iter_mut() {
             h.verify(new_mode)?;
@@ -318,7 +344,7 @@ impl CaseOfficer {
 
     fn handle_agent_output(
         &mut self,
-        mut child: std::process::Child,
+        child: &mut std::process::Child,
         mode: &Mode,
         message_prefix: String,
     ) -> eyre::Result<()> {
@@ -349,6 +375,7 @@ impl CaseOfficer {
     }
 
     /// Process a build
+    #[tracing::instrument(level = "debug")]
     pub fn process(&mut self) -> eyre::Result<()> {
         let mut mode = Some(Mode::default());
 

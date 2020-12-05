@@ -78,9 +78,8 @@ impl MessageHandler for ImmutableSourceDataHandler {
         }
 
         if !self.first_message {
-            return Err(eyre::eyre!(
-                "The build agent did not send a DATA message first!"
-            ));
+            tracing::error!("The build agent did not send a DATA message first!");
+            panic!("gng-build-agent did not react as expected!");
         }
 
         self.first_message = false;
@@ -96,45 +95,46 @@ impl MessageHandler for ImmutableSourceDataHandler {
                 return Ok(false);
             }
             Some(_) => {
-                return Err(eyre::eyre!("Source data changed, aborting!"));
+                tracing::error!("Source data changed, aborting!");
+                panic!("gng-build-agent did not react as expected!");
             }
         }
     }
 
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         if self.first_message {
-            return Err(eyre::eyre!("The build agent did not send any message!"));
+            tracing::error!("The build agent did not send any message!");
+            panic!("gng-build-agent did not react as expected!");
         }
 
         if self.hash.is_none() {
-            return Err(eyre::eyre!(
-                "No source data received during QUERY mode call."
-            ));
+            tracing::error!("No source data received during QUERY mode.");
+            panic!("gng-build-agent did not react as expected!");
         }
         Ok(())
     }
 }
 
 // ----------------------------------------------------------------------
-// - ValidateInputHandler:
+// - ValidateSourcesHandler:
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-pub struct ValidateInputHandler {}
+pub struct ValidateSourcesHandler {}
 
-impl ValidateInputHandler {
+impl ValidateSourcesHandler {
     fn validate(&self, source_packet: &SourcePacket) -> eyre::Result<()> {
         Ok(())
     }
 }
 
-impl Default for ValidateInputHandler {
+impl Default for ValidateSourcesHandler {
     fn default() -> Self {
-        ValidateInputHandler {}
+        ValidateSourcesHandler {}
     }
 }
 
-impl MessageHandler for ValidateInputHandler {
+impl MessageHandler for ValidateSourcesHandler {
     fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         Ok(())
     }
