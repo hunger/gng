@@ -32,27 +32,27 @@ fn register_custom_functionality(engine: &mut rhai::Engine) {
 // - Custom Functions:
 // ----------------------------------------------------------------------
 
-fn version_epoch(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+fn version_epoch(input: &ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
     let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
     Ok(Dynamic::from(version.epoch()))
 }
 
-fn version_upstream(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+fn version_upstream(input: &ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
     let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
     Ok(version.upstream().into())
 }
 
-fn version_release(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+fn version_release(input: &ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
     let version = Version::try_from(input.to_string()).map_err(|e| e.to_string())?;
     Ok(version.release().into())
 }
 
-fn hash_algorithm(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+fn hash_algorithm(input: &ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
     let hash = Hash::try_from(input.to_string()).map_err(|e| e.to_string())?;
     Ok(hash.algorithm().into())
 }
 
-fn hash_value(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
+fn hash_value(input: &ImmutableString) -> std::result::Result<Dynamic, Box<EvalAltResult>> {
     let hash = Hash::try_from(input.to_string()).map_err(|e| e.to_string())?;
     Ok(hash.value().into())
 }
@@ -90,6 +90,9 @@ impl<'a> EngineBuilder<'a> {
     }
 
     /// Evaluate a script file
+    ///
+    /// # Errors
+    /// * `Error::Script`: When the build script is invalid
     pub fn eval_pkgsrc_directory(&mut self) -> crate::Result<Engine<'a>> {
         let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
@@ -117,7 +120,7 @@ impl<'a> EngineBuilder<'a> {
             })?;
 
         let ast = engine
-            .compile_file_with_scope(&mut scope, build_file)
+            .compile_file_with_scope(&scope, build_file)
             .map_err(|e| {
                 crate::Error::Script(
                     format!("Compilation of build script {} failed", build_file_str),
@@ -150,6 +153,9 @@ pub struct Engine<'a> {
 
 impl<'a> Engine<'a> {
     /// Evaluate an expression
+    ///
+    /// # Errors
+    /// * `Error::Script`: When the expression is invalid
     pub fn evaluate<T>(&mut self, expression: &str) -> crate::Result<T>
     where
         T: Clone + Send + Sync + serde::de::DeserializeOwned + 'static,
@@ -167,12 +173,15 @@ impl<'a> Engine<'a> {
     }
 
     /// Call a function (without arguments!)
+    ///
+    /// # Errors
+    /// * `Error::Script`: When the function is not defined in rhai script
     pub fn call<T>(&mut self, name: &str) -> crate::Result<T>
     where
         T: Clone + Sync + Send + 'static,
     {
         self.engine
-            .call_fn(&mut self.scope, &mut self.ast, name, ())
+            .call_fn(&mut self.scope, &self.ast, name, ())
             .map_err(|e| {
                 crate::Error::Script(format!("Failed to call function {}", name), e.to_string())
             })

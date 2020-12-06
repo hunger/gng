@@ -9,16 +9,31 @@ use sha3::{Digest, Sha3_256};
 // - Helper:
 // ----------------------------------------------------------------------
 
+fn hash_str(input: &str) -> Vec<u8> {
+    let mut hasher = Sha3_256::new();
+    hasher.update(input.as_bytes());
+    let mut v = Vec::with_capacity(Sha3_256::output_size());
+    v.extend_from_slice(&hasher.finalize());
+
+    v
+}
+
 // ----------------------------------------------------------------------
 // - Message Handler:
 // ----------------------------------------------------------------------
 
 /// An object used to handle messages from the `gng-build-agent`
 pub trait MessageHandler {
-    /// Verify output of `gng-build-agent` after that has quit successfully:
+    /// Verify state before `gng-build-agent` is started
+    ///
+    /// # Errors
+    /// Generic Error
     fn prepare(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
 
-    /// Handle one message
+    /// Handle one message from `gng-build-agent`
+    ///
+    /// # Errors
+    /// Generic Error
     fn handle(
         &mut self,
         mode: &crate::Mode,
@@ -26,7 +41,10 @@ pub trait MessageHandler {
         message: &str,
     ) -> eyre::Result<bool>;
 
-    /// Verify output of `gng-build-agent` after that has quit successfully:
+    /// Verify state after `gng-build-agent` has quit successfully
+    ///
+    /// # Errors
+    /// Generic Error
     fn verify(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
 }
 
@@ -41,20 +59,9 @@ pub struct ImmutableSourceDataHandler {
     first_message: bool,
 }
 
-impl ImmutableSourceDataHandler {
-    fn hash_message(&mut self, message: &str) -> Vec<u8> {
-        let mut hasher = Sha3_256::new();
-        hasher.update(message.as_bytes());
-        let mut v = Vec::with_capacity(Sha3_256::output_size());
-        v.extend_from_slice(&hasher.finalize());
-
-        v
-    }
-}
-
 impl Default for ImmutableSourceDataHandler {
     fn default() -> Self {
-        ImmutableSourceDataHandler {
+        Self {
             hash: None,
             first_message: true,
         }
@@ -63,7 +70,7 @@ impl Default for ImmutableSourceDataHandler {
 
 impl MessageHandler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
-    fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+    fn prepare(&mut self, mode: &crate::Mode) -> eyre::Result<()> {
         self.first_message = true;
         Ok(())
     }
@@ -71,7 +78,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
     fn handle(
         &mut self,
-        _mode: &crate::Mode,
+        mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> eyre::Result<bool> {
@@ -87,16 +94,14 @@ impl MessageHandler for ImmutableSourceDataHandler {
 
         self.first_message = false;
 
-        let v = self.hash_message(&message);
+        let v = hash_str(message);
 
         match self.hash.as_ref() {
             None => {
                 self.hash = Some(v);
-                return Ok(false);
+                Ok(false)
             }
-            Some(vg) if *vg == v => {
-                return Ok(false);
-            }
+            Some(vg) if *vg == v => Ok(false),
             Some(_) => {
                 tracing::error!("Source data changed, aborting!");
                 panic!("gng-build-agent did not react as expected!");
@@ -105,7 +110,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
     }
 
     #[tracing::instrument(level = "trace")]
-    fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+    fn verify(&mut self, mode: &crate::Mode) -> eyre::Result<()> {
         if self.first_message {
             tracing::error!("The build agent did not send any message!");
             panic!("gng-build-agent did not react as expected!");
@@ -136,7 +141,7 @@ impl PacketHandler {
 
 impl Default for PacketHandler {
     fn default() -> Self {
-        PacketHandler {
+        Self {
             source_packet: None,
         }
     }
@@ -157,7 +162,7 @@ impl MessageHandler for PacketHandler {
             return Ok(false);
         }
 
-        self.source_packet = Some(serde_json::from_str(&message).map_err(|e| eyre::eyre!(e))?);
+        self.source_packet = Some(serde_json::from_str(message).map_err(|e| eyre::eyre!(e))?);
 
         Ok(false)
     }

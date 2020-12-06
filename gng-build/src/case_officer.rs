@@ -50,7 +50,7 @@ fn bind(read_only: bool, from: &Path, to: &Path) -> OsString {
     result
 }
 
-fn overlay(paths: &Vec<PathBuf>) -> OsString {
+fn overlay(paths: &[PathBuf]) -> OsString {
     if paths.is_empty() {
         return OsString::new();
     }
@@ -105,12 +105,23 @@ fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a st
     )
 }
 
+fn build_script(pkgsrc_directory: &Path) -> eyre::Result<PathBuf> {
+    let build_file = pkgsrc_directory.join("build.rhai");
+    if !build_file.is_file() {
+        return Err(eyre::eyre!(format!(
+            "No build.rhai file found in {}.",
+            pkgsrc_directory.to_string_lossy()
+        )));
+    }
+    Ok(build_file)
+}
+
 fn validate_executable(path: &mut Option<PathBuf>) -> eyre::Result<PathBuf> {
     if path.is_none() {
         return Err(eyre::eyre!("Path is not set."));
     }
 
-    let path = path.take().expect("It was some just a if ago!").clone();
+    let path = path.take().expect("It was some just a if ago!");
     if !path.is_file() {
         return Err(eyre::eyre!(
             "Path \"{}\" is not a file.",
@@ -220,18 +231,10 @@ impl CaseOfficerBuilder {
         self
     }
 
-    fn build_script(&self, pkgsrc_directory: &Path) -> eyre::Result<PathBuf> {
-        let build_file = pkgsrc_directory.join("build.rhai");
-        if !build_file.is_file() {
-            return Err(eyre::eyre!(format!(
-                "No build.rhai file found in {}.",
-                pkgsrc_directory.to_string_lossy()
-            )));
-        }
-        Ok(build_file)
-    }
-
     /// Evaluate a script file
+    ///
+    /// # Errors
+    /// Generic Error
     pub fn build(&mut self, pkgsrc_directory: &Path) -> eyre::Result<CaseOfficer> {
         let mut temp_dirs = Vec::with_capacity(3);
 
@@ -254,7 +257,7 @@ impl CaseOfficerBuilder {
         )?;
 
         Ok(CaseOfficer {
-            build_script: self.build_script(pkgsrc_directory)?,
+            build_script: build_script(pkgsrc_directory)?,
             nspawn_binary: validate_executable(&mut Some(std::mem::take(&mut self.nspawn_binary)))?,
             agent: validate_executable(&mut self.agent)?,
 
@@ -321,7 +324,7 @@ impl CaseOfficer {
             Mode::INSTALL => self.mode_args(
                 true,
                 false,
-                &mut vec![overlay(&vec![
+                &mut vec![overlay(&[
                     self.root_directory.join("usr"),
                     self.inst_directory.clone(),
                     PathBuf::from("/usr"),
@@ -332,7 +335,7 @@ impl CaseOfficer {
         };
 
         let mut result = vec![
-            bind(true, &self.agent, &Path::new("/gng/build-agent")),
+            bind(true, &self.agent, Path::new("/gng/build-agent")),
             OsString::from("--quiet"),
             OsString::from("--settings=off"),
             OsString::from("--register=off"),
@@ -349,25 +352,20 @@ impl CaseOfficer {
             OsString::from("--read-only"),
             setenv(
                 ce::GNG_BUILD_AGENT,
-                &cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
+                cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
             ),
-            setenv(ce::GNG_WORK_DIR, &cc::GNG_WORK_DIR.to_str().unwrap()),
-            setenv(ce::GNG_INST_DIR, &cc::GNG_INST_DIR.to_str().unwrap()),
-            setenv(ce::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
+            setenv(ce::GNG_WORK_DIR, cc::GNG_WORK_DIR.to_str().unwrap()),
+            setenv(ce::GNG_INST_DIR, cc::GNG_INST_DIR.to_str().unwrap()),
+            setenv(ce::GNG_AGENT_MESSAGE_PREFIX, message_prefix),
         ];
 
-        let rust_log = std::env::var("RUST_LOG");
-        if rust_log.is_ok() {
+        if let Ok(rust_log) = std::env::var("RUST_LOG") {
             let mut env_var = OsString::from("--setenv=RUST_LOG=");
-            env_var.push(rust_log.unwrap());
+            env_var.push(rust_log);
             result.push(env_var)
         }
 
-        result.push(bind(
-            true,
-            &self.build_script,
-            &Path::new("/gng/build.rhai"),
-        ));
+        result.push(bind(true, &self.build_script, Path::new("/gng/build.rhai")));
 
         result.append(&mut extra);
 
@@ -377,7 +375,7 @@ impl CaseOfficer {
     #[tracing::instrument(level = "debug")]
     fn run_agent(
         &mut self,
-        args: &Vec<OsString>,
+        args: &[OsString],
         new_mode: &Mode,
         message_prefix: String,
     ) -> eyre::Result<()> {
@@ -390,7 +388,7 @@ impl CaseOfficer {
             .spawn()?;
 
         tracing::trace!("Processing output of gng-build-agent");
-        self.handle_agent_output(&mut child, new_mode, message_prefix)?;
+        self.handle_agent_output(&mut child, new_mode, &message_prefix)?;
 
         tracing::trace!("Waiting for gng-build-agent to finish");
         let exit_status = child.wait()?;
@@ -410,7 +408,7 @@ impl CaseOfficer {
     fn switch_mode(&mut self, new_mode: &Mode) -> eyre::Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
-        for h in self.message_handlers.iter_mut() {
+        for h in &mut self.message_handlers {
             h.prepare(new_mode)?;
         }
 
@@ -422,7 +420,7 @@ impl CaseOfficer {
 
         self.run_agent(&nspawn_args, new_mode, message_prefix)?;
 
-        for h in self.message_handlers.iter_mut() {
+        for h in &mut self.message_handlers {
             h.verify(new_mode)?;
         }
 
@@ -432,18 +430,18 @@ impl CaseOfficer {
     fn process_line(&mut self, mode: &Mode, message_prefix: &str, line: &str) -> eyre::Result<()> {
         lazy_static::lazy_static! {
             static ref PREFIX: String =
-                std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or(String::from("AGENT> "));
+                std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or_else(|_| String::from("AGENT> "));
         }
 
-        let (message_type, line) = find_type_and_contents(&message_prefix, &line);
-        if message_type == "" {
+        let (message_type, line) = find_type_and_contents(message_prefix, line);
+        if message_type.is_empty() {
             println!("{}{}", *PREFIX, line);
         } else {
             tracing::trace!("{}MSG_{}: {}", *PREFIX, message_type, line);
 
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
                 .map_err(|e| eyre::eyre!(e))?;
-            for h in self.message_handlers.iter_mut() {
+            for h in &mut self.message_handlers {
                 if h.handle(mode, &message_type, line)? {
                     break;
                 }
@@ -456,7 +454,7 @@ impl CaseOfficer {
         &mut self,
         child: &mut std::process::Child,
         mode: &Mode,
-        message_prefix: String,
+        message_prefix: &str,
     ) -> eyre::Result<()> {
         let reader = BufReader::new(
             child
@@ -467,7 +465,7 @@ impl CaseOfficer {
 
         for line in reader.lines() {
             match line {
-                Ok(line) => self.process_line(mode, &message_prefix, &line)?,
+                Ok(line) => self.process_line(mode, message_prefix, &line)?,
                 Err(e) => return Err(eyre::eyre!(e)),
             }
         }
@@ -480,7 +478,7 @@ impl CaseOfficer {
                 "Agent failed with exit-status: {}.",
                 exit_code
             ))),
-            None => Err(eyre::eyre!(format!("Agent killed by signal."))),
+            None => Err(eyre::eyre!("Agent killed by signal.")),
         }
     }
 

@@ -13,6 +13,7 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
+#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 use std::path::PathBuf;
 

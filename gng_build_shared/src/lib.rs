@@ -13,6 +13,7 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
+#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 // ----------------------------------------------------------------------
 // - Constants:
@@ -38,16 +39,16 @@ pub mod constants {
 
     /// Environment variable names:
     pub mod environment {
-        /// GNG_BUILD_AGENT:
+        /// `GNG_BUILD_AGENT` environment variable name
         pub const GNG_BUILD_AGENT: &str = "GNG_BUILD_AGENT";
-        /// GNG_SRC_DIR:
+        /// `GNG_WORK_DIR` environment variable name
         pub const GNG_WORK_DIR: &str = "GNG_WORK_DIR";
-        /// GNG_INST_DIR:
+        /// `GNG_INST_DIR` environment variable name
         pub const GNG_INST_DIR: &str = "GNG_INST_DIR";
 
-        /// GNG_AGENT_MESSAGE_PREFIX:
+        /// `GNG_AGENT_MESSAGE_PREFIX` environment variable name
         pub const GNG_AGENT_MESSAGE_PREFIX: &str = "GNG_AGENT_MESSAGE_PREFIX";
-        /// A prefix to mark up normal messages as originating in `gng-build-agent`
+        /// `GNG_AGENT_OUTPUT_PREFIX` environment variable name
         pub const GNG_AGENT_OUTPUT_PREFIX: &str = "GNG_AGENT_OUTPUT_PREFIX";
     }
 }
@@ -64,7 +65,7 @@ impl std::convert::TryFrom<String> for MessageType {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if &value == "DATA" {
-            Ok(MessageType::DATA)
+            Ok(Self::DATA)
         } else {
             Err(format!("Failed to convert {} to MessageType", value))
         }
@@ -73,11 +74,9 @@ impl std::convert::TryFrom<String> for MessageType {
 
 impl std::convert::From<&MessageType> for String {
     fn from(mt: &MessageType) -> Self {
-        let result = match mt {
-            MessageType::DATA => String::from("DATA"),
-        };
-        assert_eq!(result.len(), 4);
-        result
+        match mt {
+            MessageType::DATA => Self::from("DATA"),
+        }
     }
 }
 

@@ -13,14 +13,12 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
+#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
-use gng_build_shared::SourcePacket;
 
 use structopt::StructOpt;
-
-use std::path::Path;
 
 // - Helpers:
 // ----------------------------------------------------------------------
@@ -47,14 +45,14 @@ enum Args {
 }
 
 fn get_env(key: &str, default: &str) -> String {
-    let result = std::env::var(key).unwrap_or(default.to_owned());
+    let result = std::env::var(key).unwrap_or_else(|_| default.to_owned());
     std::env::remove_var(key);
     result
 }
 
 fn get_message_prefix() -> String {
     let message_prefix =
-        std::env::var(ce::GNG_AGENT_MESSAGE_PREFIX).unwrap_or(String::from("MSG:"));
+        std::env::var(ce::GNG_AGENT_MESSAGE_PREFIX).unwrap_or_else(|_| String::from("MSG:"));
     std::env::remove_var(ce::GNG_AGENT_MESSAGE_PREFIX);
 
     message_prefix
@@ -75,12 +73,6 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 
 struct Context<'a> {
     engine: gng_build_agent::engine::Engine<'a>,
-    source_packet: SourcePacket,
-    message_prefix: String,
-}
-
-fn query(ctx: &mut Context) -> eyre::Result<()> {
-    Ok(())
 }
 
 fn prepare(ctx: &mut Context) -> eyre::Result<()> {
@@ -157,14 +149,10 @@ fn main() -> eyre::Result<()> {
         &serde_json::to_string(&source_packet)?,
     );
 
-    let mut ctx = Context {
-        engine,
-        source_packet,
-        message_prefix,
-    };
+    let mut ctx = Context { engine };
 
     match args {
-        Args::QUERY => query(&mut ctx),
+        Args::QUERY => Ok(()),
         Args::PREPARE => prepare(&mut ctx),
         Args::BUILD => build(&mut ctx),
         Args::CHECK => check(&mut ctx),

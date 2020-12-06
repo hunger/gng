@@ -13,6 +13,7 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
+#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 // ----------------------------------------------------------------------
 // - Modes:
@@ -37,20 +38,21 @@ pub enum Mode {
 
 impl Default for Mode {
     fn default() -> Self {
-        Mode::QUERY
+        Self::QUERY
     }
 }
 
 impl Mode {
     /// The next mode to go to
-    pub fn next(self) -> Option<Self> {
+    #[must_use]
+    pub const fn next(self) -> Option<Self> {
         match self {
-            Mode::QUERY => Some(Mode::PREPARE), // default entry point
-            Mode::PREPARE => Some(Mode::BUILD), // default entry point
-            Mode::BUILD => Some(Mode::CHECK),
-            Mode::CHECK => Some(Mode::INSTALL),
-            Mode::INSTALL => Some(Mode::PACKAGE),
-            Mode::PACKAGE => None,
+            Self::QUERY => Some(Self::PREPARE), // default entry point
+            Self::PREPARE => Some(Self::BUILD), // default entry point
+            Self::BUILD => Some(Self::CHECK),
+            Self::CHECK => Some(Self::INSTALL),
+            Self::INSTALL => Some(Self::PACKAGE),
+            Self::PACKAGE => None,
         }
     }
 }

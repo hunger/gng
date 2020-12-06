@@ -16,14 +16,14 @@ pub struct GpgKeyId(String);
 
 impl GpgKeyId {
     /// Create a new `GpgKeyId` from a string input
-    pub fn new(value: &str) -> crate::Result<GpgKeyId> {
+    ///
+    /// # Errors
+    /// * `Error::Conversion`: When the input string is not a valid GPG Key ID
+    pub fn new(value: &str) -> crate::Result<Self> {
         let value = value.to_lowercase();
-        if !value
-            .chars()
-            .all(|c| (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c == ' ') || (c == '-'))
-        {
+        if !crate::all_hex_or_separator(&value) {
             return Err(crate::Error::Conversion(
-                "A GPG Key ID must be hex with optional ' ' or '-' characters.",
+                "A GPG Key ID must be hex with optional ' ' or '-' characters.".into(),
             ));
         }
         let value = value
@@ -35,10 +35,10 @@ impl GpgKeyId {
             .join(" ");
         if value.chars().count() != (16 + 3) {
             return Err(crate::Error::Conversion(
-                "A GPG Key ID must contain 16 hex digits.",
+                "A GPG Key ID must contain 16 hex digits.".into(),
             ));
         }
-        Ok(GpgKeyId(value))
+        Ok(Self(value))
     }
 }
 
@@ -52,7 +52,7 @@ impl std::convert::TryFrom<String> for GpgKeyId {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        GpgKeyId::new(&value[..])
+        Self::new(&value[..])
     }
 }
 
@@ -76,11 +76,14 @@ fn to_hex(input: &[u8]) -> String {
 
 fn from_hex(input: &str, output: &mut [u8]) -> Result<(), crate::Error> {
     if input.len() != output.len() * 2 {
-        return Err(crate::Error::Conversion("Hash value length is invalid."));
+        return Err(crate::Error::Conversion(
+            "Hash value length is invalid.".into(),
+        ));
     }
     for i in 0..output.len() {
-        output[i] = u8::from_str_radix(&input[(i * 2)..(i * 2) + 2], 16)
-            .map_err(|_| crate::Error::Conversion("Hash value must be hex characters only."))?;
+        output[i] = u8::from_str_radix(&input[(i * 2)..(i * 2) + 2], 16).map_err(|e| {
+            crate::Error::Conversion(format!("Hex conversion failed: {}", e.to_string()))
+        })?;
     }
 
     Ok(())
@@ -99,42 +102,51 @@ pub enum Hash {
 }
 
 impl Hash {
-    /// Create a 'Hash::NONE`
-    pub fn none() -> crate::Result<Hash> {
-        Ok(Hash::NONE())
+    /// Create a `NONE` hash
+    #[must_use]
+    pub const fn none() -> Self {
+        Self::NONE()
     }
 
-    /// Create a `Hash::SHA256`
-    pub fn sha256(value: &str) -> crate::Result<Hash> {
+    /// Create a `SHA256` hash
+    ///
+    /// # Errors
+    /// * `Error::Conversion`: When the input string is not a valid `Hash`
+    pub fn sha256(value: &str) -> crate::Result<Self> {
         let mut v = [0_u8; 32];
-        from_hex(&value, &mut v)?;
+        from_hex(value, &mut v)?;
 
-        Ok(Hash::SHA256(v))
+        Ok(Self::SHA256(v))
     }
 
-    /// Create a `Hash::SHA512`
-    pub fn sha512(value: &str) -> crate::Result<Hash> {
+    /// Create a `SHA512` hash
+    ///
+    /// # Errors
+    /// * `Error::Conversion`: When the input string is not a valid `Hash`
+    pub fn sha512(value: &str) -> crate::Result<Self> {
         let mut v = [0_u8; 64];
-        from_hex(&value, &mut v)?;
+        from_hex(value, &mut v)?;
 
-        Ok(Hash::SHA512(v))
+        Ok(Self::SHA512(v))
     }
 
     /// The hash algorithm
+    #[must_use]
     pub fn algorithm(&self) -> String {
         match self {
-            Hash::NONE() => String::from("none"),
-            Hash::SHA256(_) => String::from("sha256"),
-            Hash::SHA512(_) => String::from("sha512"),
+            Self::NONE() => String::from("none"),
+            Self::SHA256(_) => String::from("sha256"),
+            Self::SHA512(_) => String::from("sha512"),
         }
     }
 
     /// The hash value
+    #[must_use]
     pub fn value(&self) -> String {
         match self {
-            Hash::NONE() => String::new(),
-            Hash::SHA256(v) => to_hex(&v[..]),
-            Hash::SHA512(v) => to_hex(&v[..]),
+            Self::NONE() => String::new(),
+            Self::SHA256(v) => to_hex(&v[..]),
+            Self::SHA512(v) => to_hex(&v[..]),
         }
     }
 }
@@ -151,27 +163,28 @@ impl std::convert::TryFrom<String> for Hash {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let value = value.to_lowercase();
         if value == "none" {
-            Hash::none()
-        } else if value.starts_with("sha256:") {
-            Hash::sha256(&value[7..])
-        } else if value.starts_with("sha512:") {
-            Hash::sha512(&value[7..])
-        } else {
-            Err(crate::Error::Conversion("Unsupported hash type."))
+            return Ok(Self::none());
         }
+        if let Some(v) = value.strip_prefix("sha256:") {
+            return Self::sha256(v);
+        }
+        if let Some(v) = value.strip_prefix("sha512:") {
+            return Self::sha512(v);
+        }
+        Err(crate::Error::Conversion("Unsupported hash type.".into()))
     }
 }
 
 impl std::default::Default for Hash {
     fn default() -> Self {
-        Hash::NONE()
+        Self::NONE()
     }
 }
 
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Hash::NONE() => write!(f, "{}", self.algorithm()),
+            Self::NONE() => write!(f, "{}", self.algorithm()),
             _ => write!(f, "{}:{}", self.algorithm(), self.value()),
         }
     }
@@ -188,34 +201,33 @@ pub struct Name(String);
 
 impl Name {
     /// Create a package 'Name' from a '&str'
-    pub fn new(value: &str) -> crate::Result<Name> {
+    ///
+    /// # Errors
+    /// * `Error::Conversion`: When the input string is not a valid `Name`
+    pub fn new(value: &str) -> crate::Result<Self> {
         if value.is_empty() {
-            return Err(crate::Error::Conversion(&"Package name can not be empty."));
-        }
-        if !value
-            .chars()
-            .take(1)
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-        {
             return Err(crate::Error::Conversion(
-                &"Package name must start with a number or lowercase letter.",
+                "Package name can not be empty.".into(),
             ));
         }
-        if !value
-            .chars()
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_'))
-        {
+        if !crate::start_alnum_char(value) {
             return Err(crate::Error::Conversion(
-                &"Package name must consist of numbers, lowercase letter or '_' characters only.",
+                "Package name must start with a number or lowercase letter.".into(),
             ));
         }
-        Ok(Name(value.to_string()))
+        if !crate::all_name_chars(value) {
+            return Err(crate::Error::Conversion(
+                "Package name must consist of numbers, lowercase letter or '_' characters only."
+                    .into(),
+            ));
+        }
+        Ok(Self(value.to_string()))
     }
 }
 
 impl std::convert::From<Name> for String {
     fn from(name: Name) -> Self {
-        name.0.clone()
+        name.0
     }
 }
 
@@ -223,7 +235,7 @@ impl std::convert::TryFrom<String> for Name {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Name::new(&value[..])
+        Self::new(&value[..])
     }
 }
 
@@ -251,48 +263,37 @@ pub struct Version {
 
 impl Version {
     /// Create a package `Version` from an `epoch`, a `version` and an `release`
-    pub fn new(epoch: u32, upstream: &str, release: &str) -> crate::Result<Version> {
+    ///
+    /// # Errors
+    /// * `Error::Conversion`: When the input string is not a valid `Version`
+    pub fn new(epoch: u32, upstream: &str, release: &str) -> crate::Result<Self> {
         if upstream.is_empty() {
             return Err(crate::Error::Conversion(
-                "Version part of a package version can not be empty.",
+                "Version part of a package version can not be empty.".into(),
             ));
         }
-        if !upstream
-            .chars()
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_') || (c == '.'))
-        {
+        if !crate::all_version_chars(upstream) {
             return Err(crate::Error::Conversion(
-                &"Package version must consist of numbers, lowercase letters, '.' or '_' characters only.",
+                "Package version must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
             ));
         }
-        if !upstream
-            .chars()
-            .take(1)
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-        {
+        if !crate::start_alnum_char(upstream) {
             return Err(crate::Error::Conversion(
-                &"Package version must start with a numbers or lowercase letter.",
+                "Package version must start with a numbers or lowercase letter.".into(),
             ));
         }
-        if !release
-            .chars()
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == '_') || (c == '.'))
-        {
+        if !crate::all_version_chars(release) {
             return Err(crate::Error::Conversion(
-                &"Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.",
+                "Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
             ));
         }
-        if !release
-            .chars()
-            .take(1)
-            .all(|c| (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
-        {
+        if !crate::start_alnum_char(release) {
             return Err(crate::Error::Conversion(
-                &"Package version release must start with a numbers or lowercase letter.",
+                "Package version release must start with a numbers or lowercase letter.".into(),
             ));
         }
 
-        Ok(Version {
+        Ok(Self {
             epoch,
             upstream: upstream.to_string(),
             release: release.to_string(),
@@ -300,15 +301,19 @@ impl Version {
     }
 
     /// Return the epoch of a `Version`
-    pub fn epoch(&self) -> u32 {
+    #[must_use]
+    pub const fn epoch(&self) -> u32 {
         self.epoch
     }
 
     /// Return the epoch of a `Version`
+    #[must_use]
     pub fn upstream(&self) -> String {
         self.upstream.clone()
     }
+
     /// Return the epoch of a `Version`
+    #[must_use]
     pub fn release(&self) -> String {
         self.release.clone()
     }
@@ -325,34 +330,39 @@ impl std::convert::TryFrom<String> for Version {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let epoch;
-        let version;
+        let upstream;
         let release;
 
-        let input = &value[..];
-
-        let mut index = input.chars().position(|c| c == ':').unwrap_or(0);
-        if index > 0 {
-            epoch = input[..index]
+        let epoch_upstream_release = &value[..];
+        let mut colon_index = epoch_upstream_release
+            .chars()
+            .position(|c| c == ':')
+            .unwrap_or(0);
+        if colon_index > 0 {
+            epoch = epoch_upstream_release[..colon_index]
                 .parse::<u32>()
-                .or(Err(crate::Error::Conversion(
-                    "Invalid epoch value in version string found.",
-                )))?;
-            index += 1;
+                .map_err(|e| {
+                    crate::Error::Conversion(format!("Invalid epoch value: {}", e.to_string()))
+                })?;
+            colon_index += 1;
         } else {
             epoch = 0;
         }
 
-        let input = &value[index..];
-        let index = input.chars().position(|c| c == '-').unwrap_or(0);
-        if index > 0 {
-            version = &input[..index];
-            release = &input[(index + 1)..];
+        let upstream_and_release = &value[colon_index..];
+        let dash_index = upstream_and_release
+            .chars()
+            .position(|c| c == '-')
+            .unwrap_or(0);
+        if dash_index > 0 {
+            upstream = &upstream_and_release[..dash_index];
+            release = &upstream_and_release[(dash_index + 1)..];
         } else {
-            version = input;
+            upstream = upstream_and_release;
             release = "";
         }
 
-        Version::new(epoch, version, release)
+        Self::new(epoch, upstream, release)
     }
 }
 
@@ -446,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_package_hash_ok() {
-        assert_eq!(Hash::none().unwrap(), Hash::NONE());
+        assert_eq!(Hash::none(), Hash::NONE());
 
         assert_eq!(
             Hash::sha256("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")

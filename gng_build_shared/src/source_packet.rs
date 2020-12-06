@@ -7,7 +7,7 @@ use gng_shared::{GpgKeyId, Hash, Name, Version};
 // - Helper:
 // ----------------------------------------------------------------------
 
-fn always_true() -> bool {
+const fn always_true() -> bool {
     true
 }
 

@@ -13,6 +13,7 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
+#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 use std::os::unix::fs::PermissionsExt;
 
@@ -25,7 +26,7 @@ use std::os::unix::fs::PermissionsExt;
 pub enum Error {
     /// Conversion error.
     #[error("Conversion error: {0}")]
-    Conversion(&'static str),
+    Conversion(String),
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]
@@ -40,16 +41,55 @@ pub type Result<T> = std::result::Result<T, Error>;
 // ----------------------------------------------------------------------
 
 /// Return `true` if the program is run by the `root` user.
+#[must_use]
 pub fn is_root() -> bool {
     nix::unistd::Uid::effective().is_root()
 }
 
 /// Return `true` if the `path` is executable
+#[must_use]
 pub fn is_executable(path: &std::path::Path) -> bool {
     match std::fs::metadata(path) {
         Err(_) => false,
         Ok(m) => (m.permissions().mode() & 0o111) != 0,
     }
+}
+
+/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9' or '_'
+#[must_use]
+pub fn all_name_chars(input: &str) -> bool {
+    input
+        .chars()
+        .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c) || (c == '_'))
+}
+
+/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9', '.' or '_'
+#[must_use]
+pub fn all_version_chars(input: &str) -> bool {
+    input
+        .chars()
+        .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c) || (c == '_') || (c == '.'))
+}
+
+/// Return `true` if all characters are (lc) hex digits or separators like '-', ' ' or '_'
+#[must_use]
+pub fn all_hex_or_separator(input: &str) -> bool {
+    input.chars().all(|c| {
+        ('0'..='9').contains(&c)
+            || ('a'..='f').contains(&c)
+            || (c == ' ')
+            || (c == '-')
+            || (c == '_')
+    })
+}
+
+/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9', '.' or '_'
+#[must_use]
+pub fn start_alnum_char(input: &str) -> bool {
+    input
+        .chars()
+        .take(1)
+        .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c))
 }
 
 // ----------------------------------------------------------------------
