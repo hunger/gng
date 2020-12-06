@@ -29,14 +29,10 @@ pub mod constants {
             pub static ref GNG_DIR: PathBuf = PathBuf::from("/gng");
             /// The `gng-build-agent` binary inside the container
             pub static ref GNG_BUILD_AGENT_EXECUTABLE: PathBuf = GNG_DIR.join("build-agent");
-            /// The `pkgsrc` folder inside the build container
-            pub static ref GNG_PKGSRC_DIR: PathBuf = GNG_DIR.join("pkgsrc");
             /// The `src` folder inside the build container
-            pub static ref GNG_SRC_DIR: PathBuf = GNG_DIR.join("src");
+            pub static ref GNG_WORK_DIR: PathBuf = GNG_DIR.join("work");
             /// The `inst` folder inside the build container
             pub static ref GNG_INST_DIR: PathBuf = GNG_DIR.join("inst");
-            /// The `pkg` folder inside the build container
-            pub static ref GNG_PKG_DIR: PathBuf = GNG_DIR.join("pkg");
         }
     }
 
@@ -44,14 +40,10 @@ pub mod constants {
     pub mod environment {
         /// GNG_BUILD_AGENT:
         pub const GNG_BUILD_AGENT: &str = "GNG_BUILD_AGENT";
-        /// GNG_PKGSRC_DIR:
-        pub const GNG_PKGSRC_DIR: &str = "GNG_PKGSRC_DIR";
-        /// GNG_PKGSRC_DIR:
-        pub const GNG_SRC_DIR: &str = "GNG_SRC_DIR";
-        /// GNG_PKGSRC_DIR:
+        /// GNG_SRC_DIR:
+        pub const GNG_WORK_DIR: &str = "GNG_WORK_DIR";
+        /// GNG_INST_DIR:
         pub const GNG_INST_DIR: &str = "GNG_INST_DIR";
-        /// GNG_PKGSRC_DIR:
-        pub const GNG_PKG_DIR: &str = "GNG_PKG_DIR";
 
         /// GNG_AGENT_MESSAGE_PREFIX:
         pub const GNG_AGENT_MESSAGE_PREFIX: &str = "GNG_AGENT_MESSAGE_PREFIX";

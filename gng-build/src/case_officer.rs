@@ -8,12 +8,14 @@ use crate::Mode;
 
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
+use gng_shared::is_executable;
 
 use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+use eyre::WrapErr;
 use rand::Rng;
 
 // - Helper:
@@ -103,24 +105,185 @@ fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a st
     )
 }
 
+fn validate_executable(path: &mut Option<PathBuf>) -> eyre::Result<PathBuf> {
+    if path.is_none() {
+        return Err(eyre::eyre!("Path is not set."));
+    }
+
+    let path = path.take().expect("It was some just a if ago!").clone();
+    if !path.is_file() {
+        return Err(eyre::eyre!(
+            "Path \"{}\" is not a file.",
+            path.to_string_lossy()
+        ));
+    }
+    if !is_executable(&path) {
+        return Err(eyre::eyre!(
+            "Path \"{}\" is not executable.",
+            path.to_string_lossy()
+        ));
+    }
+
+    Ok(path)
+}
+
+fn path_buf_or_tempdir(
+    path: &Option<PathBuf>,
+    prefix: &str,
+    scratch_directory: &Path,
+    temp_dirs: &mut Vec<tempfile::TempDir>,
+) -> eyre::Result<PathBuf> {
+    if path.is_some() {
+        return Ok(path.as_ref().unwrap().clone());
+    }
+
+    let tmp = tempfile::Builder::new()
+        .prefix(prefix)
+        .rand_bytes(8)
+        .tempdir_in(scratch_directory)
+        .wrap_err(format!(
+            "Failed to create temporary directory in \"{}\".",
+            scratch_directory.to_string_lossy()
+        ))?;
+    let path = tmp.path().to_owned();
+
+    temp_dirs.push(tmp);
+
+    Ok(path)
+}
+
+// ----------------------------------------------------------------------
+// - CaseOfficerBuilder:
+// ----------------------------------------------------------------------
+
+/// A builder for `CaseOfficer`
+pub struct CaseOfficerBuilder {
+    agent: Option<PathBuf>,
+    nspawn_binary: PathBuf,
+
+    scratch_directory: PathBuf,
+    work_directory: Option<PathBuf>,
+    inst_directory: Option<PathBuf>,
+
+    message_handlers: Vec<Box<dyn MessageHandler>>,
+}
+
+impl Default for CaseOfficerBuilder {
+    fn default() -> Self {
+        Self {
+            agent: None,
+            nspawn_binary: PathBuf::from("/usr/bin/systemd-nspawn"),
+
+            scratch_directory: std::env::temp_dir(),
+            work_directory: None,
+            inst_directory: None,
+
+            message_handlers: vec![],
+        }
+    }
+}
+
+impl CaseOfficerBuilder {
+    /// Set the `scratch_directory` to use
+    pub fn set_scratch_directory(&mut self, directory: &Path) -> &mut Self {
+        self.scratch_directory = directory.to_owned();
+        self
+    }
+
+    /// Set the `work_directory` to use
+    pub fn set_work_directory(&mut self, directory: &Path) -> &mut Self {
+        self.work_directory = Some(directory.to_owned());
+        self
+    }
+
+    /// Set the `inst_directory` to use
+    pub fn set_install_directory(&mut self, directory: &Path) -> &mut Self {
+        self.inst_directory = Some(directory.to_owned());
+        self
+    }
+
+    /// Set the `src_directory` to use
+    pub fn set_agent(&mut self, file: &Path) -> &mut Self {
+        self.agent = Some(file.to_owned());
+        self
+    }
+
+    /// Set the `src_directory` to use
+    pub fn set_systemd_nspawn(&mut self, file: &Path) -> &mut Self {
+        self.nspawn_binary = file.to_owned();
+        self
+    }
+
+    /// Add an `MessageHandler`
+    pub fn add_message_handler(&mut self, handler: Box<dyn MessageHandler>) -> &mut Self {
+        self.message_handlers.push(handler);
+        self
+    }
+
+    fn build_script(&self, pkgsrc_directory: &Path) -> eyre::Result<PathBuf> {
+        let build_file = pkgsrc_directory.join("build.rhai");
+        if !build_file.is_file() {
+            return Err(eyre::eyre!(format!(
+                "No build.rhai file found in {}.",
+                pkgsrc_directory.to_string_lossy()
+            )));
+        }
+        Ok(build_file)
+    }
+
+    /// Evaluate a script file
+    pub fn build(&mut self, pkgsrc_directory: &Path) -> eyre::Result<CaseOfficer> {
+        let mut temp_dirs = Vec::with_capacity(3);
+
+        let root_directory =
+            path_buf_or_tempdir(&None, "root-", &self.scratch_directory, &mut temp_dirs)?;
+        prepare_for_systemd_nspawn(&root_directory)
+            .wrap_err("Failed to set up root directory for nspawn use.")?;
+
+        let work_directory = path_buf_or_tempdir(
+            &self.work_directory,
+            "work-",
+            &self.scratch_directory,
+            &mut temp_dirs,
+        )?;
+        let inst_directory = path_buf_or_tempdir(
+            &self.inst_directory,
+            "inst-",
+            &self.scratch_directory,
+            &mut temp_dirs,
+        )?;
+
+        Ok(CaseOfficer {
+            build_script: self.build_script(pkgsrc_directory)?,
+            nspawn_binary: validate_executable(&mut Some(std::mem::take(&mut self.nspawn_binary)))?,
+            agent: validate_executable(&mut self.agent)?,
+
+            root_directory,
+            work_directory,
+            inst_directory,
+
+            message_handlers: std::mem::take(&mut self.message_handlers),
+            temporary_directories: temp_dirs,
+        })
+    }
+}
+
 // ----------------------------------------------------------------------
 // - CaseOfficer:
 // ----------------------------------------------------------------------
 
 /// The controller of the `gng-build-agent`
 pub struct CaseOfficer {
-    pkgsrc_directory: PathBuf,
-
-    root_directory: tempfile::TempDir,
-    src_directory: tempfile::TempDir,
-    inst_directory: tempfile::TempDir,
-    pkg_directory: tempfile::TempDir,
-
+    build_script: PathBuf,
+    nspawn_binary: PathBuf,
     agent: PathBuf,
 
-    nspawn_binary: PathBuf,
+    root_directory: PathBuf,
+    work_directory: PathBuf,
+    inst_directory: PathBuf,
 
     message_handlers: Vec<Box<dyn MessageHandler>>,
+    temporary_directories: Vec<tempfile::TempDir>,
 }
 
 impl std::fmt::Debug for CaseOfficer {
@@ -130,71 +293,16 @@ impl std::fmt::Debug for CaseOfficer {
 }
 
 impl CaseOfficer {
-    /// Create a new `CaseOfficer`
-    pub fn new(work_directory: &Path, pkgsrc_directory: &Path, agent: &Path) -> eyre::Result<Self> {
-        let nspawn_binary = Path::new("/usr/bin/systemd-nspawn");
-        if !nspawn_binary.is_file() {
-            return Err(eyre::eyre!("systemd-nspawn binary not found."));
-        }
-
-        let root_dir = tempfile::Builder::new()
-            .prefix("root-")
-            .rand_bytes(6)
-            .tempdir_in(&work_directory)?;
-        prepare_for_systemd_nspawn(&root_dir.path())?;
-
-        let src_dir = tempfile::Builder::new()
-            .prefix("src-")
-            .rand_bytes(6)
-            .tempdir_in(&work_directory)?;
-
-        let inst_dir = tempfile::Builder::new()
-            .prefix("ínst-")
-            .rand_bytes(6)
-            .tempdir_in(&work_directory)?;
-
-        let pkg_dir = tempfile::Builder::new()
-            .prefix("pkg-")
-            .rand_bytes(6)
-            .tempdir_in(&work_directory)?;
-
-        let mut handlers: Vec<Box<dyn MessageHandler>> = Vec::new();
-        handlers.push(Box::new(
-            crate::message_handler::ImmutableSourceDataHandler::default(),
-        ));
-        handlers.push(Box::new(
-            crate::message_handler::ValidateSourcesHandler::default(),
-        ));
-
-        Ok(CaseOfficer {
-            pkgsrc_directory: pkgsrc_directory.to_path_buf(),
-
-            root_directory: root_dir,
-            src_directory: src_dir,
-            inst_directory: inst_dir,
-            pkg_directory: pkg_dir,
-
-            agent: agent.to_path_buf(),
-            nspawn_binary: nspawn_binary.to_path_buf(),
-
-            message_handlers: handlers,
-        })
-    }
-
     fn mode_args(
         &self,
-        pkgsrc_ro: bool,
-        src_ro: bool,
+        work_ro: bool,
         inst_ro: bool,
-        pkg_ro: bool,
         extra_args: &mut Vec<OsString>,
         mode_arg: &str,
     ) -> Vec<OsString> {
         let mut result = vec![
-            bind(pkgsrc_ro, &self.pkgsrc_directory, &cc::GNG_PKGSRC_DIR),
-            bind(src_ro, &self.src_directory.path(), &cc::GNG_SRC_DIR),
-            bind(inst_ro, self.inst_directory.path(), &cc::GNG_INST_DIR),
-            bind(pkg_ro, self.pkg_directory.path(), &cc::GNG_PKG_DIR),
+            bind(work_ro, &self.work_directory, &cc::GNG_WORK_DIR),
+            bind(inst_ro, &self.inst_directory, &cc::GNG_INST_DIR),
         ];
         result.append(extra_args);
 
@@ -206,23 +314,21 @@ impl CaseOfficer {
 
     fn mode_arguments(&self, mode: &Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
-            Mode::QUERY => self.mode_args(true, true, true, true, &mut Vec::new(), "query"),
-            Mode::PREPARE => self.mode_args(true, false, true, true, &mut Vec::new(), "prepare"),
-            Mode::BUILD => self.mode_args(true, false, true, true, &mut Vec::new(), "build"),
-            Mode::CHECK => self.mode_args(true, false, true, true, &mut Vec::new(), "check"),
+            Mode::QUERY => self.mode_args(true, true, &mut Vec::new(), "query"),
+            Mode::PREPARE => self.mode_args(false, true, &mut Vec::new(), "prepare"),
+            Mode::BUILD => self.mode_args(false, true, &mut Vec::new(), "build"),
+            Mode::CHECK => self.mode_args(false, true, &mut Vec::new(), "check"),
             Mode::INSTALL => self.mode_args(
                 true,
-                true,
                 false,
-                true,
                 &mut vec![overlay(&vec![
-                    self.root_directory.path().join("usr"),
-                    self.inst_directory.path().to_path_buf(),
+                    self.root_directory.join("usr"),
+                    self.inst_directory.clone(),
                     PathBuf::from("/usr"),
                 ])],
                 "install",
             ),
-            Mode::PACKAGE => self.mode_args(true, true, true, false, &mut Vec::new(), "polish"),
+            Mode::PACKAGE => self.mode_args(true, true, &mut Vec::new(), "polish"),
         };
 
         let mut result = vec![
@@ -236,7 +342,7 @@ impl CaseOfficer {
             OsString::from("--timezone=off"),
             OsString::from("--link-journal=no"),
             OsString::from("--directory"),
-            OsString::from(self.root_directory.path().as_os_str()),
+            OsString::from(self.root_directory.as_os_str()),
             OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
             OsString::from("--console=interactive"),
             OsString::from("--tmpfs=/gng"),
@@ -245,10 +351,8 @@ impl CaseOfficer {
                 ce::GNG_BUILD_AGENT,
                 &cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
             ),
-            setenv(ce::GNG_PKGSRC_DIR, &cc::GNG_PKGSRC_DIR.to_str().unwrap()),
-            setenv(ce::GNG_SRC_DIR, &cc::GNG_SRC_DIR.to_str().unwrap()),
+            setenv(ce::GNG_WORK_DIR, &cc::GNG_WORK_DIR.to_str().unwrap()),
             setenv(ce::GNG_INST_DIR, &cc::GNG_INST_DIR.to_str().unwrap()),
-            setenv(ce::GNG_PKG_DIR, &cc::GNG_PKG_DIR.to_str().unwrap()),
             setenv(ce::GNG_AGENT_MESSAGE_PREFIX, &message_prefix),
         ];
 
@@ -258,6 +362,12 @@ impl CaseOfficer {
             env_var.push(rust_log.unwrap());
             result.push(env_var)
         }
+
+        result.push(bind(
+            true,
+            &self.build_script,
+            &Path::new("/gng/build.rhai"),
+        ));
 
         result.append(&mut extra);
 
@@ -383,6 +493,20 @@ impl CaseOfficer {
             let m = mode.expect("Mode was some!");
             self.switch_mode(&m)?;
             mode = m.next();
+        }
+
+        Ok(())
+    }
+
+    /// Clean up after a build
+    #[tracing::instrument(level = "debug")]
+    pub fn clean_up(&mut self) -> eyre::Result<()> {
+        for td in self.temporary_directories.drain(..) {
+            let p = td.path().to_owned();
+            td.close().wrap_err(format!(
+                "Failed to clean up temporary directory with path \"{}\".",
+                p.to_string_lossy()
+            ))?
         }
 
         Ok(())

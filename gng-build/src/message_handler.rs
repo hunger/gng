@@ -120,47 +120,51 @@ impl MessageHandler for ImmutableSourceDataHandler {
 }
 
 // ----------------------------------------------------------------------
-// - ValidateSourcesHandler:
+// - PackageHandler:
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-pub struct ValidateSourcesHandler {}
+pub struct PacketHandler {
+    source_packet: Option<SourcePacket>,
+}
 
-impl ValidateSourcesHandler {
-    fn validate(&self, source_packet: &SourcePacket) -> eyre::Result<()> {
+impl PacketHandler {
+    fn create_packets(&self) -> eyre::Result<()> {
         Ok(())
     }
 }
 
-impl Default for ValidateSourcesHandler {
+impl Default for PacketHandler {
     fn default() -> Self {
-        ValidateSourcesHandler {}
+        PacketHandler {
+            source_packet: None,
+        }
     }
 }
 
-impl MessageHandler for ValidateSourcesHandler {
+impl MessageHandler for PacketHandler {
     fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         Ok(())
     }
 
     fn handle(
         &mut self,
-        _mode: &crate::Mode,
+        mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> eyre::Result<bool> {
-        if message_type != &gng_build_shared::MessageType::DATA {
+        if *mode != crate::Mode::PACKAGE && message_type != &gng_build_shared::MessageType::DATA {
             return Ok(false);
         }
 
-        let source_packet = serde_json::from_str(&message).map_err(|e| eyre::eyre!(e))?;
-
-        self.validate(&source_packet)?;
+        self.source_packet = Some(serde_json::from_str(&message).map_err(|e| eyre::eyre!(e))?);
 
         Ok(false)
     }
 
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
-        Ok(())
+        assert!(self.source_packet.is_some());
+
+        self.create_packets()
     }
 }

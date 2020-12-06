@@ -8,7 +8,7 @@ use gng_shared::{Hash, Version};
 use rhai::{Dynamic, EvalAltResult, ImmutableString, RegisterResultFn};
 
 use std::convert::TryFrom;
-use std::path::Path;
+use std::path::PathBuf;
 use std::string::ToString;
 
 mod rhai_modules;
@@ -58,7 +58,7 @@ fn hash_value(input: ImmutableString) -> std::result::Result<Dynamic, Box<EvalAl
 }
 
 // ----------------------------------------------------------------------
-// - Engine:
+// - EngineBuilder:
 // ----------------------------------------------------------------------
 
 /// A builder for `Engine`
@@ -89,12 +89,12 @@ impl<'a> EngineBuilder<'a> {
         self
     }
 
-    /// Evaluate a script fil
-    pub fn eval_pkgsrc_directory(&mut self, pkgsrc_dir: &Path) -> crate::Result<Engine<'a>> {
+    /// Evaluate a script file
+    pub fn eval_pkgsrc_directory(&mut self) -> crate::Result<Engine<'a>> {
         let mut engine = std::mem::replace(&mut self.engine, rhai::Engine::new());
         let mut scope = std::mem::replace(&mut self.scope, rhai::Scope::<'a>::new());
 
-        let build_file = Path::new(pkgsrc_dir).join("build.rhai");
+        let build_file = PathBuf::from("/gng/build.rhai");
         let build_file_str = build_file.to_string_lossy().into_owned();
 
         register_custom_functionality(&mut engine);
@@ -136,6 +136,10 @@ impl<'a> EngineBuilder<'a> {
         Ok(Engine { engine, scope, ast })
     }
 }
+
+// ----------------------------------------------------------------------
+// - Engine:
+// ----------------------------------------------------------------------
 
 /// The script Engine driving the `gng-build-agent`
 pub struct Engine<'a> {

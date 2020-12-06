@@ -85,32 +85,37 @@ fn query(ctx: &mut Context) -> eyre::Result<()> {
 
 fn prepare(ctx: &mut Context) -> eyre::Result<()> {
     ctx.engine
-        .call::<()>("prepare")
-        .map_err(|e| eyre::eyre!(e.to_string()))
+        .call::<rhai::Dynamic>("prepare")
+        .map_err(|e| eyre::eyre!(e.to_string()))?;
+    Ok(())
 }
 
 fn build(ctx: &mut Context) -> eyre::Result<()> {
     ctx.engine
-        .call::<()>("build")
-        .map_err(|e| eyre::eyre!(e.to_string()))
+        .call::<rhai::Dynamic>("build")
+        .map_err(|e| eyre::eyre!(e.to_string()))?;
+    Ok(())
 }
 
 fn check(ctx: &mut Context) -> eyre::Result<()> {
     ctx.engine
-        .call::<()>("check")
-        .map_err(|e| eyre::eyre!(e.to_string()))
+        .call::<rhai::Dynamic>("check")
+        .map_err(|e| eyre::eyre!(e.to_string()))?;
+    Ok(())
 }
 
 fn install(ctx: &mut Context) -> eyre::Result<()> {
     ctx.engine
-        .call::<()>("install")
-        .map_err(|e| eyre::eyre!(e.to_string()))
+        .call::<rhai::Dynamic>("install")
+        .map_err(|e| eyre::eyre!(e.to_string()))?;
+    Ok(())
 }
 
 fn polish(ctx: &mut Context) -> eyre::Result<()> {
     ctx.engine
-        .call::<()>("polish")
-        .map_err(|e| eyre::eyre!(e.to_string()))
+        .call::<rhai::Dynamic>("polish")
+        .map_err(|e| eyre::eyre!(e.to_string()))?;
+    Ok(())
 }
 
 // ----------------------------------------------------
@@ -130,24 +135,17 @@ fn main() -> eyre::Result<()> {
 
     let message_prefix = get_message_prefix();
 
-    let pkgsrc_dir = get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKGSRC_DIR.to_str().unwrap());
-
     let mut engine_builder = gng_build_agent::engine::EngineBuilder::default();
-    engine_builder.push_constant("PKGSRC_DIR", pkgsrc_dir.clone().into());
     engine_builder.push_constant(
-        "SRC_DIR",
-        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKGSRC_DIR.to_str().unwrap()).into(),
+        "WORK_DIR",
+        get_env(ce::GNG_WORK_DIR, cc::GNG_WORK_DIR.to_str().unwrap()).into(),
     );
     engine_builder.push_constant(
         "INST_DIR",
-        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_INST_DIR.to_str().unwrap()).into(),
-    );
-    engine_builder.push_constant(
-        "PKG_DIR",
-        get_env(ce::GNG_PKGSRC_DIR, cc::GNG_PKG_DIR.to_str().unwrap()).into(),
+        get_env(ce::GNG_INST_DIR, cc::GNG_INST_DIR.to_str().unwrap()).into(),
     );
 
-    let mut engine = engine_builder.eval_pkgsrc_directory(&Path::new(&pkgsrc_dir))?;
+    let mut engine = engine_builder.eval_pkgsrc_directory()?;
 
     let source_packet = gng_build_agent::source_packet::from_engine(&mut engine)?;
 

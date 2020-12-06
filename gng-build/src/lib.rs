@@ -60,10 +60,10 @@ impl Mode {
 // ----------------------------------------------------------------------
 
 pub mod case_officer;
-mod message_handler;
+pub mod message_handler;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
-pub use case_officer::CaseOfficer;
+pub use case_officer::{CaseOfficer, CaseOfficerBuilder};

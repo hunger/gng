@@ -14,6 +14,8 @@
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 
+use std::os::unix::fs::PermissionsExt;
+
 // ----------------------------------------------------------------------
 // - Error Handling:
 // ----------------------------------------------------------------------
@@ -40,6 +42,14 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Return `true` if the program is run by the `root` user.
 pub fn is_root() -> bool {
     nix::unistd::Uid::effective().is_root()
+}
+
+/// Return `true` if the `path` is executable
+pub fn is_executable(path: &std::path::Path) -> bool {
+    match std::fs::metadata(path) {
+        Err(_) => false,
+        Ok(m) => (m.permissions().mode() & 0o111) != 0,
+    }
 }
 
 // ----------------------------------------------------------------------
