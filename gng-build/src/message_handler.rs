@@ -133,12 +133,6 @@ pub struct PacketHandler {
     source_packet: Option<SourcePacket>,
 }
 
-impl PacketHandler {
-    fn create_packets(&self) -> eyre::Result<()> {
-        Ok(())
-    }
-}
-
 impl Default for PacketHandler {
     fn default() -> Self {
         Self {
@@ -170,6 +164,6 @@ impl MessageHandler for PacketHandler {
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         assert!(self.source_packet.is_some());
 
-        self.create_packets()
+        todo!();
     }
 }
