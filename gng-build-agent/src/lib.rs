@@ -22,7 +22,7 @@
 #[derive(Clone, thiserror::Error, Debug)]
 pub enum Error {
     /// Script error.
-    #[error("Script error: {0}, caused be {1}")]
+    #[error("Script error: {0}, caused by: {1}")]
     Script(String, String),
 
     /// Conversion error.

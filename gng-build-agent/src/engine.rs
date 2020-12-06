@@ -11,10 +11,16 @@ use std::convert::TryFrom;
 use std::path::Path;
 use std::string::ToString;
 
+mod rhai_modules;
+
 // - Helpers:
 // ----------------------------------------------------------------------
 
 fn register_custom_functionality(engine: &mut rhai::Engine) {
+    // Create plugin module.
+    let fs_module = rhai::plugin::exported_module!(rhai_modules::fs_module);
+    engine.load_package(fs_module);
+
     engine
         .register_result_fn("version_epoch", version_epoch)
         .register_result_fn("version_upstream", version_upstream)
@@ -93,6 +99,23 @@ impl<'a> EngineBuilder<'a> {
 
         register_custom_functionality(&mut engine);
 
+        let preamble = engine
+            .compile(
+                r#"
+            fn prepare() { }
+            fn build() { }
+            fn check() { }
+            fn install() { }
+            fn polish() { }
+            "#,
+            )
+            .map_err(|e| {
+                crate::Error::Script(
+                    String::from("Compilation the preamble failed"),
+                    e.to_string(),
+                )
+            })?;
+
         let ast = engine
             .compile_file_with_scope(&mut scope, build_file)
             .map_err(|e| {
@@ -101,6 +124,8 @@ impl<'a> EngineBuilder<'a> {
                     e.to_string(),
                 )
             })?;
+        let ast = preamble.merge(&ast);
+
         engine.eval_ast_with_scope(&mut scope, &ast).map_err(|e| {
             crate::Error::Script(
                 format!("Evaluation of build script {} failed", build_file_str),

@@ -222,7 +222,7 @@ impl CaseOfficer {
                 ])],
                 "install",
             ),
-            Mode::PACKAGE => self.mode_args(true, true, true, false, &mut Vec::new(), "package"),
+            Mode::PACKAGE => self.mode_args(true, true, true, false, &mut Vec::new(), "polish"),
         };
 
         let mut result = vec![
@@ -329,7 +329,7 @@ impl CaseOfficer {
         if message_type == "" {
             println!("{}{}", *PREFIX, line);
         } else {
-            tracing::debug!("{}MSG_{}: {}", *PREFIX, message_type, line);
+            tracing::trace!("{}MSG_{}: {}", *PREFIX, message_type, line);
 
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
                 .map_err(|e| eyre::eyre!(e))?;

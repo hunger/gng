@@ -35,6 +35,7 @@ pub trait MessageHandler {
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
+#[derive(Debug)]
 pub struct ImmutableSourceDataHandler {
     hash: Option<Vec<u8>>,
     first_message: bool,
@@ -61,11 +62,13 @@ impl Default for ImmutableSourceDataHandler {
 }
 
 impl MessageHandler for ImmutableSourceDataHandler {
+    #[tracing::instrument(level = "trace")]
     fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         self.first_message = true;
         Ok(())
     }
 
+    #[tracing::instrument(level = "trace")]
     fn handle(
         &mut self,
         _mode: &crate::Mode,
@@ -101,6 +104,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         }
     }
 
+    #[tracing::instrument(level = "trace")]
     fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
         if self.first_message {
             tracing::error!("The build agent did not send any message!");

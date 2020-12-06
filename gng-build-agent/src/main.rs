@@ -42,8 +42,8 @@ enum Args {
     CHECK,
     /// move the build results to their final location in the filesystem
     INSTALL,
-    /// package the installed files into `Packet`s
-    PACKAGE,
+    /// polish up the filesystem before putting all the files into a packet
+    POLISH,
 }
 
 fn get_env(key: &str, default: &str) -> String {
@@ -84,23 +84,33 @@ fn query(ctx: &mut Context) -> eyre::Result<()> {
 }
 
 fn prepare(ctx: &mut Context) -> eyre::Result<()> {
-    todo!();
+    ctx.engine
+        .call::<()>("prepare")
+        .map_err(|e| eyre::eyre!(e.to_string()))
 }
 
 fn build(ctx: &mut Context) -> eyre::Result<()> {
-    todo!();
+    ctx.engine
+        .call::<()>("build")
+        .map_err(|e| eyre::eyre!(e.to_string()))
 }
 
 fn check(ctx: &mut Context) -> eyre::Result<()> {
-    todo!();
+    ctx.engine
+        .call::<()>("check")
+        .map_err(|e| eyre::eyre!(e.to_string()))
 }
 
 fn install(ctx: &mut Context) -> eyre::Result<()> {
-    todo!();
+    ctx.engine
+        .call::<()>("install")
+        .map_err(|e| eyre::eyre!(e.to_string()))
 }
 
-fn package(ctx: &mut Context) -> eyre::Result<()> {
-    todo!();
+fn polish(ctx: &mut Context) -> eyre::Result<()> {
+    ctx.engine
+        .call::<()>("polish")
+        .map_err(|e| eyre::eyre!(e.to_string()))
 }
 
 // ----------------------------------------------------
@@ -161,6 +171,6 @@ fn main() -> eyre::Result<()> {
         Args::BUILD => build(&mut ctx),
         Args::CHECK => check(&mut ctx),
         Args::INSTALL => install(&mut ctx),
-        Args::PACKAGE => package(&mut ctx),
+        Args::POLISH => polish(&mut ctx),
     }
 }
