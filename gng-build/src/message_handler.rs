@@ -5,7 +5,7 @@
 
 use gng_build_shared::SourcePacket;
 
-use eyre::{eyre, Result, WrapErr};
+use eyre::Result;
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -152,13 +152,13 @@ impl MessageHandler for PacketHandler {
         &mut self,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
-        message: &str,
+        _message: &str,
     ) -> Result<bool> {
         if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
             return Ok(false);
         }
 
-        let source_packet = serde_json::from_str(message).map_err(|e| eyre!(e))?;
+        // let source_packet = serde_json::from_str(message).map_err(|e| eyre!(e))?;
 
         Ok(false)
     }
@@ -167,5 +167,127 @@ impl MessageHandler for PacketHandler {
         assert!(self.source_packet.is_some());
 
         todo!();
+    }
+}
+
+// ----------------------------------------------------------------------
+// - Tests:
+// ----------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_immutable_source_data_handler_ok() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        let mut mode = Some(crate::Mode::QUERY);
+        while let Some(m) = crate::Mode::next(mode.unwrap()) {
+            handler.prepare(&m).unwrap();
+            handler
+                .handle(&m, &gng_build_shared::MessageType::DATA, "foobar 12345")
+                .unwrap();
+            handler.verify(&m).unwrap();
+            mode = Some(m)
+        }
+    }
+    #[test]
+    fn test_immutable_source_data_handler_ok_data_same() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler
+            .handle(
+                &crate::Mode::PREPARE,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::PREPARE).unwrap();
+
+        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler
+            .handle(
+                &crate::Mode::QUERY,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::QUERY).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "gng-build-agent did not react as expected!")]
+    fn test_immutable_source_data_handler_no_data_message() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::PREPARE).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "gng-build-agent did not react as expected!")]
+    fn test_immutable_source_data_handler_double_data() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler
+            .handle(
+                &crate::Mode::PREPARE,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler
+            .handle(
+                &crate::Mode::PREPARE,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::PREPARE).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "gng-build-agent did not react as expected!")]
+    fn test_immutable_source_data_handler_non_data() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler
+            .handle(
+                &crate::Mode::PREPARE,
+                &gng_build_shared::MessageType::TEST,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::PREPARE).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "gng-build-agent did not react as expected!")]
+    fn test_immutable_source_data_handler_data_changed() {
+        let mut handler = ImmutableSourceDataHandler::default();
+
+        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler
+            .handle(
+                &crate::Mode::PREPARE,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 12345",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::PREPARE).unwrap();
+
+        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler
+            .handle(
+                &crate::Mode::QUERY,
+                &gng_build_shared::MessageType::DATA,
+                "foobar 123456",
+            )
+            .unwrap();
+        handler.verify(&crate::Mode::QUERY).unwrap();
     }
 }
