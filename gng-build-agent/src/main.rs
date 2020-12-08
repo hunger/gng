@@ -18,6 +18,7 @@
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
 
+use eyre::{eyre, Result, WrapErr};
 use structopt::StructOpt;
 
 // - Helpers:
@@ -75,38 +76,38 @@ struct Context<'a> {
     engine: gng_build_agent::engine::Engine<'a>,
 }
 
-fn prepare(ctx: &mut Context) -> eyre::Result<()> {
+fn prepare(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .call::<rhai::Dynamic>("prepare")
-        .map_err(|e| eyre::eyre!(e.to_string()))?;
+        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
-fn build(ctx: &mut Context) -> eyre::Result<()> {
+fn build(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .call::<rhai::Dynamic>("build")
-        .map_err(|e| eyre::eyre!(e.to_string()))?;
+        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
-fn check(ctx: &mut Context) -> eyre::Result<()> {
+fn check(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .call::<rhai::Dynamic>("check")
-        .map_err(|e| eyre::eyre!(e.to_string()))?;
+        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
-fn install(ctx: &mut Context) -> eyre::Result<()> {
+fn install(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .call::<rhai::Dynamic>("install")
-        .map_err(|e| eyre::eyre!(e.to_string()))?;
+        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
-fn polish(ctx: &mut Context) -> eyre::Result<()> {
+fn polish(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .call::<rhai::Dynamic>("polish")
-        .map_err(|e| eyre::eyre!(e.to_string()))?;
+        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
@@ -114,12 +115,14 @@ fn polish(ctx: &mut Context) -> eyre::Result<()> {
 // - Entry Point:
 // ----------------------------------------------------------------------
 
-fn main() -> eyre::Result<()> {
-    tracing_subscriber::fmt::init();
+fn main() -> Result<()> {
+    tracing_subscriber::fmt::try_init()
+        .map_err(|e| eyre!(e))
+        .wrap_err("Failed to set up tracing")?;
     tracing::trace!("Tracing subscriber initialized.");
 
     if !gng_shared::is_root() {
-        return Err(eyre::eyre!("This application needs to be run by root."));
+        return Err(eyre!("This application needs to be run by root."));
     }
 
     let args = Args::from_args();
@@ -130,11 +133,20 @@ fn main() -> eyre::Result<()> {
     let mut engine_builder = gng_build_agent::engine::EngineBuilder::default();
     engine_builder.push_constant(
         "WORK_DIR",
-        get_env(ce::GNG_WORK_DIR, cc::GNG_WORK_DIR.to_str().unwrap()).into(),
+        rhai::Dynamic::from(
+            std::fs::canonicalize(get_env(
+                ce::GNG_WORK_DIR,
+                cc::GNG_WORK_DIR.to_str().unwrap(),
+            ))
+            .wrap_err("Failed to turn WORK_DIR into canonical form")?,
+        ),
     );
     engine_builder.push_constant(
         "INST_DIR",
-        get_env(ce::GNG_INST_DIR, cc::GNG_INST_DIR.to_str().unwrap()).into(),
+        rhai::Dynamic::from(std::fs::canonicalize(get_env(
+            ce::GNG_INST_DIR,
+            cc::GNG_INST_DIR.to_str().unwrap(),
+        ))?),
     );
 
     let mut engine = engine_builder.eval_pkgsrc_directory()?;

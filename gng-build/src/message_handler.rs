@@ -4,6 +4,8 @@
 //! A object used to handle messages from `gng-build-agent`
 
 use gng_build_shared::SourcePacket;
+
+use eyre::{eyre, Result, WrapErr};
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -28,7 +30,7 @@ pub trait MessageHandler {
     ///
     /// # Errors
     /// Generic Error
-    fn prepare(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
+    fn prepare(&mut self, mode: &crate::Mode) -> Result<()>;
 
     /// Handle one message from `gng-build-agent`
     ///
@@ -39,13 +41,13 @@ pub trait MessageHandler {
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
-    ) -> eyre::Result<bool>;
+    ) -> Result<bool>;
 
     /// Verify state after `gng-build-agent` has quit successfully
     ///
     /// # Errors
     /// Generic Error
-    fn verify(&mut self, mode: &crate::Mode) -> eyre::Result<()>;
+    fn verify(&mut self, mode: &crate::Mode) -> Result<()>;
 }
 
 // ----------------------------------------------------------------------
@@ -70,7 +72,7 @@ impl Default for ImmutableSourceDataHandler {
 
 impl MessageHandler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
-    fn prepare(&mut self, mode: &crate::Mode) -> eyre::Result<()> {
+    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
         self.first_message = true;
         Ok(())
     }
@@ -81,7 +83,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
-    ) -> eyre::Result<bool> {
+    ) -> Result<bool> {
         if message_type != &gng_build_shared::MessageType::DATA {
             self.first_message = false;
             return Ok(false);
@@ -110,7 +112,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
     }
 
     #[tracing::instrument(level = "trace")]
-    fn verify(&mut self, mode: &crate::Mode) -> eyre::Result<()> {
+    fn verify(&mut self, mode: &crate::Mode) -> Result<()> {
         if self.first_message {
             tracing::error!("The build agent did not send any message!");
             panic!("gng-build-agent did not react as expected!");
@@ -142,7 +144,7 @@ impl Default for PacketHandler {
 }
 
 impl MessageHandler for PacketHandler {
-    fn prepare(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+    fn prepare(&mut self, _mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 
@@ -151,17 +153,17 @@ impl MessageHandler for PacketHandler {
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
-    ) -> eyre::Result<bool> {
-        if *mode != crate::Mode::PACKAGE && message_type != &gng_build_shared::MessageType::DATA {
+    ) -> Result<bool> {
+        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
             return Ok(false);
         }
 
-        self.source_packet = Some(serde_json::from_str(message).map_err(|e| eyre::eyre!(e))?);
+        let source_packet = serde_json::from_str(message).map_err(|e| eyre!(e))?;
 
         Ok(false)
     }
 
-    fn verify(&mut self, _mode: &crate::Mode) -> eyre::Result<()> {
+    fn verify(&mut self, _mode: &crate::Mode) -> Result<()> {
         assert!(self.source_packet.is_some());
 
         todo!();

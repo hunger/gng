@@ -17,7 +17,7 @@
 
 use std::path::PathBuf;
 
-use eyre::{eyre, WrapErr};
+use eyre::{eyre, Result, WrapErr};
 use structopt::StructOpt;
 
 // - Helper:
@@ -61,10 +61,10 @@ struct Args {
 // ----------------------------------------------------------------------
 
 /// Entry point of the `gng-build` binary.
-fn main() -> eyre::Result<()> {
+fn main() -> Result<()> {
     tracing_subscriber::fmt::try_init()
         .map_err(|e| eyre!(e))
-        .wrap_err("Failed to set up logging")?;
+        .wrap_err("Failed to set up tracing")?;
     tracing::trace!("Tracing subscriber initialized.");
 
     if !gng_shared::is_root() {

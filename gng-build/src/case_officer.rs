@@ -15,7 +15,7 @@ use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use eyre::WrapErr;
+use eyre::{eyre, Result, WrapErr};
 use rand::Rng;
 
 // - Helper:
@@ -26,7 +26,7 @@ const BUILDER_MACHINE_ID: &str = "0bf95bb771364ef997e1df5eb3b26422";
 const MESSAGE_PREFIX_LEN: usize = 8;
 
 #[tracing::instrument]
-fn prepare_for_systemd_nspawn(root_directory: &Path) -> eyre::Result<()> {
+fn prepare_for_systemd_nspawn(root_directory: &Path) -> Result<()> {
     std::fs::create_dir(root_directory.join("usr"))?;
     std::fs::create_dir(root_directory.join("tmp"))?;
     std::fs::create_dir(root_directory.join("run"))?;
@@ -105,10 +105,10 @@ fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a st
     )
 }
 
-fn build_script(pkgsrc_directory: &Path) -> eyre::Result<PathBuf> {
+fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
     let build_file = pkgsrc_directory.join("build.rhai");
     if !build_file.is_file() {
-        return Err(eyre::eyre!(format!(
+        return Err(eyre!(format!(
             "No build.rhai file found in {}.",
             pkgsrc_directory.to_string_lossy()
         )));
@@ -116,20 +116,17 @@ fn build_script(pkgsrc_directory: &Path) -> eyre::Result<PathBuf> {
     Ok(build_file)
 }
 
-fn validate_executable(path: &mut Option<PathBuf>) -> eyre::Result<PathBuf> {
+fn validate_executable(path: &mut Option<PathBuf>) -> Result<PathBuf> {
     if path.is_none() {
-        return Err(eyre::eyre!("Path is not set."));
+        return Err(eyre!("Path is not set."));
     }
 
     let path = path.take().expect("It was some just a if ago!");
     if !path.is_file() {
-        return Err(eyre::eyre!(
-            "Path \"{}\" is not a file.",
-            path.to_string_lossy()
-        ));
+        return Err(eyre!("Path \"{}\" is not a file.", path.to_string_lossy()));
     }
     if !is_executable(&path) {
-        return Err(eyre::eyre!(
+        return Err(eyre!(
             "Path \"{}\" is not executable.",
             path.to_string_lossy()
         ));
@@ -143,7 +140,7 @@ fn path_buf_or_tempdir(
     prefix: &str,
     scratch_directory: &Path,
     temp_dirs: &mut Vec<tempfile::TempDir>,
-) -> eyre::Result<PathBuf> {
+) -> Result<PathBuf> {
     if path.is_some() {
         return Ok(path.as_ref().unwrap().clone());
     }
@@ -235,7 +232,7 @@ impl CaseOfficerBuilder {
     ///
     /// # Errors
     /// Generic Error
-    pub fn build(&mut self, pkgsrc_directory: &Path) -> eyre::Result<CaseOfficer> {
+    pub fn build(&mut self, pkgsrc_directory: &Path) -> Result<CaseOfficer> {
         let mut temp_dirs = Vec::with_capacity(3);
 
         let root_directory =
@@ -378,7 +375,7 @@ impl CaseOfficer {
         args: &[OsString],
         new_mode: &Mode,
         message_prefix: String,
-    ) -> eyre::Result<()> {
+    ) -> Result<()> {
         tracing::debug!("Starting gng-build-agent in systemd-nspawn");
         let mut child = std::process::Command::new(&self.nspawn_binary)
             .args(args)
@@ -394,18 +391,15 @@ impl CaseOfficer {
         let exit_status = child.wait()?;
 
         match exit_status.code() {
-            None => Err(eyre::eyre!("gng-build-agent was killed by a signal.")),
+            None => Err(eyre!("gng-build-agent was killed by a signal.")),
             Some(code) if code == 0 => Ok(()),
-            Some(code) => Err(eyre::eyre!(
-                "gng-build-agent failed with exit code {}.",
-                code
-            )),
+            Some(code) => Err(eyre!("gng-build-agent failed with exit code {}.", code)),
         }
     }
 
     /// Switch into a new `Mode` of operation
     #[tracing::instrument(level = "trace")]
-    fn switch_mode(&mut self, new_mode: &Mode) -> eyre::Result<()> {
+    fn switch_mode(&mut self, new_mode: &Mode) -> Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
         for h in &mut self.message_handlers {
@@ -427,7 +421,7 @@ impl CaseOfficer {
         Ok(())
     }
 
-    fn process_line(&mut self, mode: &Mode, message_prefix: &str, line: &str) -> eyre::Result<()> {
+    fn process_line(&mut self, mode: &Mode, message_prefix: &str, line: &str) -> Result<()> {
         lazy_static::lazy_static! {
             static ref PREFIX: String =
                 std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or_else(|_| String::from("AGENT> "));
@@ -440,7 +434,7 @@ impl CaseOfficer {
             tracing::trace!("{}MSG_{}: {}", *PREFIX, message_type, line);
 
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
-                .map_err(|e| eyre::eyre!(e))?;
+                .map_err(|e| eyre!(e))?;
             for h in &mut self.message_handlers {
                 if h.handle(mode, &message_type, line)? {
                     break;
@@ -455,18 +449,18 @@ impl CaseOfficer {
         child: &mut std::process::Child,
         mode: &Mode,
         message_prefix: &str,
-    ) -> eyre::Result<()> {
+    ) -> Result<()> {
         let reader = BufReader::new(
             child
                 .stdout
                 .take()
-                .ok_or_else(|| eyre::eyre!("Could not capture stdout of gng-build-agent."))?,
+                .ok_or_else(|| eyre!("Could not capture stdout of gng-build-agent."))?,
         );
 
         for line in reader.lines() {
             match line {
                 Ok(line) => self.process_line(mode, message_prefix, &line)?,
-                Err(e) => return Err(eyre::eyre!(e)),
+                Err(e) => return Err(eyre!(e)),
             }
         }
 
@@ -474,17 +468,17 @@ impl CaseOfficer {
 
         match exit_status.code() {
             Some(0) => Ok(()),
-            Some(exit_code) => Err(eyre::eyre!(format!(
+            Some(exit_code) => Err(eyre!(format!(
                 "Agent failed with exit-status: {}.",
                 exit_code
             ))),
-            None => Err(eyre::eyre!("Agent killed by signal.")),
+            None => Err(eyre!("Agent killed by signal.")),
         }
     }
 
     /// Process a build
     #[tracing::instrument(level = "debug")]
-    pub fn process(&mut self) -> eyre::Result<()> {
+    pub fn process(&mut self) -> Result<()> {
         let mut mode = Some(Mode::default());
 
         while mode.is_some() {
@@ -498,7 +492,7 @@ impl CaseOfficer {
 
     /// Clean up after a build
     #[tracing::instrument(level = "debug")]
-    pub fn clean_up(&mut self) -> eyre::Result<()> {
+    pub fn clean_up(&mut self) -> Result<()> {
         for td in self.temporary_directories.drain(..) {
             let p = td.path().to_owned();
             td.close().wrap_err(format!(
