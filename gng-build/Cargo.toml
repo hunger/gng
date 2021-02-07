@@ -10,13 +10,14 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "<PRIVATE_REPOSITORY>"
 
 [dependencies]
-
+downloader = { version = "0.2.1", features = [ "tui", "verify" ] }
 eyre = { version = "0.6.3" }
 glob = { version = "0.3.0" }
 gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
+indicatif = { version = "0.15.0" }
 lazy_static = { version = "1.4.0" }
-rand = { version = "0.7.3" }
+rand = { version = "0.8.3" }
 serde = { version = "1.0.118" }
 serde_json = { version = "1.0.60" }
 sha3 = { version = "0.9.1" }

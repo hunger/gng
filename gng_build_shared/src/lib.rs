@@ -85,10 +85,13 @@ impl std::convert::From<&MessageType> for String {
     }
 }
 
+/// The build script to use
+pub const BUILD_SCRIPT: &str = "build.lua";
+
 // ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 
 mod source_packet;
 
-pub use source_packet::{PacketDefinition, Source, SourcePacket};
+pub use source_packet::{BuildStage, PacketDefinition, Source, SourcePacket};

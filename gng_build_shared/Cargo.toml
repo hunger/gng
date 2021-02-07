@@ -10,4 +10,4 @@ edition = "2018"
 gng_shared = { path = "../gng_shared" }
 
 lazy_static = { version = "1.4.0" }
-serde = { version = "1.0.118" }
+serde = { version = "1.0.123" }

@@ -5,7 +5,7 @@
 
 use gng_build_shared::SourcePacket;
 
-use eyre::Result;
+use eyre::{eyre, Result, WrapErr};
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -123,6 +123,139 @@ impl MessageHandler for ImmutableSourceDataHandler {
             panic!("gng-build-agent did not react as expected!");
         }
         Ok(())
+    }
+}
+
+// ----------------------------------------------------------------------
+// - SourceHandler:
+// ----------------------------------------------------------------------
+
+struct UrlNormalizer {
+    base_url: Option<url::Url>,
+    base_directory: std::path::PathBuf,
+    seen_urls: std::collections::HashSet<url::Url>,
+}
+
+impl UrlNormalizer {
+    fn new(base_directory: &std::path::Path) -> Result<Self> {
+        let base_url = Some(
+            url::Url::parse(&format!("file://{}/", base_directory.to_string_lossy()))
+                .wrap_err("Failed to PKGSRC directory into an URL.")?,
+        );
+
+        Ok(Self {
+            base_url,
+            base_directory: base_directory.to_owned(),
+            seen_urls: std::collections::HashSet::<url::Url>::default(),
+        })
+    }
+
+    fn normalize(&mut self, url: &str) -> Result<url::Url> {
+        let source_url = if let Some(bu) = &self.base_url {
+            bu.join(url).wrap_err("Failed to parse URL")?
+        } else {
+            url::Url::parse(url)?
+        };
+
+        if !self.seen_urls.insert(source_url.clone()) {
+            return Err(eyre!("URL has been seen before in the same sources list"));
+        }
+
+        if source_url.scheme() == "file" {
+            let url_file_name = std::fs::canonicalize(source_url.path())
+                .wrap_err("Failed to canonicalize file path in source URL")?;
+
+            if !url_file_name.starts_with(&self.base_directory) {
+                return Err(eyre!(
+                    "File URL is not pointing into the directory containing \"{}\".",
+                    gng_build_shared::BUILD_SCRIPT
+                ));
+            }
+            return Ok(source_url);
+        }
+        if source_url.scheme() == "http" || source_url.scheme() == "https" {
+            return Ok(source_url);
+        }
+
+        Err(eyre!("Unsupported URL scheme."))
+    }
+}
+
+/// Make sure the source as seen by the `gng-build-agent` stays constant
+pub struct SourceHandler {
+    sources: Vec<gng_build_shared::Source>,
+    pkgsrc_directory: std::path::PathBuf,
+    work_directory: std::path::PathBuf,
+}
+
+impl SourceHandler {
+    fn new(pkgsrc_directory: &std::path::Path, work_directory: &std::path::Path) -> Self {
+        Self {
+            sources: Vec::new(),
+            pkgsrc_directory: pkgsrc_directory.to_owned(),
+            work_directory: work_directory.to_owned(),
+        }
+    }
+
+    fn store_sources(&mut self, source_packet: SourcePacket) -> Result<()> {
+        let mut normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
+
+        for s in source_packet.sources {
+            let source_url = normalizer.normalize(&s.url)?;
+            if !s.name.chars().all(|c| {
+                ('a'..='z').contains(&c)
+                    || ('A'..='Z').contains(&c)
+                    || ('0'..='9').contains(&c)
+                    || (c == '_')
+                    || (c == '-')
+            }) {
+                return Err(eyre!(format!(
+                    "Name for source {} contains invalid characters.",
+                    s
+                )));
+            };
+            let source = gng_build_shared::Source {
+                url: source_url.to_string(),
+                ..s
+            };
+            self.sources.push(source);
+        }
+        Ok(())
+    }
+
+    fn install_sources(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl MessageHandler for SourceHandler {
+    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
+        if *mode == crate::Mode::PREPARE {
+            self.install_sources()
+        } else {
+            Ok(())
+        }
+    }
+
+    fn handle(
+        &mut self,
+        mode: &crate::Mode,
+        message_type: &gng_build_shared::MessageType,
+        message: &str,
+    ) -> Result<bool> {
+        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
+            return Ok(false);
+        }
+
+        self.store_sources(serde_json::from_str(message).map_err(|e| eyre!(e))?);
+
+        Ok(false)
+    }
+
+    fn verify(&mut self, _mode: &crate::Mode) -> Result<()> {
+        assert!(!self.sources.is_empty());
+
+        todo!();
     }
 }
 
@@ -289,5 +422,31 @@ mod tests {
             )
             .unwrap();
         handler.verify(&crate::Mode::QUERY).unwrap();
+    }
+
+    #[test]
+    fn test_url_normalizer_ok() {
+        let mut normalizer = UrlNormalizer::new(std::path::Path::new("/tmp/testing")).unwrap();
+        assert_eq!(
+            normalizer
+                .normalize("http://google.com/index.html")
+                .unwrap()
+                .to_string(),
+            "http://google.com/index.html"
+        );
+        assert_eq!(
+            normalizer
+                .normalize("https://google.com/index.html")
+                .unwrap()
+                .to_string(),
+            "https://google.com/index.html"
+        );
+    }
+
+    #[test]
+    fn test_url_normalizer_not_ok() {
+        let mut normalizer = UrlNormalizer::new(std::path::Path::new("/tmp/testing")).unwrap();
+
+        assert!(normalizer.normalize("ftp://google.com/index.html").is_err());
     }
 }

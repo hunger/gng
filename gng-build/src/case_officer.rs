@@ -75,10 +75,11 @@ fn setenv(name: &str, value: &str) -> OsString {
 
 fn random_string(len: usize) -> String {
     let mut rng = rand::thread_rng();
-    std::iter::repeat(())
+    let ascii = std::iter::repeat(())
         .map(|()| rng.sample(rand::distributions::Alphanumeric))
         .take(len)
-        .collect::<String>()
+        .collect::<Vec<u8>>();
+    String::from_utf8(ascii).expect("Input should have been ASCII!")
 }
 
 fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a str, &'a str) {
@@ -106,10 +107,11 @@ fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a st
 }
 
 fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
-    let build_file = pkgsrc_directory.join("build.rhai");
+    let build_file = pkgsrc_directory.join(gng_build_shared::BUILD_SCRIPT);
     if !build_file.is_file() {
         return Err(eyre!(format!(
-            "No build.rhai file found in {}.",
+            "No {} file found in {}.",
+            gng_build_shared::BUILD_SCRIPT,
             pkgsrc_directory.to_string_lossy()
         )));
     }
@@ -362,7 +364,11 @@ impl CaseOfficer {
             result.push(env_var)
         }
 
-        result.push(bind(true, &self.build_script, Path::new("/gng/build.rhai")));
+        result.push(bind(
+            true,
+            &self.build_script,
+            Path::new(&format!("/gng/{}", gng_build_shared::BUILD_SCRIPT)),
+        ));
 
         result.append(&mut extra);
 

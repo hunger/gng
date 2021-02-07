@@ -39,6 +39,7 @@ pub fn from_engine(
         },
         build_dependencies,
         check_dependencies,
+        build_stage: gng_build_shared::BuildStage::Native,
         sources,
         packets,
     })

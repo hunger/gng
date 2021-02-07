@@ -72,42 +72,27 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 // - Commands:
 // ----------------------------------------------------------------------
 
-struct Context<'a> {
-    engine: gng_build_agent::engine::Engine<'a>,
+struct Context {
+    engine: gng_build_agent::engine::Engine,
 }
 
 fn prepare(ctx: &mut Context) -> Result<()> {
-    ctx.engine
-        .call::<rhai::Dynamic>("prepare")
-        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
 fn build(ctx: &mut Context) -> Result<()> {
-    ctx.engine
-        .call::<rhai::Dynamic>("build")
-        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
 fn check(ctx: &mut Context) -> Result<()> {
-    ctx.engine
-        .call::<rhai::Dynamic>("check")
-        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
 fn install(ctx: &mut Context) -> Result<()> {
-    ctx.engine
-        .call::<rhai::Dynamic>("install")
-        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
 fn polish(ctx: &mut Context) -> Result<()> {
-    ctx.engine
-        .call::<rhai::Dynamic>("polish")
-        .map_err(|e| eyre!(e.to_string()))?;
     Ok(())
 }
 
@@ -131,29 +116,39 @@ fn main() -> Result<()> {
     let message_prefix = get_message_prefix();
 
     let mut engine_builder = gng_build_agent::engine::EngineBuilder::default();
-    engine_builder.push_constant(
+    engine_builder.set_max_operations(4000);
+    engine_builder.set_max_memory(4 * 1024 * 1024)?;
+
+    engine_builder.push_string_constant(
         "WORK_DIR",
-        rhai::Dynamic::from(
-            std::fs::canonicalize(get_env(
-                ce::GNG_WORK_DIR,
-                cc::GNG_WORK_DIR.to_str().unwrap(),
-            ))
-            .wrap_err("Failed to turn WORK_DIR into canonical form")?,
-        ),
-    );
-    engine_builder.push_constant(
+        std::fs::canonicalize(get_env(
+            ce::GNG_WORK_DIR,
+            cc::GNG_WORK_DIR.to_str().unwrap(),
+        ))
+        .wrap_err("Failed to turn WORK_DIR into canonical form")?
+        .to_string_lossy()
+        .as_ref(),
+    )?;
+    engine_builder.push_string_constant(
         "INST_DIR",
-        rhai::Dynamic::from(std::fs::canonicalize(get_env(
+        std::fs::canonicalize(get_env(
             ce::GNG_INST_DIR,
             cc::GNG_INST_DIR.to_str().unwrap(),
-        ))?),
-    );
+        ))
+        .wrap_err("Failed to turn INST_DIR into canonical form")?
+        .to_string_lossy()
+        .as_ref(),
+    )?;
 
     let mut engine = engine_builder.eval_pkgsrc_directory()?;
 
     let source_packet = gng_build_agent::source_packet::from_engine(&mut engine)?;
 
-    tracing::trace!("Read build.rhai file for {}", source_packet);
+    tracing::trace!(
+        "Read {} file for {}",
+        gng_build_shared::BUILD_SCRIPT,
+        source_packet
+    );
 
     send_message(
         &message_prefix,
