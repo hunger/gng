@@ -3,9 +3,6 @@
 
 //! A `SourcePacket` and related code
 
-use gng_build_shared::{PacketDefinition, Source, SourcePacket};
-use gng_shared::{Name, Version};
-
 // - Helpers:
 // ----------------------------------------------------------------------
 
@@ -16,31 +13,5 @@ use gng_shared::{Name, Version};
 pub fn from_engine(
     engine: &mut crate::engine::Engine,
 ) -> crate::Result<gng_build_shared::SourcePacket> {
-    let source_name = engine.evaluate::<Name>("source_name")?;
-    let version = engine.evaluate::<Version>("version")?;
-    let license = engine.evaluate::<String>("license")?;
-    let url = engine.evaluate::<String>("url").unwrap_or_default();
-    let bug_url = engine.evaluate::<String>("bug_url").unwrap_or_default();
-    let build_dependencies = engine.evaluate::<Vec<Name>>("build_dependencies")?;
-    let check_dependencies = engine.evaluate::<Vec<Name>>("check_dependencies")?;
-
-    let sources = engine.evaluate::<Vec<Source>>("sources")?;
-    let packets = engine.evaluate::<Vec<PacketDefinition>>("packets")?;
-
-    Ok(SourcePacket {
-        source_name,
-        version,
-        license,
-        url: if url.is_empty() { None } else { Some(url) },
-        bug_url: if bug_url.is_empty() {
-            None
-        } else {
-            Some(bug_url)
-        },
-        build_dependencies,
-        check_dependencies,
-        build_stage: gng_build_shared::BuildStage::Native,
-        sources,
-        packets,
-    })
+    engine.evaluate::<gng_build_shared::SourcePacket>("PKG")
 }

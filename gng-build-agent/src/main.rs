@@ -76,23 +76,23 @@ struct Context {
     engine: gng_build_agent::engine::Engine,
 }
 
-fn prepare(ctx: &mut Context) -> Result<()> {
+fn prepare(_ctx: &mut Context) -> Result<()> {
     Ok(())
 }
 
-fn build(ctx: &mut Context) -> Result<()> {
+fn build(_ctx: &mut Context) -> Result<()> {
     Ok(())
 }
 
-fn check(ctx: &mut Context) -> Result<()> {
+fn check(_ctx: &mut Context) -> Result<()> {
     Ok(())
 }
 
-fn install(ctx: &mut Context) -> Result<()> {
+fn install(_ctx: &mut Context) -> Result<()> {
     Ok(())
 }
 
-fn polish(ctx: &mut Context) -> Result<()> {
+fn polish(_ctx: &mut Context) -> Result<()> {
     Ok(())
 }
 

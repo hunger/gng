@@ -247,7 +247,7 @@ impl MessageHandler for SourceHandler {
             return Ok(false);
         }
 
-        self.store_sources(serde_json::from_str(message).map_err(|e| eyre!(e))?);
+        self.store_sources(serde_json::from_str(message).map_err(|e| eyre!(e))?)?;
 
         Ok(false)
     }

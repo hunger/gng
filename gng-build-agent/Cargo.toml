@@ -11,7 +11,8 @@ eyre = { version = "0.6.3" }
 glob = { version = "0.3.0" }
 gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
-mlua = { version = "0.5.1", features = ["lua54", "vendored"] }
+rlua = { version = "0.17.0" }
+rlua_serde = { version = "0.4.0" }
 serde = { version = "1.0.123" }
 serde_json = { version = "1.0.62" }
 structopt = { version = "0.3.21" }
