@@ -25,8 +25,22 @@ use std::os::unix::fs::PermissionsExt;
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// Conversion error.
-    #[error("Conversion error: {0}")]
-    Conversion(String),
+    #[error("Conversion error: Can not convert \"{expression}\" to {typename}: {message}.")]
+    Conversion {
+        /// The `expression` that could not get converted.
+        expression: String,
+        /// The `typename` that the `expression` failed to convert into.
+        typename: String,
+        /// A `message` desribing why the conversion failed.
+        message: String,
+    },
+
+    /// Script error.
+    #[error("Script error: {message}")]
+    Script {
+        /// A `message` describing the error.
+        message: String,
+    },
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]

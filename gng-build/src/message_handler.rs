@@ -200,26 +200,26 @@ impl SourceHandler {
     fn store_sources(&mut self, source_packet: SourcePacket) -> Result<()> {
         let mut normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
 
-        for s in source_packet.sources {
-            let source_url = normalizer.normalize(&s.url)?;
-            if !s.name.chars().all(|c| {
-                ('a'..='z').contains(&c)
-                    || ('A'..='Z').contains(&c)
-                    || ('0'..='9').contains(&c)
-                    || (c == '_')
-                    || (c == '-')
-            }) {
-                return Err(eyre!(format!(
-                    "Name for source {} contains invalid characters.",
-                    s
-                )));
-            };
-            let source = gng_build_shared::Source {
-                url: source_url.to_string(),
-                ..s
-            };
-            self.sources.push(source);
-        }
+        // for s in source_packet.sources {
+        //     let source_url = normalizer.normalize(&s.url)?;
+        //     if !s.name.chars().all(|c| {
+        //         ('a'..='z').contains(&c)
+        //             || ('A'..='Z').contains(&c)
+        //             || ('0'..='9').contains(&c)
+        //             || (c == '_')
+        //             || (c == '-')
+        //     }) {
+        //         return Err(eyre!(format!(
+        //             "Name for source {} contains invalid characters.",
+        //             s
+        //         )));
+        //     };
+        //     let source = gng_build_shared::Source {
+        //         url: source_url.to_string(),
+        //         ..s
+        //     };
+        //     self.sources.push(source);
+        // }
         Ok(())
     }
 

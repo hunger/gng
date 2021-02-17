@@ -116,7 +116,7 @@ fn main() -> Result<()> {
     let message_prefix = get_message_prefix();
 
     let mut engine_builder = gng_build_agent::engine::EngineBuilder::default();
-    engine_builder.set_max_operations(4000);
+    engine_builder.set_max_operations(4000)?;
     engine_builder.set_max_memory(4 * 1024 * 1024)?;
 
     engine_builder.push_string_constant(

@@ -16,38 +16,6 @@
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 // ----------------------------------------------------------------------
-// - Error Handling:
-// ----------------------------------------------------------------------
-
-/// `Error` type for the `gng_shared` library
-#[derive(Clone, thiserror::Error, Debug)]
-pub enum Error {
-    /// Script error.
-    #[error("Script error: {0}, caused by: {1}")]
-    Script(String, String),
-
-    /// Conversion error.
-    #[error("Conversion error: {0}.")]
-    Conversion(String),
-
-    /// Not sure what actually went wrong...
-    #[error("unknown error")]
-    Unknown,
-}
-
-impl std::convert::From<gng_shared::Error> for Error {
-    fn from(e: gng_shared::Error) -> Self {
-        match e {
-            gng_shared::Error::Conversion(msg) => Error::Conversion(msg),
-            gng_shared::Error::Unknown => Error::Unknown,
-        }
-    }
-}
-
-/// `Result` type for the `gng_shared` library
-pub type Result<T> = std::result::Result<T, Error>;
-
-// ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 

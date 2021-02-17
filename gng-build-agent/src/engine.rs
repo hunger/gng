@@ -7,15 +7,14 @@ use std::path::PathBuf;
 
 // - Helpers:
 
-fn map_error(error: &rlua::Error) -> crate::Error {
+fn map_error(error: &rlua::Error) -> gng_shared::Error {
     match error {
         rlua::Error::SyntaxError {
             message,
             incomplete_input,
-        } => crate::Error::Script(
-            "SyntaxError".to_string(),
-            format!(
-                "{}{}",
+        } => gng_shared::Error::Script {
+            message: format!(
+                "SyntaxError: {}{}",
                 message,
                 if *incomplete_input {
                     " (incomplete)"
@@ -23,80 +22,64 @@ fn map_error(error: &rlua::Error) -> crate::Error {
                     ""
                 }
             ),
-        ),
-        rlua::Error::RuntimeError(msg) => {
-            crate::Error::Script("RuntimeError".to_string(), msg.to_string())
-        }
-        rlua::Error::MemoryError(msg) => {
-            crate::Error::Script("MemoryError".to_string(), msg.to_string())
-        }
-        rlua::Error::RecursiveMutCallback => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Recursive call into a mut rust function.".to_string(),
-        ),
-        rlua::Error::CallbackDestructed => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "A callback has been destructed too early.".to_string(),
-        ),
-        rlua::Error::StackError => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Stack was corrupted.".to_string(),
-        ),
-        rlua::Error::BindError => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Binding failed.".to_string(),
-        ),
-        rlua::Error::ToLuaConversionError {
-            from: _,
-            to: _,
-            message: _,
-        } => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Conversion to lua failed.".to_string(),
-        ),
-        rlua::Error::FromLuaConversionError {
-            from: _,
-            to: _,
-            message: _,
-        } => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Conversion from Lua failed.".to_string(),
-        ),
-        rlua::Error::CoroutineInactive => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "A co-routine was inactive.".to_string(),
-        ),
-        rlua::Error::UserDataTypeMismatch => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "User data type mismatch.".to_string(),
-        ),
-        rlua::Error::UserDataBorrowError => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "User data borrowing problem.".to_string(),
-        ),
-        rlua::Error::UserDataBorrowMutError => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "User data mutable borrow error.".to_string(),
-        ),
-        rlua::Error::MismatchedRegistryKey => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "iRegistry key mismatch.".to_string(),
-        ),
+        },
+        rlua::Error::RuntimeError(msg) => gng_shared::Error::Script {
+            message: format!("RuntimeError: {}", msg),
+        },
+        rlua::Error::MemoryError(msg) => gng_shared::Error::Script {
+            message: format!("MemoryError: {}", msg),
+        },
+        rlua::Error::RecursiveMutCallback => gng_shared::Error::Script {
+            message: "Recursive call into a mut rust function.".to_string(),
+        },
+        rlua::Error::CallbackDestructed => gng_shared::Error::Script {
+            message: "A callback has been destructed too early.".to_string(),
+        },
+        rlua::Error::StackError => gng_shared::Error::Script {
+            message: "Stack was corrupted.".to_string(),
+        },
+        rlua::Error::BindError => gng_shared::Error::Script {
+            message: "Binding failed.".to_string(),
+        },
+        rlua::Error::ToLuaConversionError { from, to, message } => gng_shared::Error::Script {
+            message: format!(
+                "Conversion of \"{}\" to lua \"{}\" failed: {:?}",
+                from, to, message
+            ),
+        },
+        rlua::Error::FromLuaConversionError { from, to, message } => gng_shared::Error::Script {
+            message: format!(
+                "Conversion of Lua \"{}\" to \"{}\" failed: {:?}",
+                from, to, message
+            ),
+        },
+        rlua::Error::CoroutineInactive => gng_shared::Error::Script {
+            message: "A co-routine was inactive.".to_string(),
+        },
+        rlua::Error::UserDataTypeMismatch => gng_shared::Error::Script {
+            message: "User data type mismatch.".to_string(),
+        },
+        rlua::Error::UserDataBorrowError => gng_shared::Error::Script {
+            message: "User data borrowing problem.".to_string(),
+        },
+        rlua::Error::UserDataBorrowMutError => gng_shared::Error::Script {
+            message: "User data mutable borrow error.".to_string(),
+        },
+        rlua::Error::MismatchedRegistryKey => gng_shared::Error::Script {
+            message: "iRegistry key mismatch.".to_string(),
+        },
         rlua::Error::CallbackError {
             traceback: _,
             cause: _,
-        } => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "Callback caused an error.".to_string(),
-        ),
-        rlua::Error::ExternalError(_) => crate::Error::Script(
-            "IntegrationError".to_string(),
-            "External error.".to_string(),
-        ),
-        rlua::Error::GarbageCollectorError(_) => crate::Error::Script(
-            "GarbadgeCollectorError".to_string(),
-            "Garbadge collection error.".to_string(),
-        ),
+        } => gng_shared::Error::Script {
+            message: "Callback caused an error.".to_string(),
+        },
+        rlua::Error::ExternalError(_) => gng_shared::Error::Script {
+            message: "External error.".to_string(),
+        },
+        rlua::Error::GarbageCollectorError(_) => gng_shared::Error::Script {
+            message: "Garbadge collection error.".to_string(),
+        },
     }
 }
 
@@ -127,7 +110,10 @@ impl Default for EngineBuilder {
 
 impl EngineBuilder {
     /// Set max operations on engine
-    pub fn set_max_operations(&mut self, count: u32) -> crate::Result<&mut Self> {
+    ///
+    /// # Errors
+    /// Return error from backend language
+    pub fn set_max_operations(&mut self, count: u32) -> gng_shared::Result<&mut Self> {
         self.lua.set_hook(
             rlua::HookTriggers {
                 every_nth_instruction: Some(count),
@@ -144,15 +130,23 @@ impl EngineBuilder {
     }
 
     /// Set max operations on engine
-    pub fn set_max_memory(&mut self, size: usize) -> crate::Result<&mut Self> {
+    ///
+    /// # Errors
+    /// Return the error from the backend language
+    pub fn set_max_memory(&mut self, size: usize) -> gng_shared::Result<&mut Self> {
         self.lua.set_memory_limit(Some(size));
         Ok(self)
     }
 
     /// Push a constant into the `Engine`
+    ///
     /// # Errors
     /// * Script Error with details on the issue reported by Lua.
-    pub fn push_string_constant(&mut self, key: &str, value: &str) -> crate::Result<&mut Self> {
+    pub fn push_string_constant(
+        &mut self,
+        key: &str,
+        value: &str,
+    ) -> gng_shared::Result<&mut Self> {
         {
             self.lua
                 .context(|lua_ctx| lua_ctx.globals().set(key, value).map_err(|e| map_error(&e)))?;
@@ -164,9 +158,8 @@ impl EngineBuilder {
     ///
     /// # Errors
     /// * `Error::Script`: When the build script is invalid
-    pub fn eval_pkgsrc_directory(&mut self) -> crate::Result<Engine> {
+    pub fn eval_pkgsrc_directory(&mut self) -> gng_shared::Result<Engine> {
         let build_file = PathBuf::from(format!("/gng/{}", gng_build_shared::BUILD_SCRIPT));
-        let build_file_str = build_file.to_string_lossy().into_owned();
 
         let mut engine = Engine {
             lua: std::mem::replace(&mut self.lua, rlua::Lua::new()),
@@ -174,10 +167,9 @@ impl EngineBuilder {
 
         let script = format!(
             "PKG = {}\n",
-            std::fs::read_to_string(build_file).map_err(|e| crate::Error::Script(
-                "LoadError".to_string(),
-                format!("Failed to read build script: {}", e)
-            ))?
+            std::fs::read_to_string(build_file).map_err(|e| gng_shared::Error::Script {
+                message: format!("Failed to read build script: {}", e),
+            })?
         );
 
         engine.evaluate::<()>(&script)?;
@@ -203,7 +195,7 @@ impl Engine {
     pub fn evaluate<T: serde::de::DeserializeOwned>(
         &mut self,
         expression: &str,
-    ) -> crate::Result<T> {
+    ) -> gng_shared::Result<T> {
         tracing::debug!("Evaluating '{}'.", expression);
 
         self.lua

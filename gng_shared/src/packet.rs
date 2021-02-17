@@ -22,9 +22,11 @@ impl GpgKeyId {
     pub fn new(value: &str) -> crate::Result<Self> {
         let value = value.to_lowercase();
         if !crate::all_hex_or_separator(&value) {
-            return Err(crate::Error::Conversion(
-                "A GPG Key ID must be hex with optional ' ' or '-' characters.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: value.to_string(),
+                typename: "GpgKeyId".to_string(),
+                message: "A GPG Key ID must be hex with optional ' ' or '-' characters.".into(),
+            });
         }
         let value = value
             .chars()
@@ -34,9 +36,11 @@ impl GpgKeyId {
             .map(|c| c.format(""))
             .join(" ");
         if value.chars().count() != (16 + 3) {
-            return Err(crate::Error::Conversion(
-                "A GPG Key ID must contain 16 hex digits.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: value.to_string(),
+                typename: "GpgKeyId".to_string(),
+                message: "A GPG Key ID must contain 16 hex digits.".into(),
+            });
         }
         Ok(Self(value))
     }
@@ -74,15 +78,21 @@ fn to_hex(input: &[u8]) -> String {
     result
 }
 
-fn from_hex(input: &str, output: &mut [u8]) -> Result<(), crate::Error> {
+fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
     if input.len() != output.len() * 2 {
-        return Err(crate::Error::Conversion(
-            "Hash value length is invalid.".into(),
-        ));
+        return Err(crate::Error::Conversion {
+            expression: input.to_string(),
+            typename: "Hash".to_string(),
+            message: "Hash value length is invalid.".into(),
+        });
     }
     for i in 0..output.len() {
         output[i] = u8::from_str_radix(&input[(i * 2)..(i * 2) + 2], 16).map_err(|e| {
-            crate::Error::Conversion(format!("Hex conversion failed: {}", e.to_string()))
+            crate::Error::Conversion {
+                expression: input.to_string(),
+                typename: "Hash".to_string(),
+                message: format!("Hex conversion failed: {}", e.to_string()),
+            }
         })?;
     }
 
@@ -171,7 +181,11 @@ impl std::convert::TryFrom<String> for Hash {
         if let Some(v) = value.strip_prefix("sha512:") {
             return Self::sha512(v);
         }
-        Err(crate::Error::Conversion("Unsupported hash type.".into()))
+        Err(crate::Error::Conversion {
+            expression: value.to_string(),
+            typename: "Hash".to_string(),
+            message: "Unsupported hash type.".into(),
+        })
     }
 }
 
@@ -206,20 +220,27 @@ impl Name {
     /// * `Error::Conversion`: When the input string is not a valid `Name`
     pub fn new(value: &str) -> crate::Result<Self> {
         if value.is_empty() {
-            return Err(crate::Error::Conversion(
-                "Package name can not be empty.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: value.to_string(),
+                typename: "Name".to_string(),
+                message: "Package name can not be empty.".into(),
+            });
         }
         if !crate::start_alnum_char(value) {
-            return Err(crate::Error::Conversion(
-                "Package name must start with a number or lowercase letter.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: value.to_string(),
+                typename: "Name".to_string(),
+                message: "Package name must start with a number or lowercase letter.".into(),
+            });
         }
         if !crate::all_name_chars(value) {
-            return Err(crate::Error::Conversion(
-                "Package name must consist of numbers, lowercase letter or '_' characters only."
-                    .into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: value.to_string(),
+                typename: "Name".to_string(),
+                message:
+                    "Package name must consist of numbers, lowercase letter or '_' characters only."
+                        .into(),
+            });
         }
         Ok(Self(value.to_string()))
     }
@@ -268,29 +289,40 @@ impl Version {
     /// * `Error::Conversion`: When the input string is not a valid `Version`
     pub fn new(epoch: u32, upstream: &str, release: &str) -> crate::Result<Self> {
         if upstream.is_empty() {
-            return Err(crate::Error::Conversion(
-                "Version part of a package version can not be empty.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: upstream.to_string(),
+                typename: "Version".to_string(),
+                message: "Version part of a package version can not be empty.".into(),
+            });
         }
         if !crate::all_version_chars(upstream) {
-            return Err(crate::Error::Conversion(
-                "Package version must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
-            ));
+            return Err(crate::Error::Conversion{
+                expression: upstream.to_string(),
+                typename: "Version".to_string(),
+                message: "Package version must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
+            });
         }
         if !crate::start_alnum_char(upstream) {
-            return Err(crate::Error::Conversion(
-                "Package version must start with a numbers or lowercase letter.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: upstream.to_string(),
+                typename: "Version".to_string(),
+                message: "Package version must start with a numbers or lowercase letter.".into(),
+            });
         }
         if !crate::all_version_chars(release) {
-            return Err(crate::Error::Conversion(
-                "Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
-            ));
+            return Err(crate::Error::Conversion{
+                expression: release.to_string(),
+                typename: "Version".to_string(),
+                message: "Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
+            });
         }
         if !crate::start_alnum_char(release) {
-            return Err(crate::Error::Conversion(
-                "Package version release must start with a numbers or lowercase letter.".into(),
-            ));
+            return Err(crate::Error::Conversion {
+                expression: release.to_string(),
+                typename: "Version".to_string(),
+                message: "Package version release must start with a numbers or lowercase letter."
+                    .into(),
+            });
         }
 
         Ok(Self {
@@ -341,8 +373,10 @@ impl std::convert::TryFrom<String> for Version {
         if colon_index > 0 {
             epoch = epoch_upstream_release[..colon_index]
                 .parse::<u32>()
-                .map_err(|e| {
-                    crate::Error::Conversion(format!("Invalid epoch value: {}", e.to_string()))
+                .map_err(|e| crate::Error::Conversion {
+                    expression: e.to_string(),
+                    typename: "Version".to_string(),
+                    message: "Invalid epoch value".into(),
                 })?;
             colon_index += 1;
         } else {
