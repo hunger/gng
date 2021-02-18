@@ -198,7 +198,7 @@ impl SourceHandler {
     }
 
     fn store_sources(&mut self, source_packet: SourcePacket) -> Result<()> {
-        let mut normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
+        let mut _normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
 
         // for s in source_packet.sources {
         //     let source_url = normalizer.normalize(&s.url)?;

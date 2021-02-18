@@ -5,7 +5,7 @@
 
 use gng_shared::{Name, Version};
 
-use std::convert::TryFrom;
+// This does not use Serde since the error reporting is not that good there!
 
 // - Helpers:
 // ----------------------------------------------------------------------
@@ -23,14 +23,40 @@ fn map_error(e: gng_shared::Error, expression: &str) -> gng_shared::Error {
     }
 }
 
-fn name_from_expression(
+fn from_expression<T: serde::de::DeserializeOwned>(
     engine: &mut crate::engine::Engine,
     expression: &str,
-) -> gng_shared::Result<Name> {
-    let name = engine
-        .evaluate::<String>("PKG.name")
-        .map_err(|e| map_error(e, expression))?;
-    Name::try_from(name).map_err(|e| map_error(e, expression))
+) -> gng_shared::Result<T> {
+    engine
+        .evaluate::<T>(expression)
+        .map_err(|e| map_error(e, expression))
+}
+
+fn converted_expression<T: std::convert::TryFrom<String, Error = gng_shared::Error>>(
+    engine: &mut crate::engine::Engine,
+    expression: &str,
+) -> gng_shared::Result<T> {
+    let name = from_expression::<String>(engine, expression)?;
+    T::try_from(name)
+}
+
+fn url_option(engine: &mut crate::engine::Engine, expression: &str) -> Option<String> {
+    let url = from_expression::<String>(engine, expression).unwrap_or_else(|_| String::new());
+    if url.is_empty() {
+        None
+    } else {
+        Some(url)
+    }
+}
+
+fn has_function(engine: &mut crate::engine::Engine, name: &str) -> gng_shared::Result<()> {
+    if engine.has_function(name) {
+        Ok(())
+    } else {
+        Err(gng_shared::Error::Script {
+            message: format!("Function \"{}\" is missing.", name),
+        })
+    }
 }
 
 /// Create a `SourcePacket` from an `Engine`
@@ -40,13 +66,19 @@ fn name_from_expression(
 pub fn from_engine(
     engine: &mut crate::engine::Engine,
 ) -> gng_shared::Result<gng_build_shared::SourcePacket> {
+    has_function(engine, "prepare")?;
+    has_function(engine, "build")?;
+    has_function(engine, "check")?;
+    has_function(engine, "install")?;
+    has_function(engine, "polish")?;
+
     Ok(gng_build_shared::SourcePacket {
-        name: name_from_expression(engine, "PKG.name")?,
-        version: Version::new(0, "foo", "bar")?,
-        license: "".to_string(),
-        url: None,
-        bug_url: None,
-        bootstrap: false,
+        name: converted_expression::<Name>(engine, "PKG.name")?,
+        version: converted_expression::<Version>(engine, "PKG.version")?,
+        license: from_expression::<String>(engine, "PKG.license")?,
+        url: url_option(engine, "PKG.url"),
+        bug_url: url_option(engine, "PKG.bug_url"),
+        bootstrap: from_expression::<bool>(engine, "PKG.bootstrap").unwrap_or(false),
         build_dependencies: vec![],
         check_dependencies: vec![],
         sources: vec![],

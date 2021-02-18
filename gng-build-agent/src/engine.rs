@@ -166,7 +166,26 @@ impl EngineBuilder {
         };
 
         let script = format!(
-            "PKG = {}\n",
+            r#"pkg_defaults = {{
+   bootstrap = false,
+
+   build_dependencies = {{}},
+   check_dependencies = {{}},
+
+   prepare = function() end,
+   build = function() end,
+   check = function() end,
+   install = function() end,
+   polish = function() end,
+}}
+
+PKG = {}
+
+for k, v in pairs(pkg_defaults) do
+    if PKG[k] == nil then
+        PKG[k] = v
+    end
+end"#,
             std::fs::read_to_string(build_file).map_err(|e| gng_shared::Error::Script {
                 message: format!("Failed to read build script: {}", e),
             })?
@@ -207,5 +226,11 @@ impl Engine {
                 rlua_serde::from_value(value)
             })
             .map_err(|e| map_error(&e))
+    }
+
+    /// Query whether a function is defined.
+    pub fn has_function(&mut self, name: &str) -> bool {
+        self.evaluate::<bool>(&format!("type(PKG.{}) == 'function'", name))
+            .unwrap_or(false)
     }
 }

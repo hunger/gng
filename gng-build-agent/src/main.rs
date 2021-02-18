@@ -32,17 +32,17 @@ use structopt::StructOpt;
 )]
 enum Args {
     /// query packet definition file
-    QUERY,
+    Query,
     /// prepare the sources for the build
-    PREPARE,
+    Prepare,
     /// run the actual build process
-    BUILD,
+    Build,
     /// Run tests and other checks
-    CHECK,
+    Check,
     /// move the build results to their final location in the filesystem
-    INSTALL,
+    Install,
     /// polish up the filesystem before putting all the files into a packet
-    POLISH,
+    Polish,
 }
 
 fn get_env(key: &str, default: &str) -> String {
@@ -159,11 +159,11 @@ fn main() -> Result<()> {
     let mut ctx = Context { engine };
 
     match args {
-        Args::QUERY => Ok(()),
-        Args::PREPARE => prepare(&mut ctx),
-        Args::BUILD => build(&mut ctx),
-        Args::CHECK => check(&mut ctx),
-        Args::INSTALL => install(&mut ctx),
-        Args::POLISH => polish(&mut ctx),
+        Args::Query => Ok(()),
+        Args::Prepare => prepare(&mut ctx),
+        Args::Build => build(&mut ctx),
+        Args::Check => check(&mut ctx),
+        Args::Install => install(&mut ctx),
+        Args::Polish => polish(&mut ctx),
     }
 }
