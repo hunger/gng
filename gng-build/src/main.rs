@@ -30,6 +30,10 @@ struct Args {
     #[structopt(long, parse(from_os_str), value_name = "FILE")]
     config: Option<PathBuf>,
 
+    /// the directory containing the Lua runtime environment
+    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    lua_dir: Option<PathBuf>,
+
     /// the directory to store temporary data
     #[structopt(long, parse(from_os_str), value_name = "DIR")]
     scratch_dir: Option<PathBuf>,
@@ -76,6 +80,9 @@ fn main() -> Result<()> {
     tracing::debug!("Command line arguments: {:#?}", args);
 
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
+    if args.lua_dir.is_some() {
+        case_officer.set_lua_directory(&args.lua_dir.unwrap());
+    }
     if args.scratch_dir.is_some() {
         case_officer.set_scratch_directory(&args.scratch_dir.unwrap());
     }

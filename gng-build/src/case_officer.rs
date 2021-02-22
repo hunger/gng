@@ -171,6 +171,7 @@ pub struct CaseOfficerBuilder {
     agent: Option<PathBuf>,
     nspawn_binary: PathBuf,
 
+    lua_directory: Option<PathBuf>,
     scratch_directory: PathBuf,
     work_directory: Option<PathBuf>,
     inst_directory: Option<PathBuf>,
@@ -184,6 +185,7 @@ impl Default for CaseOfficerBuilder {
             agent: None,
             nspawn_binary: PathBuf::from("/usr/bin/systemd-nspawn"),
 
+            lua_directory: None,
             scratch_directory: std::env::temp_dir(),
             work_directory: None,
             inst_directory: None,
@@ -194,6 +196,12 @@ impl Default for CaseOfficerBuilder {
 }
 
 impl CaseOfficerBuilder {
+    /// Set the `lua_directory` to use
+    pub fn set_lua_directory(&mut self, directory: &Path) -> &mut Self {
+        self.lua_directory = Some(directory.to_owned());
+        self
+    }
+
     /// Set the `scratch_directory` to use
     pub fn set_scratch_directory(&mut self, directory: &Path) -> &mut Self {
         self.scratch_directory = directory.to_owned();
@@ -255,11 +263,19 @@ impl CaseOfficerBuilder {
             &mut temp_dirs,
         )?;
 
+        let lua_directory = path_buf_or_tempdir(
+            &self.lua_directory,
+            "lua-",
+            &self.scratch_directory,
+            &mut temp_dirs,
+        )?;
+
         Ok(CaseOfficer {
             build_script: build_script(pkgsrc_directory)?,
             nspawn_binary: validate_executable(&mut Some(std::mem::take(&mut self.nspawn_binary)))?,
             agent: validate_executable(&mut self.agent)?,
 
+            lua_directory,
             root_directory,
             work_directory,
             inst_directory,
@@ -280,6 +296,7 @@ pub struct CaseOfficer {
     nspawn_binary: PathBuf,
     agent: PathBuf,
 
+    lua_directory: PathBuf,
     root_directory: PathBuf,
     work_directory: PathBuf,
     inst_directory: PathBuf,
@@ -305,6 +322,7 @@ impl CaseOfficer {
         let mut result = vec![
             bind(work_ro, &self.work_directory, &cc::GNG_WORK_DIR),
             bind(inst_ro, &self.inst_directory, &cc::GNG_INST_DIR),
+            bind(true, &self.lua_directory, &cc::GNG_LUA_DIR),
         ];
         result.append(extra_args);
 
@@ -355,6 +373,7 @@ impl CaseOfficer {
             ),
             setenv(ce::GNG_WORK_DIR, cc::GNG_WORK_DIR.to_str().unwrap()),
             setenv(ce::GNG_INST_DIR, cc::GNG_INST_DIR.to_str().unwrap()),
+            setenv(ce::GNG_LUA_DIR, cc::GNG_LUA_DIR.to_str().unwrap()),
             setenv(ce::GNG_AGENT_MESSAGE_PREFIX, message_prefix),
         ];
 

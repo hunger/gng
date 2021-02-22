@@ -165,8 +165,13 @@ impl EngineBuilder {
             lua: std::mem::replace(&mut self.lua, rlua::Lua::new()),
         };
 
+        engine.load_functions()?;
+
         let script = format!(
-            r#"pkg_defaults = {{
+            r#"
+package.path = "/gng/lua/?.lua"
+
+pkg_defaults = {{
    bootstrap = false,
 
    build_dependencies = {{}},
@@ -179,16 +184,20 @@ impl EngineBuilder {
    polish = function() end,
 }}
 
-PKG = {}
+PKG_func, err = loadfile("{}")
+
+if PKG_func == nil then
+    error("Failed to load /gng/build.lua in gng-build-agent: "..err)
+end
+
+PKG = PKG_func()
 
 for k, v in pairs(pkg_defaults) do
     if PKG[k] == nil then
         PKG[k] = v
     end
 end"#,
-            std::fs::read_to_string(build_file).map_err(|e| gng_shared::Error::Script {
-                message: format!("Failed to read build script: {}", e),
-            })?
+            build_file.to_string_lossy().as_ref()
         );
 
         engine.evaluate::<()>(&script)?;
@@ -207,6 +216,36 @@ pub struct Engine {
 }
 
 impl Engine {
+    fn load_functions(&mut self) -> gng_shared::Result<()> {
+        self.evaluate::<()>("_G.lfs = {}")?;
+
+        self.lua
+            .context(|lua_context| {
+                let lfs: rlua::Table = lua_context.globals().raw_get("lfs")?;
+
+                let chdir_function = lua_context.create_function(|_, path: String| {
+                    std::env::set_current_dir(&path).map_err(|e| {
+                        rlua::Error::RuntimeError(format!(
+                            "Failed to change directory to \"{}\": {}",
+                            path, e
+                        ))
+                    })
+                })?;
+                lfs.set("chdir", chdir_function)?;
+
+                let current_dir_function = lua_context.create_function(|_, ()| {
+                    let pwd = std::env::current_dir().map_err(|_| {
+                        rlua::Error::RuntimeError("Current directory is unset.".to_string())
+                    })?;
+                    Ok(pwd.to_string_lossy().as_ref().to_owned())
+                })?;
+                lfs.set("current_dir", current_dir_function)?;
+
+                Ok(())
+            })
+            .map_err(|e| map_error(&e))
+    }
+
     /// Evaluate an expression
     ///
     /// # Errors
@@ -219,10 +258,7 @@ impl Engine {
 
         self.lua
             .context(|lua_context| {
-                let value = lua_context
-                    .load(expression)
-                    .eval::<rlua::Value>()
-                    .expect("evaluable is Infallible");
+                let value = lua_context.load(expression).eval::<rlua::Value>()?;
                 rlua_serde::from_value(value)
             })
             .map_err(|e| map_error(&e))

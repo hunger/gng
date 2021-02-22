@@ -34,6 +34,8 @@ pub mod constants {
             pub static ref GNG_WORK_DIR: PathBuf = GNG_DIR.join("work");
             /// The `inst` folder inside the build container
             pub static ref GNG_INST_DIR: PathBuf = GNG_DIR.join("inst");
+            /// The `lua` folder inside the build container
+            pub static ref GNG_LUA_DIR: PathBuf = GNG_DIR.join("lua");
         }
     }
 
@@ -45,6 +47,8 @@ pub mod constants {
         pub const GNG_WORK_DIR: &str = "GNG_WORK_DIR";
         /// `GNG_INST_DIR` environment variable name
         pub const GNG_INST_DIR: &str = "GNG_INST_DIR";
+        /// `GNG_LUA_DIR` environment variable name
+        pub const GNG_LUA_DIR: &str = "GNG_LUA_DIR";
 
         /// `GNG_AGENT_MESSAGE_PREFIX` environment variable name
         pub const GNG_AGENT_MESSAGE_PREFIX: &str = "GNG_AGENT_MESSAGE_PREFIX";
