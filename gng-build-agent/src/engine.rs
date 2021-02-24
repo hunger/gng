@@ -168,35 +168,7 @@ impl EngineBuilder {
         engine.load_functions()?;
 
         let script = format!(
-            r#"
-package.path = "/gng/lua/?.lua"
-
-pkg_defaults = {{
-   bootstrap = false,
-
-   build_dependencies = {{}},
-   check_dependencies = {{}},
-
-   prepare = function() end,
-   build = function() end,
-   check = function() end,
-   install = function() end,
-   polish = function() end,
-}}
-
-PKG_func, err = loadfile("{}")
-
-if PKG_func == nil then
-    error("Failed to load /gng/build.lua in gng-build-agent: "..err)
-end
-
-PKG = PKG_func()
-
-for k, v in pairs(pkg_defaults) do
-    if PKG[k] == nil then
-        PKG[k] = v
-    end
-end"#,
+            "package.path = \"/gng/lua/?.lua\"\nrequire(\"startup\").init(\"{}\")",
             build_file.to_string_lossy().as_ref()
         );
 
