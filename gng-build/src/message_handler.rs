@@ -84,7 +84,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> Result<bool> {
-        if message_type != &gng_build_shared::MessageType::DATA {
+        if message_type != &gng_build_shared::MessageType::Data {
             self.first_message = false;
             return Ok(false);
         }
@@ -119,7 +119,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         }
 
         if self.hash.is_none() {
-            tracing::error!("No source data received during QUERY mode.");
+            tracing::error!("No source data received during Query mode.");
             panic!("gng-build-agent did not react as expected!");
         }
         Ok(())
@@ -130,134 +130,134 @@ impl MessageHandler for ImmutableSourceDataHandler {
 // - SourceHandler:
 // ----------------------------------------------------------------------
 
-struct UrlNormalizer {
-    base_url: Option<url::Url>,
-    base_directory: std::path::PathBuf,
-    seen_urls: std::collections::HashSet<url::Url>,
-}
+// struct UrlNormalizer {
+//     base_url: Option<url::Url>,
+//     base_directory: std::path::PathBuf,
+//     seen_urls: std::collections::HashSet<url::Url>,
+// }
 
-impl UrlNormalizer {
-    fn new(base_directory: &std::path::Path) -> Result<Self> {
-        let base_url = Some(
-            url::Url::parse(&format!("file://{}/", base_directory.to_string_lossy()))
-                .wrap_err("Failed to PKGSRC directory into an URL.")?,
-        );
+// impl UrlNormalizer {
+//     fn new(base_directory: &std::path::Path) -> Result<Self> {
+//         let base_url = Some(
+//             url::Url::parse(&format!("file://{}/", base_directory.to_string_lossy()))
+//                 .wrap_err("Failed to PKGSRC directory into an URL.")?,
+//         );
 
-        Ok(Self {
-            base_url,
-            base_directory: base_directory.to_owned(),
-            seen_urls: std::collections::HashSet::<url::Url>::default(),
-        })
-    }
+//         Ok(Self {
+//             base_url,
+//             base_directory: base_directory.to_owned(),
+//             seen_urls: std::collections::HashSet::<url::Url>::default(),
+//         })
+//     }
 
-    fn normalize(&mut self, url: &str) -> Result<url::Url> {
-        let source_url = if let Some(bu) = &self.base_url {
-            bu.join(url).wrap_err("Failed to parse URL")?
-        } else {
-            url::Url::parse(url)?
-        };
+//     fn normalize(&mut self, url: &str) -> Result<url::Url> {
+//         let source_url = if let Some(bu) = &self.base_url {
+//             bu.join(url).wrap_err("Failed to parse URL")?
+//         } else {
+//             url::Url::parse(url)?
+//         };
 
-        if !self.seen_urls.insert(source_url.clone()) {
-            return Err(eyre!("URL has been seen before in the same sources list"));
-        }
+//         if !self.seen_urls.insert(source_url.clone()) {
+//             return Err(eyre!("URL has been seen before in the same sources list"));
+//         }
 
-        if source_url.scheme() == "file" {
-            let url_file_name = std::fs::canonicalize(source_url.path())
-                .wrap_err("Failed to canonicalize file path in source URL")?;
+//         if source_url.scheme() == "file" {
+//             let url_file_name = std::fs::canonicalize(source_url.path())
+//                 .wrap_err("Failed to canonicalize file path in source URL")?;
 
-            if !url_file_name.starts_with(&self.base_directory) {
-                return Err(eyre!(
-                    "File URL is not pointing into the directory containing \"{}\".",
-                    gng_build_shared::BUILD_SCRIPT
-                ));
-            }
-            return Ok(source_url);
-        }
-        if source_url.scheme() == "http" || source_url.scheme() == "https" {
-            return Ok(source_url);
-        }
+//             if !url_file_name.starts_with(&self.base_directory) {
+//                 return Err(eyre!(
+//                     "File URL is not pointing into the directory containing \"{}\".",
+//                     gng_build_shared::BUILD_SCRIPT
+//                 ));
+//             }
+//             return Ok(source_url);
+//         }
+//         if source_url.scheme() == "http" || source_url.scheme() == "https" {
+//             return Ok(source_url);
+//         }
 
-        Err(eyre!("Unsupported URL scheme."))
-    }
-}
+//         Err(eyre!("Unsupported URL scheme."))
+//     }
+// }
 
-/// Make sure the source as seen by the `gng-build-agent` stays constant
-pub struct SourceHandler {
-    sources: Vec<gng_build_shared::Source>,
-    pkgsrc_directory: std::path::PathBuf,
-    work_directory: std::path::PathBuf,
-}
+// /// Make sure the source as seen by the `gng-build-agent` stays constant
+// pub struct SourceHandler {
+//     sources: Vec<gng_build_shared::Source>,
+//     pkgsrc_directory: std::path::PathBuf,
+//     work_directory: std::path::PathBuf,
+// }
 
-impl SourceHandler {
-    fn new(pkgsrc_directory: &std::path::Path, work_directory: &std::path::Path) -> Self {
-        Self {
-            sources: Vec::new(),
-            pkgsrc_directory: pkgsrc_directory.to_owned(),
-            work_directory: work_directory.to_owned(),
-        }
-    }
+// impl SourceHandler {
+//     fn new(pkgsrc_directory: &std::path::Path, work_directory: &std::path::Path) -> Self {
+//         Self {
+//             sources: Vec::new(),
+//             pkgsrc_directory: pkgsrc_directory.to_owned(),
+//             work_directory: work_directory.to_owned(),
+//         }
+//     }
 
-    fn store_sources(&mut self, source_packet: SourcePacket) -> Result<()> {
-        let mut _normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
+//     fn store_sources(&mut self, _source_packet: SourcePacket) -> Result<()> {
+//         let mut _normalizer = UrlNormalizer::new(&self.pkgsrc_directory)?;
 
-        // for s in source_packet.sources {
-        //     let source_url = normalizer.normalize(&s.url)?;
-        //     if !s.name.chars().all(|c| {
-        //         ('a'..='z').contains(&c)
-        //             || ('A'..='Z').contains(&c)
-        //             || ('0'..='9').contains(&c)
-        //             || (c == '_')
-        //             || (c == '-')
-        //     }) {
-        //         return Err(eyre!(format!(
-        //             "Name for source {} contains invalid characters.",
-        //             s
-        //         )));
-        //     };
-        //     let source = gng_build_shared::Source {
-        //         url: source_url.to_string(),
-        //         ..s
-        //     };
-        //     self.sources.push(source);
-        // }
-        Ok(())
-    }
+//         // for s in source_packet.sources {
+//         //     let source_url = normalizer.normalize(&s.url)?;
+//         //     if !s.name.chars().all(|c| {
+//         //         ('a'..='z').contains(&c)
+//         //             || ('A'..='Z').contains(&c)
+//         //             || ('0'..='9').contains(&c)
+//         //             || (c == '_')
+//         //             || (c == '-')
+//         //     }) {
+//         //         return Err(eyre!(format!(
+//         //             "Name for source {} contains invalid characters.",
+//         //             s
+//         //         )));
+//         //     };
+//         //     let source = gng_build_shared::Source {
+//         //         url: source_url.to_string(),
+//         //         ..s
+//         //     };
+//         //     self.sources.push(source);
+//         // }
+//         Ok(())
+//     }
 
-    fn install_sources(&mut self) -> Result<()> {
-        Ok(())
-    }
-}
+//     fn install_sources(&mut self) -> Result<()> {
+//         Ok(())
+//     }
+// }
 
-impl MessageHandler for SourceHandler {
-    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
-        if *mode == crate::Mode::PREPARE {
-            self.install_sources()
-        } else {
-            Ok(())
-        }
-    }
+// impl MessageHandler for SourceHandler {
+//     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
+//         if *mode == crate::Mode::Prepare {
+//             self.install_sources()
+//         } else {
+//             Ok(())
+//         }
+//     }
 
-    fn handle(
-        &mut self,
-        mode: &crate::Mode,
-        message_type: &gng_build_shared::MessageType,
-        message: &str,
-    ) -> Result<bool> {
-        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
-            return Ok(false);
-        }
+//     fn handle(
+//         &mut self,
+//         mode: &crate::Mode,
+//         message_type: &gng_build_shared::MessageType,
+//         message: &str,
+//     ) -> Result<bool> {
+//         if *mode != crate::Mode::Query && message_type != &gng_build_shared::MessageType::Data {
+//             return Ok(false);
+//         }
 
-        self.store_sources(serde_json::from_str(message).map_err(|e| eyre!(e))?)?;
+//         self.store_sources(serde_json::from_str(message).map_err(|e| eyre!(e))?)?;
 
-        Ok(false)
-    }
+//         Ok(false)
+//     }
 
-    fn verify(&mut self, _mode: &crate::Mode) -> Result<()> {
-        assert!(!self.sources.is_empty());
+//     fn verify(&mut self, _mode: &crate::Mode) -> Result<()> {
+//         assert!(!self.sources.is_empty());
 
-        todo!();
-    }
-}
+//         todo!();
+//     }
+// }
 
 // ----------------------------------------------------------------------
 // - PackageHandler:
@@ -287,7 +287,7 @@ impl MessageHandler for PacketHandler {
         message_type: &gng_build_shared::MessageType,
         _message: &str,
     ) -> Result<bool> {
-        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
+        if *mode != crate::Mode::Query && message_type != &gng_build_shared::MessageType::Data {
             return Ok(false);
         }
 
@@ -315,11 +315,11 @@ mod tests {
     fn test_immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let mut mode = Some(crate::Mode::QUERY);
+        let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
             handler.prepare(&m).unwrap();
             handler
-                .handle(&m, &gng_build_shared::MessageType::DATA, "foobar 12345")
+                .handle(&m, &gng_build_shared::MessageType::Data, "foobar 12345")
                 .unwrap();
             handler.verify(&m).unwrap();
             mode = Some(m)
@@ -329,25 +329,25 @@ mod tests {
     fn test_immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler.prepare(&crate::Mode::Query).unwrap();
         handler
             .handle(
-                &crate::Mode::QUERY,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Query,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::QUERY).unwrap();
+        handler.verify(&crate::Mode::Query).unwrap();
     }
 
     #[test]
@@ -355,8 +355,8 @@ mod tests {
     fn test_immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -364,22 +364,22 @@ mod tests {
     fn test_immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -387,15 +387,15 @@ mod tests {
     fn test_immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::TEST,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Test,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -403,25 +403,25 @@ mod tests {
     fn test_immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler.prepare(&crate::Mode::Query).unwrap();
         handler
             .handle(
-                &crate::Mode::QUERY,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Query,
+                &gng_build_shared::MessageType::Data,
                 "foobar 123456",
             )
             .unwrap();
-        handler.verify(&crate::Mode::QUERY).unwrap();
+        handler.verify(&crate::Mode::Query).unwrap();
     }
 
     #[test]

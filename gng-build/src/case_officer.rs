@@ -334,11 +334,11 @@ impl CaseOfficer {
 
     fn mode_arguments(&self, mode: &Mode, message_prefix: &str) -> Vec<std::ffi::OsString> {
         let mut extra = match mode {
-            Mode::QUERY => self.mode_args(true, true, &mut Vec::new(), "query"),
-            Mode::PREPARE => self.mode_args(false, true, &mut Vec::new(), "prepare"),
-            Mode::BUILD => self.mode_args(false, true, &mut Vec::new(), "build"),
-            Mode::CHECK => self.mode_args(false, true, &mut Vec::new(), "check"),
-            Mode::INSTALL => self.mode_args(
+            Mode::Query => self.mode_args(true, true, &mut Vec::new(), "query"),
+            Mode::Prepare => self.mode_args(false, true, &mut Vec::new(), "prepare"),
+            Mode::Build => self.mode_args(false, true, &mut Vec::new(), "build"),
+            Mode::Check => self.mode_args(false, true, &mut Vec::new(), "check"),
+            Mode::Install => self.mode_args(
                 true,
                 false,
                 &mut vec![overlay(&[
@@ -348,7 +348,7 @@ impl CaseOfficer {
                 ])],
                 "install",
             ),
-            Mode::PACKAGE => self.mode_args(true, true, &mut Vec::new(), "polish"),
+            Mode::Package => self.mode_args(true, true, &mut Vec::new(), "polish"),
         };
 
         let mut result = vec![

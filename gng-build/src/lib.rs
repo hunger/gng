@@ -23,22 +23,22 @@
 #[derive(Clone, Debug, PartialEq)]
 pub enum Mode {
     /// The `gng-build-agent` is run in `query` mode
-    QUERY,
+    Query,
     /// The `gng-build-agent` is run in `prepare` mode
-    PREPARE,
+    Prepare,
     /// The `gng-build-agent` is run in `build` mode
-    BUILD,
+    Build,
     /// The `gng-build-agent` is run in `check` mode
-    CHECK,
+    Check,
     /// The `gng-build-agent` is run in `install` mode
-    INSTALL,
+    Install,
     /// The `gng-build-agent` is run in `package` mode
-    PACKAGE,
+    Package,
 }
 
 impl Default for Mode {
     fn default() -> Self {
-        Self::QUERY
+        Self::Query
     }
 }
 
@@ -47,12 +47,12 @@ impl Mode {
     #[must_use]
     pub const fn next(self) -> Option<Self> {
         match self {
-            Self::QUERY => Some(Self::PREPARE), // default entry point
-            Self::PREPARE => Some(Self::BUILD), // default entry point
-            Self::BUILD => Some(Self::CHECK),
-            Self::CHECK => Some(Self::INSTALL),
-            Self::INSTALL => Some(Self::PACKAGE),
-            Self::PACKAGE => None,
+            Self::Query => Some(Self::Prepare), // default entry point
+            Self::Prepare => Some(Self::Build), // default entry point
+            Self::Build => Some(Self::Check),
+            Self::Check => Some(Self::Install),
+            Self::Install => Some(Self::Package),
+            Self::Package => None,
         }
     }
 }

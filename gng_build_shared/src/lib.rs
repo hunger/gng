@@ -61,9 +61,9 @@ pub mod constants {
 #[derive(Clone, Debug, PartialEq)]
 pub enum MessageType {
     /// Source packet data
-    DATA,
+    Data,
     /// Test data
-    TEST,
+    Test,
 }
 
 impl std::convert::TryFrom<String> for MessageType {
@@ -71,9 +71,9 @@ impl std::convert::TryFrom<String> for MessageType {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if &value == "DATA" {
-            Ok(Self::DATA)
+            Ok(Self::Data)
         } else if &value == "TEST" {
-            Ok(Self::TEST)
+            Ok(Self::Test)
         } else {
             Err(format!("Failed to convert {} to MessageType", value))
         }
@@ -83,8 +83,8 @@ impl std::convert::TryFrom<String> for MessageType {
 impl std::convert::From<&MessageType> for String {
     fn from(mt: &MessageType) -> Self {
         match mt {
-            MessageType::DATA => Self::from("DATA"),
-            MessageType::TEST => Self::from("TEST"),
+            MessageType::Data => Self::from("DATA"),
+            MessageType::Test => Self::from("TEST"),
         }
     }
 }

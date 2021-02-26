@@ -162,7 +162,7 @@ fn main() -> Result<()> {
 
     send_message(
         &message_prefix,
-        &gng_build_shared::MessageType::DATA,
+        &gng_build_shared::MessageType::Data,
         &serde_json::to_string(&source_packet)?,
     );
 
