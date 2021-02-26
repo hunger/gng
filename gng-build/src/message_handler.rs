@@ -84,7 +84,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> Result<bool> {
-        if message_type != &gng_build_shared::MessageType::DATA {
+        if message_type != &gng_build_shared::MessageType::Data {
             self.first_message = false;
             return Ok(false);
         }
@@ -119,7 +119,7 @@ impl MessageHandler for ImmutableSourceDataHandler {
         }
 
         if self.hash.is_none() {
-            tracing::error!("No source data received during QUERY mode.");
+            tracing::error!("No source data received during Query mode.");
             panic!("gng-build-agent did not react as expected!");
         }
         Ok(())
@@ -230,7 +230,7 @@ impl SourceHandler {
 
 impl MessageHandler for SourceHandler {
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
-        if *mode == crate::Mode::PREPARE {
+        if *mode == crate::Mode::Prepare {
             self.install_sources()
         } else {
             Ok(())
@@ -243,7 +243,7 @@ impl MessageHandler for SourceHandler {
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> Result<bool> {
-        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
+        if *mode != crate::Mode::Query && message_type != &gng_build_shared::MessageType::Data {
             return Ok(false);
         }
 
@@ -287,7 +287,7 @@ impl MessageHandler for PacketHandler {
         message_type: &gng_build_shared::MessageType,
         _message: &str,
     ) -> Result<bool> {
-        if *mode != crate::Mode::QUERY && message_type != &gng_build_shared::MessageType::DATA {
+        if *mode != crate::Mode::Query && message_type != &gng_build_shared::MessageType::Data {
             return Ok(false);
         }
 
@@ -315,11 +315,11 @@ mod tests {
     fn test_immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let mut mode = Some(crate::Mode::QUERY);
+        let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
             handler.prepare(&m).unwrap();
             handler
-                .handle(&m, &gng_build_shared::MessageType::DATA, "foobar 12345")
+                .handle(&m, &gng_build_shared::MessageType::Data, "foobar 12345")
                 .unwrap();
             handler.verify(&m).unwrap();
             mode = Some(m)
@@ -329,25 +329,25 @@ mod tests {
     fn test_immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler.prepare(&crate::Mode::Query).unwrap();
         handler
             .handle(
-                &crate::Mode::QUERY,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Query,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::QUERY).unwrap();
+        handler.verify(&crate::Mode::Query).unwrap();
     }
 
     #[test]
@@ -355,8 +355,8 @@ mod tests {
     fn test_immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -364,22 +364,22 @@ mod tests {
     fn test_immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -387,15 +387,15 @@ mod tests {
     fn test_immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::TEST,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Test,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
     }
 
     #[test]
@@ -403,25 +403,25 @@ mod tests {
     fn test_immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::PREPARE).unwrap();
+        handler.prepare(&crate::Mode::Prepare).unwrap();
         handler
             .handle(
-                &crate::Mode::PREPARE,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Prepare,
+                &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::PREPARE).unwrap();
+        handler.verify(&crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::QUERY).unwrap();
+        handler.prepare(&crate::Mode::Query).unwrap();
         handler
             .handle(
-                &crate::Mode::QUERY,
-                &gng_build_shared::MessageType::DATA,
+                &crate::Mode::Query,
+                &gng_build_shared::MessageType::Data,
                 "foobar 123456",
             )
             .unwrap();
-        handler.verify(&crate::Mode::QUERY).unwrap();
+        handler.verify(&crate::Mode::Query).unwrap();
     }
 
     #[test]

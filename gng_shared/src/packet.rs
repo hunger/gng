@@ -23,7 +23,7 @@ impl GpgKeyId {
         let value = value.to_lowercase();
         if !crate::all_hex_or_separator(&value) {
             return Err(crate::Error::Conversion {
-                expression: value.to_string(),
+                expression: value,
                 typename: "GpgKeyId".to_string(),
                 message: "A GPG Key ID must be hex with optional ' ' or '-' characters.".into(),
             });
@@ -37,7 +37,7 @@ impl GpgKeyId {
             .join(" ");
         if value.chars().count() != (16 + 3) {
             return Err(crate::Error::Conversion {
-                expression: value.to_string(),
+                expression: value,
                 typename: "GpgKeyId".to_string(),
                 message: "A GPG Key ID must contain 16 hex digits.".into(),
             });
@@ -104,18 +104,18 @@ fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
 #[serde(try_from = "String", into = "String")]
 pub enum Hash {
     /// No hash validation needed
-    NONE(),
+    None(),
     /// SHA 256
-    SHA256([u8; 32]),
+    Sha256([u8; 32]),
     /// SHA 512
-    SHA512([u8; 64]),
+    Sha512([u8; 64]),
 }
 
 impl Hash {
     /// Create a `NONE` hash
     #[must_use]
     pub const fn none() -> Self {
-        Self::NONE()
+        Self::None()
     }
 
     /// Create a `SHA256` hash
@@ -126,7 +126,7 @@ impl Hash {
         let mut v = [0_u8; 32];
         from_hex(value, &mut v)?;
 
-        Ok(Self::SHA256(v))
+        Ok(Self::Sha256(v))
     }
 
     /// Create a `SHA512` hash
@@ -137,16 +137,16 @@ impl Hash {
         let mut v = [0_u8; 64];
         from_hex(value, &mut v)?;
 
-        Ok(Self::SHA512(v))
+        Ok(Self::Sha512(v))
     }
 
     /// The hash algorithm
     #[must_use]
     pub fn algorithm(&self) -> String {
         match self {
-            Self::NONE() => String::from("none"),
-            Self::SHA256(_) => String::from("sha256"),
-            Self::SHA512(_) => String::from("sha512"),
+            Self::None() => String::from("none"),
+            Self::Sha256(_) => String::from("sha256"),
+            Self::Sha512(_) => String::from("sha512"),
         }
     }
 
@@ -154,9 +154,9 @@ impl Hash {
     #[must_use]
     pub fn value(&self) -> String {
         match self {
-            Self::NONE() => String::new(),
-            Self::SHA256(v) => to_hex(&v[..]),
-            Self::SHA512(v) => to_hex(&v[..]),
+            Self::None() => String::new(),
+            Self::Sha256(v) => to_hex(&v[..]),
+            Self::Sha512(v) => to_hex(&v[..]),
         }
     }
 }
@@ -182,7 +182,7 @@ impl std::convert::TryFrom<String> for Hash {
             return Self::sha512(v);
         }
         Err(crate::Error::Conversion {
-            expression: value.to_string(),
+            expression: value,
             typename: "Hash".to_string(),
             message: "Unsupported hash type.".into(),
         })
@@ -191,14 +191,14 @@ impl std::convert::TryFrom<String> for Hash {
 
 impl std::default::Default for Hash {
     fn default() -> Self {
-        Self::NONE()
+        Self::None()
     }
 }
 
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            Self::NONE() => write!(f, "{}", self.algorithm()),
+            Self::None() => write!(f, "{}", self.algorithm()),
             _ => write!(f, "{}:{}", self.algorithm(), self.value()),
         }
     }
@@ -490,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_package_hash_ok() {
-        assert_eq!(Hash::none(), Hash::NONE());
+        assert_eq!(Hash::none(), Hash::None());
 
         assert_eq!(
             Hash::sha256("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
