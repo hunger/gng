@@ -189,29 +189,68 @@ pub struct Engine {
 
 impl Engine {
     fn load_functions(&mut self) -> gng_shared::Result<()> {
-        self.evaluate::<()>("_G.lfs = {}")?;
-
         self.lua
             .context(|lua_context| {
-                let lfs: rlua::Table = lua_context.globals().raw_get("lfs")?;
+                let fn_table = lua_context.create_table()?;
 
-                let chdir_function = lua_context.create_function(|_, path: String| {
-                    std::env::set_current_dir(&path).map_err(|e| {
-                        rlua::Error::RuntimeError(format!(
-                            "Failed to change directory to \"{}\": {}",
-                            path, e
-                        ))
-                    })
-                })?;
-                lfs.set("chdir", chdir_function)?;
+                let chdir_function =
+                    lua_context.create_function(
+                        |_, path: String| match std::env::set_current_dir(&path) {
+                            Err(e) => Ok((
+                                false,
+                                format!("Failed to change directory to \"{}\": {}", path, e),
+                            )),
+                            Ok(()) => Ok((true, String::new())),
+                        },
+                    )?;
+                fn_table.set("chdir", chdir_function)?;
 
-                let current_dir_function = lua_context.create_function(|_, ()| {
-                    let pwd = std::env::current_dir().map_err(|_| {
-                        rlua::Error::RuntimeError("Current directory is unset.".to_string())
+                let currentdir_function =
+                    lua_context.create_function(|_, ()| match std::env::current_dir() {
+                        Err(e) => {
+                            Ok((String::new(), format!("Current directory not found: {}", e)))
+                        }
+                        Ok(d) => Ok((d.to_string_lossy().as_ref().to_owned(), String::new())),
                     })?;
-                    Ok(pwd.to_string_lossy().as_ref().to_owned())
-                })?;
-                lfs.set("current_dir", current_dir_function)?;
+                fn_table.set("current_dir", currentdir_function)?;
+
+                // Set up Lua side:
+                lua_context.globals().set("rlua_lfs_fns", fn_table)?;
+                lua_context
+                    .load(
+                        r#"
+local fns = _G.rlua_lfs_fns
+_G.rlua_lfs_fns = nil
+
+_G.lfs = {
+    chdir = function(path)
+        local result, err = fns.chdir(path)
+        if result == true then
+            return true
+        else
+            return nil, err
+        end
+    end,
+
+    currentdir = function()
+        local cwd, err = fns.current_dir()
+        if cwd == "" then
+            return nil, err
+        else
+            return cwd
+        end
+    end,
+}
+                "#,
+                    )
+                    .exec()?;
+                // let current_dir_function = lua_context.create_function(|_, ()| {
+                //     let pwd = std::env::current_dir().map_err(|_| {
+                //         rlua::Error::RuntimeError("Current directory is unset.".to_string())
+                //     })?;
+                //     Ok(pwd.to_string_lossy().as_ref().to_owned())
+                // })?;
+                // lfs.set("current_dir", current_dir_function)?;
 
                 Ok(())
             })
