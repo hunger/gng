@@ -221,6 +221,18 @@ impl Engine {
                 })?;
                 fn_table.set("currentdir", currentdir_function)?;
 
+                let mkdir_function = lua_context.create_function(|lua_context, path: String| {
+                    match std::fs::create_dir(&path) {
+                        Err(e) => Ok((
+                            rlua::Value::Nil,
+                            lua_context.pack(format!("Can not create directory: {}", e))?,
+                            lua_context.pack(1)?,
+                        )),
+                        Ok(()) => Ok((lua_context.pack(true)?, rlua::Value::Nil, rlua::Value::Nil)),
+                    }
+                })?;
+                fn_table.set("mkdir", mkdir_function)?;
+
                 // Set up Lua side:
                 lua_context.globals().set("lfs", fn_table)?;
 
