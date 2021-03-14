@@ -59,6 +59,49 @@ fn has_function(engine: &mut crate::engine::Engine, name: &str) -> gng_shared::R
     }
 }
 
+fn extract_array<T>(
+    engine: &mut crate::engine::Engine,
+    base_expression: &str,
+    converter: impl Fn(&mut crate::engine::Engine, &str) -> gng_shared::Result<T>,
+) -> gng_shared::Result<Vec<T>> {
+    let element_count = from_expression::<usize>(engine, &format!("#{}", base_expression))?;
+    let mut result = Vec::with_capacity(element_count);
+
+    for count in 1..=element_count {
+        result.push(converter(
+            engine,
+            &format!("{}[{}]", base_expression, count),
+        )?);
+    }
+
+    Ok(result)
+}
+
+fn extract_packets(
+    engine: &mut crate::engine::Engine,
+    packet_base: &str,
+) -> gng_shared::Result<Vec<gng_build_shared::PacketDefinition>> {
+    extract_array(engine, packet_base, |engine, expr| {
+        Ok(gng_build_shared::PacketDefinition {
+            suffix: from_expression::<String>(engine, &format!("{}.suffix", expr))?,
+            description: from_expression::<String>(engine, &format!("{}.description", expr))?,
+            dependencies: extract_array(
+                engine,
+                &format!("{}.dependencies", expr),
+                |engine, expr| converted_expression::<Name>(engine, expr),
+            )?,
+            optional_dependencies: extract_array(
+                engine,
+                &format!("{}.optional_dependencies", expr),
+                |engine, expr| converted_expression::<Name>(engine, expr),
+            )?,
+            files: extract_array(engine, &format!("{}.files", expr), |engine, expr| {
+                from_expression::<String>(engine, expr)
+            })?,
+        })
+    })
+}
+
 /// Create a `SourcePacket` from an `Engine`
 ///
 /// # Errors
@@ -82,6 +125,6 @@ pub fn from_engine(
         build_dependencies: vec![],
         check_dependencies: vec![],
         sources: vec![],
-        packets: vec![],
+        packets: extract_packets(engine, "PKG.packets")?,
     })
 }
