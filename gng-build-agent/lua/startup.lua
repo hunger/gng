@@ -8,6 +8,8 @@ function startup.init(pkg_definition)
         build_dependencies = {},
         check_dependencies = {},
 
+        packets = {},
+
         prepare = function() end,
         build = function() end,
         check = function() end,
