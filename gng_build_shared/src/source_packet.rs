@@ -9,9 +9,11 @@ use gng_shared::{GpgKeyId, Hash, Name, Version};
 const fn always_true() -> bool {
     true
 }
+
 const fn always_false() -> bool {
     false
 }
+
 const fn always_none_string() -> Option<String> {
     None
 }

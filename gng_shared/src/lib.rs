@@ -42,6 +42,29 @@ pub enum Error {
         message: String,
     },
 
+    /// IO Error
+    #[error("IO Error: {source}")]
+    Io {
+        /// The `std::io::Error` triggering this
+        #[from]
+        source: std::io::Error,
+    },
+
+    /// Path handling Error
+    #[error("Path error: {source}")]
+    Path {
+        /// The `std::path::StripPrefixError` that caused this
+        #[from]
+        source: std::path::StripPrefixError,
+    },
+
+    /// Runtime Error
+    #[error("Runtime Error: {message}")]
+    Runtime {
+        /// Error message.
+        message: String,
+    },
+
     /// Not sure what actually went wrong...
     #[error("unknown error")]
     Unknown,
@@ -111,6 +134,7 @@ pub fn start_alnum_char(input: &str) -> bool {
 // ----------------------------------------------------------------------
 
 pub mod config;
+pub mod package;
 mod packet;
 
-pub use packet::{GpgKeyId, Hash, Name, Packet, Version};
+pub use packet::{GpgKeyId, Hash, Name, Packet, Suffix, Version};
