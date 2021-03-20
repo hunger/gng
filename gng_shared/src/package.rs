@@ -77,12 +77,12 @@ impl Path {
         let leaf_part = match &self.leaf {
             PathLeaf::File {
                 name,
-                mode,
-                uid,
-                gid,
-                size,
-            } => name.clone(),
-            PathLeaf::Link { name, target } => name.clone(),
+                mode: _,
+                uid: _,
+                gid: _,
+                size: _,
+            }
+            | PathLeaf::Link { name, target: _ } => name.clone(),
             PathLeaf::None => std::ffi::OsString::new(),
         };
         let base_path = if self.is_absolute {
@@ -121,11 +121,8 @@ pub trait PacketWriter {
 }
 
 /// A type for factories of `PacketWriter`
-pub type PacketWriterFactory = dyn Fn(
-    &std::path::Path,
-    &std::path::Path,
-)
-    -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
+pub type PacketWriterFactory =
+    dyn Fn(&std::path::Path) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
 
 /// Create the full packet name from the base name.
 fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
@@ -140,7 +137,6 @@ fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
 /// Depends on the actual `PacketWriter` being created.
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
-    base_dir: &std::path::Path,
 ) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)> {
     // TODO: Make this configurable?
     let full_name = full_packet_path(packet_path);
@@ -151,7 +147,7 @@ pub fn create_packet_writer(
         .open(&full_name)?;
     let writer = zstd::Encoder::new(writer, 21)?;
 
-    let mut tarball = PacketWriterImpl::new(base_dir, writer)?;
+    let mut tarball = PacketWriterImpl::new(writer)?;
 
     tarball.set_cleanup_function(Box::new(|encoder: zstd::Encoder<_>| -> crate::Result<()> {
         match encoder.finish() {
@@ -174,7 +170,6 @@ struct PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    base_dir: std::path::PathBuf,
     tarball: tar::Builder<T>,
     cleanup_function: CleanUpFunction<T>,
 }
@@ -183,16 +178,11 @@ impl<T> PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    fn new(base_dir: &std::path::Path, packet_writer: T) -> crate::Result<Self> {
-        if !base_dir.is_absolute() {
-            return Err(crate::Error::Unknown);
-        }
-
+    fn new(packet_writer: T) -> crate::Result<Self> {
         let mut tarball = tar::Builder::new(packet_writer);
         tarball.follow_symlinks(false);
 
         Ok(Self {
-            base_dir: base_dir.to_owned(),
             tarball,
             cleanup_function: Box::new(|_| Ok(())),
         })
@@ -209,8 +199,8 @@ where
 {
     fn add_path(
         &mut self,
-        packet_path: &Path,
-        on_disk_path: &std::path::Path,
+        _packet_path: &Path,
+        _on_disk_path: &std::path::Path,
     ) -> crate::Result<()> {
         todo!()
     }

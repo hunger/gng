@@ -28,7 +28,7 @@ fn globs_from_strings(input: &[String]) -> gng_shared::Result<Vec<glob::Pattern>
 }
 
 fn same_packet_name(packet: &Packet, packets: &[Packet]) -> bool {
-    packets.iter().find(|p| p.path == packet.path).is_some()
+    packets.iter().any(|p| p.path == packet.path)
 }
 
 fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<()> {
@@ -41,20 +41,6 @@ fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<(
         });
     }
     Ok(())
-}
-
-fn packet_name_from_name_and_suffix(
-    name: &gng_shared::Name,
-    suffix: &gng_shared::Suffix,
-) -> String {
-    let name = name.to_string();
-    let suffix = suffix.to_string();
-
-    if suffix.is_empty() {
-        name
-    } else {
-        format!("{}-{}", &name, &suffix)
-    }
 }
 
 fn collect_contents(directory: &std::path::Path) -> gng_shared::Result<Vec<std::fs::DirEntry>> {
@@ -109,6 +95,7 @@ pub struct PackagerBuilder {
 
 impl PackagerBuilder {
     /// Create a new `PackagerBuilder` with a custom factory to create `PacketWriter` with.
+    #[must_use]
     pub fn new_with_factory(factory: Box<PacketWriterFactory>) -> Self {
         Self {
             packet_directory: None,
@@ -175,9 +162,9 @@ impl PackagerBuilder {
 }
 
 impl Default for PackagerBuilder {
-    fn default() -> PackagerBuilder {
-        PackagerBuilder::new_with_factory(Box::new(|packet_path, base_directory| {
-            gng_shared::package::create_packet_writer(packet_path, base_directory)
+    fn default() -> Self {
+        Self::new_with_factory(Box::new(|packet_path| {
+            gng_shared::package::create_packet_writer(packet_path)
         }))
     }
 }
@@ -187,7 +174,6 @@ impl Default for PackagerBuilder {
 // ----------------------------------------------------------------------
 
 struct DeterministicDirectoryIterator {
-    base_directory: std::path::PathBuf,
     contents_stack: Vec<Vec<std::fs::DirEntry>>,
     directory_stack: Vec<gng_shared::package::Dir>,
 }
@@ -198,10 +184,9 @@ impl DeterministicDirectoryIterator {
 
         if base_dir_entry.file_type()?.is_dir() {
             Ok(Self {
-                base_directory: directory.to_owned(),
                 contents_stack: vec![vec![base_dir_entry]],
                 directory_stack: vec![gng_shared::package::Dir {
-                    name: std::ffi::OsString::from("usr"),
+                    name: std::ffi::OsString::from("."),
                     uid: 0,
                     gid: 0,
                     mode: 0o755,
@@ -248,7 +233,7 @@ impl DeterministicDirectoryIterator {
                     is_absolute: false,
                     directory: self.directory_stack.clone(),
                     leaf: gng_shared::package::PathLeaf::File {
-                        name: name.clone(),
+                        name,
                         mode: meta.mode(),
                         uid: meta.uid(),
                         gid: meta.gid(),
@@ -257,34 +242,24 @@ impl DeterministicDirectoryIterator {
                 },
             ))
         } else if file_type.is_dir() {
-            let this_dir = gng_shared::package::Dir {
-                name: name.clone(),
-                mode: meta.mode(),
+            let contents = collect_contents(&entry.path())?;
+            self.directory_stack.push(gng_shared::package::Dir {
+                name,
                 uid: meta.uid(),
                 gid: meta.gid(),
-            };
-            let mut directory = self.directory_stack.clone();
-            let contents = collect_contents(&entry.path())?;
-            if contents.is_empty() {
-                directory.push(this_dir);
-                Ok((
-                    entry.path(),
-                    gng_shared::package::Path {
-                        is_absolute: false,
-                        directory,
-                        leaf: gng_shared::package::PathLeaf::None,
-                    },
-                ))
-            } else {
-                self.directory_stack.push(gng_shared::package::Dir {
-                    name: name.clone(),
-                    uid: meta.uid(),
-                    gid: meta.gid(),
-                    mode: meta.mode(),
-                });
-                self.contents_stack.push(contents);
-                self.find_iterator_value()
-            }
+                mode: meta.mode(),
+            });
+            self.contents_stack.push(contents);
+
+            let directory = self.directory_stack.clone();
+            Ok((
+                entry.path(),
+                gng_shared::package::Path {
+                    is_absolute: false,
+                    directory,
+                    leaf: gng_shared::package::PathLeaf::None,
+                },
+            ))
         } else {
             Err(gng_shared::Error::Runtime {
                 message: format!(
@@ -356,13 +331,13 @@ impl Packager {
 
             let path_type = match &tar_path.leaf {
                 gng_shared::package::PathLeaf::File {
-                    name,
-                    mode,
-                    uid,
-                    gid,
-                    size,
+                    name: _,
+                    mode: _,
+                    uid: _,
+                    gid: _,
+                    size: _,
                 } => "F",
-                gng_shared::package::PathLeaf::Link { name, target } => "L",
+                gng_shared::package::PathLeaf::Link { name: _, target: _ } => "L",
                 gng_shared::package::PathLeaf::None => "D",
             };
 
