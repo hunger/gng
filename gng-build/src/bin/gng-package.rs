@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! The `gng-build` binary.
+//! The `gng-package` binary.
+//!
+//! This is a very simplistic tarball generator.
 
 // Setup warnings/errors:
 #![forbid(unsafe_code)]
@@ -15,7 +17,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use std::path::PathBuf;
+use std::convert::TryFrom;
+use std::{path::PathBuf, str::FromStr};
 
 use eyre::{eyre, Result, WrapErr};
 use structopt::StructOpt;
@@ -27,8 +30,8 @@ use structopt::StructOpt;
 #[structopt(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
-    #[structopt(long, parse(from_os_str), value_name = "FILE")]
-    packet_name: PathBuf,
+    #[structopt(long, value_name = "FILE_NAME")]
+    packet_name: String,
 
     /// the directory containing the Lua runtime environment
     #[structopt(long, parse(from_os_str), value_name = "DIR")]
@@ -59,12 +62,16 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    if !args.packet_dir.is_dir() {
-        return Err(eyre!(format!(
-            "\"paket_dir\" {} is not a directory.",
-            args.packet_dir.to_string_lossy()
-        )));
-    }
+    let mut packager = gng_build::PackagerBuilder::default()
+        .add_packet(
+            &gng_shared::Name::try_from(args.packet_name)?,
+            &[glob::Pattern::from_str("**")?],
+            false,
+        )?
+        .build();
 
-    Ok(())
+    packager.package(&args.packet_dir).wrap_err(format!(
+        "Failed to package \"{}\".",
+        args.packet_dir.to_string_lossy()
+    ))
 }

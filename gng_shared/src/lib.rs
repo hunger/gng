@@ -31,7 +31,7 @@ pub enum Error {
         expression: String,
         /// The `typename` that the `expression` failed to convert into.
         typename: String,
-        /// A `message` desribing why the conversion failed.
+        /// A `message` describing why the conversion failed.
         message: String,
     },
 

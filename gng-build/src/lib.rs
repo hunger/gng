@@ -70,4 +70,4 @@ mod packager;
 // ----------------------------------------------------------------------
 
 pub use case_officer::{CaseOfficer, CaseOfficerBuilder};
-pub use packager::Packager;
+pub use packager::{Packager, PackagerBuilder};

@@ -60,18 +60,14 @@ impl std::fmt::Display for Source {
 /// A definition for `Packet` that should get built
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PacketDefinition {
-    /// A `suffix` to append to the `name` to get the `package_name`
-    #[serde(default)]
-    pub suffix: String,
-    /// The package description
+    /// The `name` of the Packet.
+    pub name: Name,
+    /// The packet description
     pub description: String,
-    /// The `dependencies` of the `Package`
+    /// The `dependencies` of the `Packet`
     #[serde(default)]
     pub dependencies: Vec<Name>,
-    /// `optional_dependencies` of the `Package`
-    #[serde(default)]
-    pub optional_dependencies: Vec<Name>,
-    /// Glob-patterns for `files` to include in the `Package`
+    /// Glob-patterns for `files` to include in the `Packet`
     pub files: Vec<String>,
 }
 

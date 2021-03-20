@@ -17,9 +17,92 @@ fn tar_path<'b, 'p>(
     }
 }
 
-// ∙----------------------------------------------------------------------
+// ----------------------------------------------------------------------
 // - PacketWriter:
 // ----------------------------------------------------------------------
+
+/// Different types of paths
+pub enum PathLeaf {
+    /// A `File`
+    File {
+        /// The `File` name with extension, etc. but without the base directory part
+        name: std::ffi::OsString,
+        /// The permissions on the `File`
+        mode: u32,
+        /// The uid of the `File`
+        uid: u32,
+        /// The gid of the `File`
+        gid: u32,
+        /// The size of the `File` in bytes
+        size: u64,
+    },
+    /// A `Link`
+    Link {
+        /// The `Link` name with extension, etc. but without the base directory part
+        name: std::ffi::OsString,
+        /// The `Link` target (complete with base directories, etc.!)
+        target: std::path::PathBuf,
+    },
+    /// Just the directory, nothing in it:-)
+    None,
+}
+
+/// A `Dir`
+#[derive(Clone)]
+pub struct Dir {
+    /// The `Dir` name with extension, etc. but without the base directory part
+    pub name: std::ffi::OsString,
+    /// The permissions on the `Dir`
+    pub mode: u32,
+    /// The uid of the `Dir`
+    pub uid: u32,
+    /// The gid of the `Dir`
+    pub gid: u32,
+}
+
+/// A full path
+pub struct Path {
+    /// Is this an absolute `Path`?
+    pub is_absolute: bool,
+    /// The directories up to the leaf
+    pub directory: Vec<Dir>,
+    /// The leaf node on the directory
+    pub leaf: PathLeaf,
+}
+
+impl Path {
+    /// Get the full path (abs or relative) stored in `Path`
+    #[must_use]
+    pub fn path(&self) -> std::path::PathBuf {
+        let leaf_part = match &self.leaf {
+            PathLeaf::File {
+                name,
+                mode,
+                uid,
+                gid,
+                size,
+            } => name.clone(),
+            PathLeaf::Link { name, target } => name.clone(),
+            PathLeaf::None => std::ffi::OsString::new(),
+        };
+        let base_path = if self.is_absolute {
+            std::path::PathBuf::from("/")
+        } else {
+            std::path::PathBuf::new()
+        };
+
+        let mut rel_path = self.directory.iter().fold(base_path, |a, b| {
+            let mut result = a;
+            result.push(&b.name);
+            result
+        });
+        if !leaf_part.is_empty() {
+            rel_path.push(&leaf_part);
+        }
+
+        rel_path
+    }
+}
 
 /// An interface to create different kinds of Packets
 pub trait PacketWriter {
@@ -27,13 +110,8 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Returns mostly `Error::Io`
-    fn add_dir(&mut self, path: &std::path::Path) -> crate::Result<()>;
-
-    /// Add a file into the packet.
-    ///
-    /// # Errors
-    /// Returns mostly `Error::Io`
-    fn add_file(&mut self, path: &std::path::Path) -> crate::Result<()>;
+    fn add_path(&mut self, packet_path: &Path, on_disk_path: &std::path::Path)
+        -> crate::Result<()>;
 
     /// finish writing the packet.
     ///
@@ -43,8 +121,11 @@ pub trait PacketWriter {
 }
 
 /// A type for factories of `PacketWriter`
-pub type PacketWriterFactory =
-    dyn Fn(&std::path::Path, &std::path::Path) -> crate::Result<Box<dyn PacketWriter>>;
+pub type PacketWriterFactory = dyn Fn(
+    &std::path::Path,
+    &std::path::Path,
+)
+    -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
 
 /// Create the full packet name from the base name.
 fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
@@ -60,12 +141,14 @@ fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
     base_dir: &std::path::Path,
-) -> crate::Result<Box<dyn PacketWriter>> {
+) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)> {
     // TODO: Make this configurable?
+    let full_name = full_packet_path(packet_path);
+
     let writer = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(&full_packet_path(packet_path))?;
+        .open(&full_name)?;
     let writer = zstd::Encoder::new(writer, 21)?;
 
     let mut tarball = PacketWriterImpl::new(base_dir, writer)?;
@@ -77,10 +160,10 @@ pub fn create_packet_writer(
         }
     }));
 
-    Ok(Box::new(tarball))
+    Ok((Box::new(tarball), full_name))
 }
 
-//  ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
 // - PacketWriterImpl:
 // ----------------------------------------------------------------------
 
@@ -124,20 +207,12 @@ impl<T> PacketWriter for PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    fn add_dir(&mut self, path: &std::path::Path) -> crate::Result<()> {
-        let internal_path = tar_path(&self.base_dir, path)?;
-
-        self.tarball
-            .append_dir(path, internal_path)
-            .map_err(|e| e.into())
-    }
-
-    fn add_file(&mut self, path: &std::path::Path) -> crate::Result<()> {
-        let internal_path = tar_path(&self.base_dir, path)?;
-
-        self.tarball
-            .append_path_with_name(path, internal_path)
-            .map_err(|e| e.into())
+    fn add_path(
+        &mut self,
+        packet_path: &Path,
+        on_disk_path: &std::path::Path,
+    ) -> crate::Result<()> {
+        todo!()
     }
 
     fn finish(self) -> crate::Result<()> {

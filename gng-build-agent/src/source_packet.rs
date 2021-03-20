@@ -83,16 +83,11 @@ fn extract_packets(
 ) -> gng_shared::Result<Vec<gng_build_shared::PacketDefinition>> {
     extract_array(engine, packet_base, |engine, expr| {
         Ok(gng_build_shared::PacketDefinition {
-            suffix: from_expression::<String>(engine, &format!("{}.suffix", expr))?,
+            name: from_expression::<Name>(engine, &format!("{}.name", expr))?,
             description: from_expression::<String>(engine, &format!("{}.description", expr))?,
             dependencies: extract_array(
                 engine,
                 &format!("{}.dependencies", expr),
-                |engine, expr| converted_expression::<Name>(engine, expr),
-            )?,
-            optional_dependencies: extract_array(
-                engine,
-                &format!("{}.optional_dependencies", expr),
                 |engine, expr| converted_expression::<Name>(engine, expr),
             )?,
             files: extract_array(engine, &format!("{}.files", expr), |engine, expr| {
