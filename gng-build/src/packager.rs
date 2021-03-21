@@ -176,8 +176,8 @@ impl PackagerBuilder {
 
 impl Default for PackagerBuilder {
     fn default() -> Self {
-        Self::new_with_factory(Box::new(|packet_path| {
-            gng_shared::package::create_packet_writer(packet_path)
+        Self::new_with_factory(Box::new(|packet_path, packet_name| {
+            gng_shared::package::create_packet_writer(packet_path, packet_name)
         }))
     }
 }

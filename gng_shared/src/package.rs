@@ -3,20 +3,6 @@
 
 //! Handle packing/unpacking a packets.
 
-// - Helper:
-// ----------------------------------------------------------------------
-
-fn tar_path<'b, 'p>(
-    base: &'b std::path::Path,
-    path: &'p std::path::Path,
-) -> crate::Result<&'p std::path::Path> {
-    if path.is_absolute() {
-        path.strip_prefix(base).map_err(|e| e.into())
-    } else {
-        Err(crate::Error::Unknown)
-    }
-}
-
 // ----------------------------------------------------------------------
 // - PacketWriter:
 // ----------------------------------------------------------------------
@@ -350,14 +336,18 @@ pub trait PacketWriter {
 }
 
 /// A type for factories of `PacketWriter`
-pub type PacketWriterFactory =
-    dyn Fn(&std::path::Path) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
+pub type PacketWriterFactory = dyn Fn(
+    &std::path::Path,
+    &crate::Name,
+)
+    -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
 
 /// Create the full packet name from the base name.
-fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
-    let mut result = packet_path.to_owned();
-    result.set_extension("gng");
-    result
+fn full_packet_path(
+    packet_path: &std::path::Path,
+    packet_name: &crate::Name,
+) -> std::path::PathBuf {
+    packet_path.join(format!("{}.gng", packet_name))
 }
 
 /// Create a default packet writer
@@ -366,9 +356,10 @@ fn full_packet_path(packet_path: &std::path::Path) -> std::path::PathBuf {
 /// Depends on the actual `PacketWriter` being created.
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
+    packet_name: &crate::Name,
 ) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)> {
     // TODO: Make this configurable?
-    let full_name = full_packet_path(packet_path);
+    let full_name = full_packet_path(packet_path, packet_name);
 
     let writer = std::fs::OpenOptions::new()
         .write(true)
