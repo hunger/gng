@@ -77,112 +77,6 @@ fn dir_entry_for_path(path: &std::path::Path) -> gng_shared::Result<std::fs::Dir
 }
 
 // ----------------------------------------------------------------------
-// - Packet:
-// ----------------------------------------------------------------------
-
-struct Packet {
-    path: std::path::PathBuf,
-    name: gng_shared::Name,
-    pattern: Vec<glob::Pattern>,
-    writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
-    facet_paths: Vec<std::path::PathBuf>,
-}
-
-impl Packet {
-    fn contains(&self, packaged_path: &gng_shared::package::Path) -> bool {
-        let packaged_path = packaged_path.path();
-        self.pattern.iter().any(|p| p.matches_path(&packaged_path))
-    }
-}
-
-//  ----------------------------------------------------------------------
-// - PackagerBuilder:
-// ----------------------------------------------------------------------
-
-/// A builder for `Packager`
-pub struct PackagerBuilder {
-    packet_directory: Option<std::path::PathBuf>,
-    packet_factory: Box<PacketWriterFactory>,
-    packets: Vec<Packet>,
-}
-
-impl PackagerBuilder {
-    /// Create a new `PackagerBuilder` with a custom factory to create `PacketWriter` with.
-    #[must_use]
-    pub fn new_with_factory(factory: Box<PacketWriterFactory>) -> Self {
-        Self {
-            packet_directory: None,
-            packet_factory: factory,
-            packets: Vec::new(),
-        }
-    }
-
-    /// Set the directory to store packets in.
-    ///
-    /// # Errors
-    /// `gng_shared::Error::Runtime` if this given `path` is not a directory
-    pub fn packet_directory(mut self, path: &std::path::Path) -> gng_shared::Result<Self> {
-        if !path.is_dir() {
-            return Err(gng_shared::Error::Runtime {
-                message: format!(
-                    "\"{}\" is not a directory, can not store packets there.",
-                    path.to_string_lossy()
-                ),
-            });
-        }
-
-        self.packet_directory = Some(path.to_owned());
-        Ok(self)
-    }
-
-    /// Add a packet
-    ///
-    /// # Errors
-    /// `gng_shared::Error::Runtime` if this given `path` is not a directory
-    pub fn add_packet(
-        mut self,
-        name: &gng_shared::Name,
-        patterns: &[glob::Pattern],
-    ) -> gng_shared::Result<Self> {
-        let path = self
-            .packet_directory
-            .take()
-            .unwrap_or(std::env::current_dir()?);
-
-        let p = Packet {
-            path,
-            name: name.clone(),
-            pattern: patterns.to_vec(),
-            writer: None,
-            facet_paths: Vec::new(),
-        };
-
-        validate_packets(&p, &self.packets)?;
-
-        self.packets.push(p);
-
-        Ok(self)
-    }
-
-    /// Built the actual `Packager`.
-    #[must_use]
-    pub fn build(self) -> Packager {
-        Packager {
-            packet_factory: self.packet_factory,
-            packets: self.packets,
-        }
-    }
-}
-
-impl Default for PackagerBuilder {
-    fn default() -> Self {
-        Self::new_with_factory(Box::new(|packet_path, packet_name| {
-            gng_shared::package::create_packet_writer(packet_path, packet_name)
-        }))
-    }
-}
-
-// ----------------------------------------------------------------------
 // - DeterministicDirectoryIterator:
 // ----------------------------------------------------------------------
 
@@ -292,6 +186,112 @@ impl Iterator for DeterministicDirectoryIterator {
         self.clean_up();
 
         Some(result)
+    }
+}
+
+// ----------------------------------------------------------------------
+// - Packet:
+// ----------------------------------------------------------------------
+
+struct Packet {
+    path: std::path::PathBuf,
+    name: gng_shared::Name,
+    pattern: Vec<glob::Pattern>,
+    writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
+    facet_paths: Vec<std::path::PathBuf>,
+}
+
+impl Packet {
+    fn contains(&self, packaged_path: &gng_shared::package::Path) -> bool {
+        let packaged_path = packaged_path.path();
+        self.pattern.iter().any(|p| p.matches_path(&packaged_path))
+    }
+}
+
+//  ----------------------------------------------------------------------
+// - PackagerBuilder:
+// ----------------------------------------------------------------------
+
+/// A builder for `Packager`
+pub struct PackagerBuilder {
+    packet_directory: Option<std::path::PathBuf>,
+    packet_factory: Box<PacketWriterFactory>,
+    packets: Vec<Packet>,
+}
+
+impl PackagerBuilder {
+    /// Create a new `PackagerBuilder` with a custom factory to create `PacketWriter` with.
+    #[must_use]
+    pub fn new_with_factory(factory: Box<PacketWriterFactory>) -> Self {
+        Self {
+            packet_directory: None,
+            packet_factory: factory,
+            packets: Vec::new(),
+        }
+    }
+
+    /// Set the directory to store packets in.
+    ///
+    /// # Errors
+    /// `gng_shared::Error::Runtime` if this given `path` is not a directory
+    pub fn packet_directory(mut self, path: &std::path::Path) -> gng_shared::Result<Self> {
+        if !path.is_dir() {
+            return Err(gng_shared::Error::Runtime {
+                message: format!(
+                    "\"{}\" is not a directory, can not store packets there.",
+                    path.to_string_lossy()
+                ),
+            });
+        }
+
+        self.packet_directory = Some(path.to_owned());
+        Ok(self)
+    }
+
+    /// Add a packet
+    ///
+    /// # Errors
+    /// `gng_shared::Error::Runtime` if this given `path` is not a directory
+    pub fn add_packet(
+        mut self,
+        name: &gng_shared::Name,
+        patterns: &[glob::Pattern],
+    ) -> gng_shared::Result<Self> {
+        let path = self
+            .packet_directory
+            .take()
+            .unwrap_or(std::env::current_dir()?);
+
+        let p = Packet {
+            path,
+            name: name.clone(),
+            pattern: patterns.to_vec(),
+            writer: None,
+            facet_paths: Vec::new(),
+        };
+
+        validate_packets(&p, &self.packets)?;
+
+        self.packets.push(p);
+
+        Ok(self)
+    }
+
+    /// Built the actual `Packager`.
+    #[must_use]
+    pub fn build(self) -> Packager {
+        Packager {
+            packet_factory: self.packet_factory,
+            packets: self.packets,
+        }
+    }
+}
+
+impl Default for PackagerBuilder {
+    fn default() -> Self {
+        Self::new_with_factory(Box::new(|packet_path, packet_name| {
+            gng_shared::package::create_packet_writer(packet_path, packet_name)
+        }))
     }
 }
 
