@@ -62,12 +62,15 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
+    let globs = args
+        .globs
+        .split(&":")
+        .map(|s| glob::Pattern::from_str(s))
+        .collect::<Result<Vec<glob::Pattern>, glob::PatternError>>()
+        .map_err(|e| eyre!("Invalid glob pattern given on command line: {}", e))?;
+
     let mut packager = gng_build::PackagerBuilder::default()
-        .add_packet(
-            &gng_shared::Name::try_from(args.packet_name)?,
-            &[glob::Pattern::from_str("**")?],
-            false,
-        )?
+        .add_packet(&gng_shared::Name::try_from(args.packet_name)?, &globs)?
         .build();
 
     packager.package(&args.packet_dir).wrap_err(format!(

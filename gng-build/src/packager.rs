@@ -8,16 +8,10 @@ use std::os::unix::fs::MetadataExt;
 // - Helper:
 // ----------------------------------------------------------------------
 
-struct Packet {
-    path: std::path::PathBuf,
-    pattern: Vec<glob::Pattern>,
-    is_optional: bool,
-}
-
 fn globs_from_strings(input: &[String]) -> gng_shared::Result<Vec<glob::Pattern>> {
     input
         .iter()
-        .map(|s| -> gng_shared::Result<_> {
+        .map(|s| {
             glob::Pattern::new(s).map_err(|e| gng_shared::Error::Conversion {
                 expression: s.to_string(),
                 typename: "glob pattern".to_string(),
@@ -82,6 +76,25 @@ fn dir_entry_for_path(path: &std::path::Path) -> gng_shared::Result<std::fs::Dir
         })
 }
 
+// ----------------------------------------------------------------------
+// - Packet:
+// ----------------------------------------------------------------------
+
+struct Packet {
+    path: std::path::PathBuf,
+    name: gng_shared::Name,
+    pattern: Vec<glob::Pattern>,
+    writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
+    facet_paths: Vec<std::path::PathBuf>,
+}
+
+impl Packet {
+    fn contains(&self, packaged_path: &gng_shared::package::Path) -> bool {
+        let packaged_path = packaged_path.path();
+        self.pattern.iter().any(|p| p.matches_path(&packaged_path))
+    }
+}
+
 //  ----------------------------------------------------------------------
 // - PackagerBuilder:
 // ----------------------------------------------------------------------
@@ -130,18 +143,18 @@ impl PackagerBuilder {
         mut self,
         name: &gng_shared::Name,
         patterns: &[glob::Pattern],
-        is_optional: bool,
     ) -> gng_shared::Result<Self> {
-        let mut path = self
+        let path = self
             .packet_directory
             .take()
             .unwrap_or(std::env::current_dir()?);
-        path.push(&name.to_string());
 
         let p = Packet {
             path,
+            name: name.clone(),
             pattern: patterns.to_vec(),
-            is_optional,
+            writer: None,
+            facet_paths: Vec::new(),
         };
 
         validate_packets(&p, &self.packets)?;
@@ -174,8 +187,7 @@ impl Default for PackagerBuilder {
 // ----------------------------------------------------------------------
 
 struct DeterministicDirectoryIterator {
-    contents_stack: Vec<Vec<std::fs::DirEntry>>,
-    directory_stack: Vec<gng_shared::package::Dir>,
+    stack: Vec<(Vec<std::fs::DirEntry>, std::path::PathBuf)>,
 }
 
 impl DeterministicDirectoryIterator {
@@ -184,13 +196,7 @@ impl DeterministicDirectoryIterator {
 
         if base_dir_entry.file_type()?.is_dir() {
             Ok(Self {
-                contents_stack: vec![vec![base_dir_entry]],
-                directory_stack: vec![gng_shared::package::Dir {
-                    name: std::ffi::OsString::from("."),
-                    uid: 0,
-                    gid: 0,
-                    mode: 0o755,
-                }],
+                stack: vec![(vec![base_dir_entry], std::path::PathBuf::new())],
             })
         } else {
             Err(gng_shared::Error::Runtime {
@@ -200,65 +206,54 @@ impl DeterministicDirectoryIterator {
     }
 
     fn at_end(&self) -> bool {
-        self.contents_stack.is_empty()
+        self.stack.is_empty()
     }
 
     fn find_iterator_value(
         &mut self,
     ) -> gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)> {
-        let last_stack_pos = self.contents_stack.len() - 1;
-        let last_contents = &mut self.contents_stack[last_stack_pos];
-        let entry = last_contents.pop().expect("Can not be empty!");
+        let stack_frame = self.stack.last_mut().expect("Can not be empty!");
+        let entry = stack_frame.0.pop().expect("Can not be empty!");
+        let directory = stack_frame.1.clone();
 
         let name = entry.file_name();
         let file_type = entry.file_type()?;
-        let meta = entry.metadata()?;
+        let meta = entry.path().symlink_metadata()?;
+        let mode = meta.mode() & 0o7777_u32;
+        let uid = meta.uid();
+        let gid = meta.gid();
+        let size = meta.size();
 
         if file_type.is_symlink() {
+            let target = entry.path().read_link()?;
             Ok((
                 entry.path(),
-                gng_shared::package::Path {
-                    is_absolute: false,
-                    directory: self.directory_stack.clone(),
-                    leaf: gng_shared::package::PathLeaf::Link {
-                        name,
-                        target: std::path::PathBuf::new(),
-                    },
-                },
+                gng_shared::package::Path::new_link(&directory, &name, &target, uid, gid),
             ))
         } else if file_type.is_file() {
             Ok((
                 entry.path(),
-                gng_shared::package::Path {
-                    is_absolute: false,
-                    directory: self.directory_stack.clone(),
-                    leaf: gng_shared::package::PathLeaf::File {
-                        name,
-                        mode: meta.mode(),
-                        uid: meta.uid(),
-                        gid: meta.gid(),
-                        size: meta.size(),
-                    },
-                },
+                gng_shared::package::Path::new_file(&directory, &name, mode, uid, gid, size),
             ))
         } else if file_type.is_dir() {
             let contents = collect_contents(&entry.path())?;
-            self.directory_stack.push(gng_shared::package::Dir {
-                name,
-                uid: meta.uid(),
-                gid: meta.gid(),
-                mode: meta.mode(),
-            });
-            self.contents_stack.push(contents);
+            let (new_directory_path, new_directory_name) = if directory.as_os_str().is_empty() {
+                (std::path::PathBuf::from("."), std::ffi::OsString::from("."))
+            } else {
+                (directory.join(&name), name)
+            };
 
-            let directory = self.directory_stack.clone();
+            self.stack.push((contents, new_directory_path));
+
             Ok((
                 entry.path(),
-                gng_shared::package::Path {
-                    is_absolute: false,
-                    directory,
-                    leaf: gng_shared::package::PathLeaf::None,
-                },
+                gng_shared::package::Path::new_directory(
+                    &directory,
+                    &new_directory_name,
+                    mode,
+                    uid,
+                    gid,
+                ),
             ))
         } else {
             Err(gng_shared::Error::Runtime {
@@ -273,11 +268,10 @@ impl DeterministicDirectoryIterator {
 
     fn clean_up(&mut self) {
         loop {
-            if let Some(v) = self.contents_stack.last() {
-                if v.is_empty() {
+            if let Some(v) = self.stack.last() {
+                if v.0.is_empty() {
                     // The top element is empty: pop it and its corresponding directory!
-                    self.contents_stack.pop();
-                    self.directory_stack.pop();
+                    self.stack.pop();
                     continue;
                 }
             }
@@ -290,17 +284,12 @@ impl Iterator for DeterministicDirectoryIterator {
     type Item = gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        assert_eq!(self.contents_stack.len(), self.directory_stack.len());
         if self.at_end() {
             return None;
         }
 
         let result = self.find_iterator_value();
-        assert_eq!(self.contents_stack.len(), self.directory_stack.len());
-
         self.clean_up();
-
-        assert_eq!(self.contents_stack.len(), self.directory_stack.len());
 
         Some(result)
     }
@@ -327,47 +316,27 @@ impl Packager {
         tracing::debug!("Packaging \"{}\"...", package_directory.to_string_lossy());
         let dit = DeterministicDirectoryIterator::new(package_directory)?;
         for d in dit {
-            let (abs_path, tar_path) = d?;
+            let (abs_path, packaged_path) = d?;
+            let packaged_path_str = packaged_path.path().to_string_lossy().to_string();
 
-            let path_type = match &tar_path.leaf {
-                gng_shared::package::PathLeaf::File {
-                    name: _,
-                    mode: _,
-                    uid: _,
-                    gid: _,
-                    size: _,
-                } => "F",
-                gng_shared::package::PathLeaf::Link { name: _, target: _ } => "L",
-                gng_shared::package::PathLeaf::None => "D",
-            };
+            let packet = self
+                .packets
+                .iter()
+                .find(|p| p.contains(&packaged_path))
+                .ok_or(gng_shared::Error::Runtime {
+                    message: format!(
+                        "\"{}\" not packaged: no glob pattern matched.",
+                        packaged_path_str,
+                    ),
+                })?;
 
             tracing::trace!(
-                "    {}: {} [= {}]",
-                path_type,
-                &tar_path.path().to_string_lossy(),
+                "    [{}] {:?}: [= {}]",
+                packet.name,
+                packaged_path,
                 abs_path.to_string_lossy()
             );
         }
         Ok(())
-    }
-}
-
-// ----------------------------------------------------------------------
-// - Tests:
-// ----------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_packets_ok() {
-        let p = Packet {
-            path: std::path::PathBuf::from("/tmp/foo"),
-            is_optional: false,
-            pattern: globs_from_strings(&["bin/**/*".to_string()]).unwrap(),
-        };
-        let ps = vec![];
-        assert!(validate_packets(&p, &ps).is_ok());
     }
 }

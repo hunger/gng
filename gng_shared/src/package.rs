@@ -22,7 +22,7 @@ fn tar_path<'b, 'p>(
 // ----------------------------------------------------------------------
 
 /// Different types of paths
-pub enum PathLeaf {
+enum PathLeaf {
     /// A `File`
     File {
         /// The `File` name with extension, etc. but without the base directory part
@@ -42,39 +42,27 @@ pub enum PathLeaf {
         name: std::ffi::OsString,
         /// The `Link` target (complete with base directories, etc.!)
         target: std::path::PathBuf,
+        /// The uid of the `File`
+        uid: u32,
+        /// The gid of the `File`
+        gid: u32,
     },
-    /// Just the directory, nothing in it:-)
-    None,
+    /// A `Directory`
+    Directory {
+        /// The `Dir` name with extension, etc. but without the base directory part
+        name: std::ffi::OsString,
+        /// The permissions on the `Dir`
+        mode: u32,
+        /// The uid of the `Dir`
+        uid: u32,
+        /// The gid of the `Dir`
+        gid: u32,
+    },
 }
 
-/// A `Dir`
-#[derive(Clone)]
-pub struct Dir {
-    /// The `Dir` name with extension, etc. but without the base directory part
-    pub name: std::ffi::OsString,
-    /// The permissions on the `Dir`
-    pub mode: u32,
-    /// The uid of the `Dir`
-    pub uid: u32,
-    /// The gid of the `Dir`
-    pub gid: u32,
-}
-
-/// A full path
-pub struct Path {
-    /// Is this an absolute `Path`?
-    pub is_absolute: bool,
-    /// The directories up to the leaf
-    pub directory: Vec<Dir>,
-    /// The leaf node on the directory
-    pub leaf: PathLeaf,
-}
-
-impl Path {
-    /// Get the full path (abs or relative) stored in `Path`
-    #[must_use]
-    pub fn path(&self) -> std::path::PathBuf {
-        let leaf_part = match &self.leaf {
+impl PathLeaf {
+    fn leaf_name(&self) -> std::ffi::OsString {
+        match &self {
             PathLeaf::File {
                 name,
                 mode: _,
@@ -82,25 +70,266 @@ impl Path {
                 gid: _,
                 size: _,
             }
-            | PathLeaf::Link { name, target: _ } => name.clone(),
-            PathLeaf::None => std::ffi::OsString::new(),
-        };
-        let base_path = if self.is_absolute {
-            std::path::PathBuf::from("/")
-        } else {
-            std::path::PathBuf::new()
-        };
-
-        let mut rel_path = self.directory.iter().fold(base_path, |a, b| {
-            let mut result = a;
-            result.push(&b.name);
-            result
-        });
-        if !leaf_part.is_empty() {
-            rel_path.push(&leaf_part);
+            | PathLeaf::Link {
+                name,
+                target: _,
+                uid: _,
+                gid: _,
+            }
+            | PathLeaf::Directory {
+                name,
+                mode: _,
+                uid: _,
+                gid: _,
+            } => name.clone(),
         }
+    }
 
-        rel_path
+    const fn mode(&self) -> u32 {
+        match &self {
+            PathLeaf::File {
+                name: _,
+                mode: m,
+                uid: _,
+                gid: _,
+                size: _,
+            }
+            | PathLeaf::Directory {
+                name: _,
+                mode: m,
+                uid: _,
+                gid: _,
+            } => *m,
+            _ => 0o777,
+        }
+    }
+
+    const fn uid(&self) -> u32 {
+        match &self {
+            PathLeaf::File {
+                name: _,
+                mode: _,
+                uid: u,
+                gid: _,
+                size: _,
+            }
+            | PathLeaf::Link {
+                name: _,
+                target: _,
+                uid: u,
+                gid: _,
+            }
+            | PathLeaf::Directory {
+                name: _,
+                mode: _,
+                uid: u,
+                gid: _,
+            } => *u,
+        }
+    }
+
+    const fn gid(&self) -> u32 {
+        match &self {
+            PathLeaf::File {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: g,
+                size: _,
+            }
+            | PathLeaf::Link {
+                name: _,
+                target: _,
+                uid: _,
+                gid: g,
+            }
+            | PathLeaf::Directory {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: g,
+            } => *g,
+        }
+    }
+
+    const fn size(&self) -> u64 {
+        match &self {
+            PathLeaf::File {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: _,
+                size: s,
+            } => *s,
+            _ => 0,
+        }
+    }
+
+    fn link_target(&self) -> Option<std::path::PathBuf> {
+        match &self {
+            PathLeaf::Link {
+                name: _,
+                target: t,
+                uid: _,
+                gid: _,
+            } => Some(t.clone()),
+            _ => None,
+        }
+    }
+
+    const fn leaf_type(&self) -> &'static str {
+        match &self {
+            PathLeaf::File {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: _,
+                size: _,
+            } => "f",
+            PathLeaf::Link {
+                name: _,
+                target: _,
+                uid: _,
+                gid: _,
+            } => "l",
+            PathLeaf::Directory {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: _,
+            } => "d",
+        }
+    }
+}
+
+/// A full path
+pub struct Path {
+    /// The directories up to the leaf
+    directory: std::path::PathBuf,
+    /// The leaf node on the directory
+    leaf: PathLeaf,
+}
+
+impl Path {
+    /// Create a new Path for a file.
+    #[must_use]
+    pub fn new_file(
+        directory: &std::path::Path,
+        name: &std::ffi::OsString,
+        mode: u32,
+        uid: u32,
+        gid: u32,
+        size: u64,
+    ) -> Self {
+        Self {
+            directory: directory.to_path_buf(),
+            leaf: PathLeaf::File {
+                name: name.clone(),
+                mode,
+                uid,
+                gid,
+                size,
+            },
+        }
+    }
+
+    /// Create a new Path for a link.
+    #[must_use]
+    pub fn new_link(
+        directory: &std::path::Path,
+        name: &std::ffi::OsString,
+        target: &std::path::Path,
+        uid: u32,
+        gid: u32,
+    ) -> Self {
+        Self {
+            directory: directory.to_path_buf(),
+            leaf: PathLeaf::Link {
+                name: name.clone(),
+                target: target.to_path_buf(),
+                uid,
+                gid,
+            },
+        }
+    }
+
+    /// Create a new Path for a file.
+    #[must_use]
+    pub fn new_directory(
+        directory: &std::path::Path,
+        name: &std::ffi::OsString,
+        mode: u32,
+        uid: u32,
+        gid: u32,
+    ) -> Self {
+        Self {
+            directory: directory.to_path_buf(),
+            leaf: PathLeaf::Directory {
+                name: name.clone(),
+                mode,
+                uid,
+                gid,
+            },
+        }
+    }
+
+    /// Get the full path (abs or relative) stored in `Path`
+    #[must_use]
+    pub fn path(&self) -> std::path::PathBuf {
+        let mut path = self.directory.clone();
+        path.push(self.leaf.leaf_name());
+        path
+    }
+
+    fn leaf_name(&self) -> std::ffi::OsString {
+        self.leaf.leaf_name()
+    }
+
+    const fn leaf_type(&self) -> &'static str {
+        self.leaf.leaf_type()
+    }
+
+    const fn mode(&self) -> u32 {
+        self.leaf.mode()
+    }
+
+    const fn uid(&self) -> u32 {
+        self.leaf.uid()
+    }
+
+    const fn gid(&self) -> u32 {
+        self.leaf.gid()
+    }
+
+    const fn size(&self) -> u64 {
+        self.leaf.size()
+    }
+
+    fn link_target(&self) -> Option<std::path::PathBuf> {
+        self.leaf.link_target()
+    }
+}
+
+impl std::fmt::Debug for Path {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let pp = self.path().to_string_lossy().to_string();
+        let target = if let Some(t) = self.link_target() {
+            format!(" -> {}", t.to_string_lossy())
+        } else {
+            String::new()
+        };
+
+        write!(
+            fmt,
+            "{}:{} [m:{:#o},u:{},g{}], {}bytes{}",
+            self.leaf_type(),
+            pp,
+            self.mode(),
+            self.uid(),
+            self.gid(),
+            self.size(),
+            target
+        )
     }
 }
 
@@ -147,7 +376,7 @@ pub fn create_packet_writer(
         .open(&full_name)?;
     let writer = zstd::Encoder::new(writer, 21)?;
 
-    let mut tarball = PacketWriterImpl::new(writer)?;
+    let mut tarball = PacketWriterImpl::new(writer);
 
     tarball.set_cleanup_function(Box::new(|encoder: zstd::Encoder<_>| -> crate::Result<()> {
         match encoder.finish() {
@@ -178,14 +407,14 @@ impl<T> PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    fn new(packet_writer: T) -> crate::Result<Self> {
+    fn new(packet_writer: T) -> Self {
         let mut tarball = tar::Builder::new(packet_writer);
         tarball.follow_symlinks(false);
 
-        Ok(Self {
+        Self {
             tarball,
             cleanup_function: Box::new(|_| Ok(())),
-        })
+        }
     }
 
     fn set_cleanup_function(&mut self, function: CleanUpFunction<T>) {
