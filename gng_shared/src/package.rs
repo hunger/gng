@@ -186,6 +186,43 @@ impl PathLeaf {
             } => "d",
         }
     }
+
+    const fn is_dir(&self) -> bool {
+        matches!(
+            &self,
+            PathLeaf::Directory {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: _,
+            }
+        )
+    }
+
+    const fn is_link(&self) -> bool {
+        matches!(
+            &self,
+            PathLeaf::Link {
+                name: _,
+                target: _,
+                uid: _,
+                gid: _,
+            }
+        )
+    }
+
+    const fn is_file(&self) -> bool {
+        matches!(
+            &self,
+            PathLeaf::File {
+                name: _,
+                mode: _,
+                uid: _,
+                gid: _,
+                size: _,
+            }
+        )
+    }
 }
 
 /// A full path
@@ -294,6 +331,16 @@ impl Path {
     fn link_target(&self) -> Option<std::path::PathBuf> {
         self.leaf.link_target()
     }
+
+    const fn is_dir(&self) -> bool {
+        self.leaf.is_dir()
+    }
+    const fn is_link(&self) -> bool {
+        self.leaf.is_link()
+    }
+    const fn is_file(&self) -> bool {
+        self.leaf.is_file()
+    }
 }
 
 impl std::fmt::Debug for Path {
@@ -332,15 +379,14 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Depends on the actual Writer being used.
-    fn finish(self) -> crate::Result<()>;
+    fn finish(self) -> crate::Result<std::path::PathBuf>;
 }
 
+/// The product of a `PacketWriterFactory`
+pub type PacketWriterProduct = crate::Result<Box<dyn PacketWriter>>;
 /// A type for factories of `PacketWriter`
-pub type PacketWriterFactory = dyn Fn(
-    &std::path::Path,
-    &crate::Name,
-)
-    -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)>;
+pub type PacketWriterFactory =
+    dyn Fn(&std::path::Path, &crate::Name) -> crate::Result<Box<dyn PacketWriter>>;
 
 /// Create the full packet name from the base name.
 fn full_packet_path(
@@ -357,7 +403,7 @@ fn full_packet_path(
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
     packet_name: &crate::Name,
-) -> crate::Result<(Box<dyn PacketWriter>, std::path::PathBuf)> {
+) -> PacketWriterProduct {
     // TODO: Make this configurable?
     let full_name = full_packet_path(packet_path, packet_name);
 
@@ -369,21 +415,23 @@ pub fn create_packet_writer(
 
     let mut tarball = PacketWriterImpl::new(writer);
 
-    tarball.set_cleanup_function(Box::new(|encoder: zstd::Encoder<_>| -> crate::Result<()> {
-        match encoder.finish() {
-            Err(e) => Err(e.into()),
-            Ok(_) => Ok(()),
-        }
-    }));
+    tarball.set_cleanup_function(Box::new(
+        move |encoder: zstd::Encoder<_>| -> crate::Result<std::path::PathBuf> {
+            match encoder.finish() {
+                Err(e) => Err(e.into()),
+                Ok(_) => Ok(full_name),
+            }
+        },
+    ));
 
-    Ok((Box::new(tarball), full_name))
+    Ok(Box::new(tarball))
 }
 
 // ----------------------------------------------------------------------
 // - PacketWriterImpl:
 // ----------------------------------------------------------------------
 
-type CleanUpFunction<T> = Box<dyn FnOnce(T) -> crate::Result<()>>;
+type CleanUpFunction<T> = Box<dyn FnOnce(T) -> crate::Result<std::path::PathBuf>>;
 
 /// Write files and directories into a packet file
 struct PacketWriterImpl<T>
@@ -404,7 +452,7 @@ where
 
         Self {
             tarball,
-            cleanup_function: Box::new(|_| Ok(())),
+            cleanup_function: Box::new(|_| Ok(std::path::PathBuf::new())),
         }
     }
 
@@ -419,13 +467,18 @@ where
 {
     fn add_path(
         &mut self,
-        _packet_path: &Path,
-        _on_disk_path: &std::path::Path,
+        packet_path: &Path,
+        on_disk_path: &std::path::Path,
     ) -> crate::Result<()> {
-        todo!()
+        println!(
+            "        PACKAGED: {} as {}.",
+            on_disk_path.to_string_lossy(),
+            packet_path.path().to_string_lossy()
+        );
+        Ok(())
     }
 
-    fn finish(self) -> crate::Result<()> {
+    fn finish(self) -> crate::Result<std::path::PathBuf> {
         let inner = self.tarball.into_inner()?;
         (self.cleanup_function)(inner)
     }

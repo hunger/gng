@@ -3,6 +3,7 @@
 
 use gng_shared::package::{PacketWriter, PacketWriterFactory};
 
+use std::borrow::BorrowMut;
 use std::os::unix::fs::MetadataExt;
 
 // - Helper:
@@ -215,7 +216,7 @@ impl Packet {
 /// A builder for `Packager`
 pub struct PackagerBuilder {
     packet_directory: Option<std::path::PathBuf>,
-    packet_factory: Box<PacketWriterFactory>,
+    factory: Box<PacketWriterFactory>,
     packets: Vec<Packet>,
 }
 
@@ -225,7 +226,7 @@ impl PackagerBuilder {
     pub fn new_with_factory(factory: Box<PacketWriterFactory>) -> Self {
         Self {
             packet_directory: None,
-            packet_factory: factory,
+            factory,
             packets: Vec::new(),
         }
     }
@@ -281,8 +282,8 @@ impl PackagerBuilder {
     #[must_use]
     pub fn build(self) -> Packager {
         Packager {
-            packet_factory: self.packet_factory,
-            packets: self.packets,
+            factory: self.factory,
+            packets: Some(self.packets),
         }
     }
 }
@@ -302,9 +303,9 @@ impl Default for PackagerBuilder {
 /// A simple Packet creator
 pub struct Packager {
     /// The `PacketWriterFactory` to use to create packets
-    packet_factory: Box<PacketWriterFactory>,
+    factory: Box<PacketWriterFactory>,
     /// The actual `Packet` definitions.
-    packets: Vec<Packet>,
+    packets: Option<Vec<Packet>>,
 }
 
 impl Packager {
@@ -314,14 +315,17 @@ impl Packager {
     /// none yet
     pub fn package(&mut self, package_directory: &std::path::Path) -> gng_shared::Result<()> {
         tracing::debug!("Packaging \"{}\"...", package_directory.to_string_lossy());
+        let mut packets = self.packets.take().ok_or(gng_shared::Error::Runtime {
+            message: "Packages were already created!".to_string(),
+        })?;
+
         let dit = DeterministicDirectoryIterator::new(package_directory)?;
         for d in dit {
-            let (abs_path, packaged_path) = d?;
+            let (fs_path, packaged_path) = d?;
             let packaged_path_str = packaged_path.path().to_string_lossy().to_string();
 
-            let packet = self
-                .packets
-                .iter()
+            let packet = packets
+                .iter_mut()
                 .find(|p| p.contains(&packaged_path))
                 .ok_or(gng_shared::Error::Runtime {
                     message: format!(
@@ -334,9 +338,30 @@ impl Packager {
                 "    [{}] {:?}: [= {}]",
                 packet.name,
                 packaged_path,
-                abs_path.to_string_lossy()
+                fs_path.to_string_lossy()
             );
+
+            let writer = self.get_or_insert_writer(packet)?;
+
+            writer.add_path(&packaged_path, &fs_path)?;
         }
         Ok(())
+    }
+
+    fn get_or_insert_writer<'s, 'p>(
+        &'s self,
+        packet: &'p mut Packet,
+    ) -> gng_shared::Result<&'p mut dyn PacketWriter> {
+        let writer = if packet.writer.is_none() {
+            Some((self.factory)(&packet.path, &packet.name)?)
+        } else {
+            None
+        };
+
+        if writer.is_some() {
+            packet.writer = writer;
+        }
+
+        Ok(&mut **(packet.writer.as_mut().expect("Just set this!")))
     }
 }
