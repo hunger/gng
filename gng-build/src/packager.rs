@@ -3,7 +3,6 @@
 
 use gng_shared::package::{PacketWriter, PacketWriterFactory};
 
-use std::borrow::BorrowMut;
 use std::os::unix::fs::MetadataExt;
 
 // - Helper:
@@ -199,13 +198,58 @@ struct Packet {
     name: gng_shared::Name,
     pattern: Vec<glob::Pattern>,
     writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
-    facet_paths: Vec<std::path::PathBuf>,
 }
 
 impl Packet {
     fn contains(&self, packaged_path: &gng_shared::package::Path) -> bool {
         let packaged_path = packaged_path.path();
         self.pattern.iter().any(|p| p.matches_path(&packaged_path))
+    }
+
+    fn store_path(
+        &mut self,
+        factory: &PacketWriterFactory,
+        packet_path: &gng_shared::package::Path,
+        on_disk_path: &std::path::Path,
+    ) -> gng_shared::Result<()> {
+        let writer = self.get_or_insert_writer(factory)?;
+        writer.add_path(packet_path, on_disk_path)
+    }
+
+    fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
+        if let Ok(writer) = self.get_writer() {
+            let packet_path = writer.finish()?;
+            Ok(vec![packet_path])
+        } else {
+            Err(gng_shared::Error::Runtime {
+                message: format!("Packet \"{}\" is empty.", &self.name),
+            })
+        }
+    }
+
+    fn get_writer(&mut self) -> gng_shared::Result<&mut dyn PacketWriter> {
+        Ok(
+            &mut **(self.writer.as_mut().ok_or(gng_shared::Error::Runtime {
+                message: "No writer found.".to_string(),
+            })?),
+        )
+    }
+
+    fn get_or_insert_writer(
+        &mut self,
+        factory: &PacketWriterFactory,
+    ) -> gng_shared::Result<&mut dyn PacketWriter> {
+        let writer = if self.writer.is_none() {
+            Some((factory)(&self.path, &self.name)?)
+        } else {
+            None
+        };
+
+        if writer.is_some() {
+            self.writer = writer;
+        }
+
+        self.get_writer()
     }
 }
 
@@ -268,7 +312,6 @@ impl PackagerBuilder {
             name: name.clone(),
             pattern: patterns.to_vec(),
             writer: None,
-            facet_paths: Vec::new(),
         };
 
         validate_packets(&p, &self.packets)?;
@@ -313,15 +356,24 @@ impl Packager {
     ///
     /// # Errors
     /// none yet
-    pub fn package(&mut self, package_directory: &std::path::Path) -> gng_shared::Result<()> {
+    pub fn package(
+        &mut self,
+        package_directory: &std::path::Path,
+    ) -> gng_shared::Result<Vec<std::path::PathBuf>> {
+        let package_directory = package_directory.canonicalize()?;
+
         tracing::debug!("Packaging \"{}\"...", package_directory.to_string_lossy());
         let mut packets = self.packets.take().ok_or(gng_shared::Error::Runtime {
             message: "Packages were already created!".to_string(),
         })?;
 
-        let dit = DeterministicDirectoryIterator::new(package_directory)?;
+        let dit = DeterministicDirectoryIterator::new(&package_directory)?;
         for d in dit {
             let (fs_path, packaged_path) = d?;
+            if fs_path == package_directory {
+                continue;
+            }
+
             let packaged_path_str = packaged_path.path().to_string_lossy().to_string();
 
             let packet = packets
@@ -341,27 +393,13 @@ impl Packager {
                 fs_path.to_string_lossy()
             );
 
-            let writer = self.get_or_insert_writer(packet)?;
-
-            writer.add_path(&packaged_path, &fs_path)?;
-        }
-        Ok(())
-    }
-
-    fn get_or_insert_writer<'s, 'p>(
-        &'s self,
-        packet: &'p mut Packet,
-    ) -> gng_shared::Result<&'p mut dyn PacketWriter> {
-        let writer = if packet.writer.is_none() {
-            Some((self.factory)(&packet.path, &packet.name)?)
-        } else {
-            None
-        };
-
-        if writer.is_some() {
-            packet.writer = writer;
+            packet.store_path(&self.factory, &packaged_path, &fs_path)?;
         }
 
-        Ok(&mut **(packet.writer.as_mut().expect("Just set this!")))
+        let mut result = Vec::new();
+        for p in packets.iter_mut() {
+            result.append(&mut p.finish()?);
+        }
+        Ok(result)
     }
 }

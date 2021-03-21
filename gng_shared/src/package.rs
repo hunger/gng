@@ -379,7 +379,7 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Depends on the actual Writer being used.
-    fn finish(self) -> crate::Result<std::path::PathBuf>;
+    fn finish(&mut self) -> crate::Result<std::path::PathBuf>;
 }
 
 /// The product of a `PacketWriterFactory`
@@ -438,8 +438,8 @@ struct PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    tarball: tar::Builder<T>,
-    cleanup_function: CleanUpFunction<T>,
+    tarball: Option<tar::Builder<T>>,
+    cleanup_function: Option<CleanUpFunction<T>>,
 }
 
 impl<T> PacketWriterImpl<T>
@@ -451,13 +451,13 @@ where
         tarball.follow_symlinks(false);
 
         Self {
-            tarball,
-            cleanup_function: Box::new(|_| Ok(std::path::PathBuf::new())),
+            tarball: Some(tarball),
+            cleanup_function: None,
         }
     }
 
     fn set_cleanup_function(&mut self, function: CleanUpFunction<T>) {
-        self.cleanup_function = function;
+        self.cleanup_function = Some(function);
     }
 }
 
@@ -470,16 +470,18 @@ where
         packet_path: &Path,
         on_disk_path: &std::path::Path,
     ) -> crate::Result<()> {
-        println!(
-            "        PACKAGED: {} as {}.",
-            on_disk_path.to_string_lossy(),
-            packet_path.path().to_string_lossy()
-        );
+        if packet_path.is_dir() {}
         Ok(())
     }
 
-    fn finish(self) -> crate::Result<std::path::PathBuf> {
-        let inner = self.tarball.into_inner()?;
-        (self.cleanup_function)(inner)
+    fn finish(&mut self) -> crate::Result<std::path::PathBuf> {
+        let tb = self.tarball.take().ok_or(crate::Error::Runtime {
+            message: "Writer has finished already.".to_string(),
+        })?;
+        let inner = tb.into_inner()?;
+        (self
+            .cleanup_function
+            .take()
+            .unwrap_or_else(|| Box::new(|_| Ok(std::path::PathBuf::new()))))(inner)
     }
 }

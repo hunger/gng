@@ -73,8 +73,14 @@ fn main() -> Result<()> {
         .add_packet(&gng_shared::Name::try_from(args.packet_name)?, &globs)?
         .build();
 
-    packager.package(&args.packet_dir).wrap_err(format!(
+    let package_files = packager.package(&args.packet_dir).wrap_err(format!(
         "Failed to package \"{}\".",
         args.packet_dir.to_string_lossy()
-    ))
+    ))?;
+
+    for pf in package_files {
+        println!("Package \"{}\" created.", pf.to_string_lossy());
+    }
+
+    Ok(())
 }
