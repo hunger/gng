@@ -80,6 +80,11 @@ fn dir_entry_for_path(path: &std::path::Path) -> gng_shared::Result<std::fs::Dir
 // - DeterministicDirectoryIterator:
 // ----------------------------------------------------------------------
 
+type PackagingIteration = gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
+type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
+type PackagingIteratorFactory =
+    dyn Fn(&std::path::Path) -> gng_shared::Result<Box<PackagingIterator>>;
+
 struct DeterministicDirectoryIterator {
     stack: Vec<(Vec<std::fs::DirEntry>, std::path::PathBuf)>,
 }
@@ -175,7 +180,7 @@ impl DeterministicDirectoryIterator {
 }
 
 impl Iterator for DeterministicDirectoryIterator {
-    type Item = gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
+    type Item = PackagingIteration;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.at_end() {
@@ -260,21 +265,12 @@ impl Packet {
 /// A builder for `Packager`
 pub struct PackagerBuilder {
     packet_directory: Option<std::path::PathBuf>,
-    factory: Box<PacketWriterFactory>,
+    packet_factory: Box<PacketWriterFactory>,
     packets: Vec<Packet>,
+    iterator_factory: Box<PackagingIteratorFactory>,
 }
 
 impl PackagerBuilder {
-    /// Create a new `PackagerBuilder` with a custom factory to create `PacketWriter` with.
-    #[must_use]
-    pub fn new_with_factory(factory: Box<PacketWriterFactory>) -> Self {
-        Self {
-            packet_directory: None,
-            factory,
-            packets: Vec::new(),
-        }
-    }
-
     /// Set the directory to store packets in.
     ///
     /// # Errors
@@ -321,21 +317,47 @@ impl PackagerBuilder {
         Ok(self)
     }
 
+    /// Set up a factory for packet writers.
+    #[cfg(tests)]
+    pub fn packet_factory(&mut self, factory: Box<PacketWriterFactory>) -> &mut Self {
+        self.packet_factory = factory;
+        self
+    }
+
+    /// Set up a factory for an iterator to get all the files that need to get packaged.
+    #[cfg(tests)]
+    pub fn iterator_factory(&mut self, factory: Box<PackagingIteratorFactory>) -> &mut Self {
+        self.iterator_factory = factory;
+        self
+    }
+
     /// Built the actual `Packager`.
     #[must_use]
     pub fn build(self) -> Packager {
         Packager {
-            factory: self.factory,
+            packet_factory: self.packet_factory,
             packets: Some(self.packets),
+            iterator_factory: self.iterator_factory,
         }
     }
 }
 
 impl Default for PackagerBuilder {
     fn default() -> Self {
-        Self::new_with_factory(Box::new(|packet_path, packet_name| {
-            gng_shared::package::create_packet_writer(packet_path, packet_name)
-        }))
+        Self {
+            packet_directory: None,
+            packet_factory: Box::new(|packet_path, packet_name| {
+                gng_shared::package::create_packet_writer(packet_path, packet_name)
+            }),
+            packets: Vec::new(),
+            iterator_factory: Box::new(
+                |packaging_directory| -> gng_shared::Result<Box<PackagingIterator>> {
+                    Ok(Box::new(DeterministicDirectoryIterator::new(
+                        packaging_directory,
+                    )?))
+                },
+            ),
+        }
     }
 }
 
@@ -346,9 +368,11 @@ impl Default for PackagerBuilder {
 /// A simple Packet creator
 pub struct Packager {
     /// The `PacketWriterFactory` to use to create packets
-    factory: Box<PacketWriterFactory>,
+    packet_factory: Box<PacketWriterFactory>,
     /// The actual `Packet` definitions.
     packets: Option<Vec<Packet>>,
+    /// The factory used to create the iterator for all files that are to be packaged.
+    iterator_factory: Box<PackagingIteratorFactory>,
 }
 
 impl Packager {
@@ -367,8 +391,7 @@ impl Packager {
             message: "Packages were already created!".to_string(),
         })?;
 
-        let dit = DeterministicDirectoryIterator::new(&package_directory)?;
-        for d in dit {
+        for d in (self.iterator_factory)(&package_directory)? {
             let (fs_path, packaged_path) = d?;
             if fs_path == package_directory {
                 continue;
@@ -393,7 +416,7 @@ impl Packager {
                 fs_path.to_string_lossy()
             );
 
-            packet.store_path(&self.factory, &packaged_path, &fs_path)?;
+            packet.store_path(&self.packet_factory, &packaged_path, &fs_path)?;
         }
 
         let mut result = Vec::new();
