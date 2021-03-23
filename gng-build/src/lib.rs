@@ -62,6 +62,7 @@ impl Mode {
 // ----------------------------------------------------------------------
 
 mod case_officer;
+pub(crate) mod deterministic_directory_iterator;
 pub mod message_handler;
 mod packager;
 
