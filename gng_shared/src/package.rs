@@ -470,7 +470,57 @@ where
         packet_path: &Path,
         on_disk_path: &std::path::Path,
     ) -> crate::Result<()> {
-        if packet_path.is_dir() {}
+        let tb = self.tarball.as_mut().ok_or(crate::Error::Runtime {
+            message: "Writer has finished already.".to_string(),
+        })?;
+
+        let mut header = tar::Header::new_gnu();
+
+        {
+            let gnu = header
+                .as_gnu_mut()
+                .expect("Created this as GNU, so should work!");
+
+            gnu.set_device_major(0);
+            gnu.set_device_minor(0);
+            gnu.set_atime(0);
+            gnu.set_ctime(0);
+        }
+
+        header.set_device_major(0);
+        header.set_device_minor(0);
+        header.set_size(packet_path.size());
+        header.set_mode(packet_path.mode());
+
+        header.set_mtime(0);
+        header.set_uid(0);
+        header.set_gid(0);
+
+        if let Some(t) = packet_path.link_target() {
+            header.set_link_name(&t)?;
+        }
+
+        if packet_path.is_dir() {
+            header.set_entry_type(tar::EntryType::Directory)
+        } else if packet_path.is_file() {
+            header.set_entry_type(tar::EntryType::Regular)
+        } else if packet_path.is_link() {
+            header.set_entry_type(tar::EntryType::Symlink);
+        } else {
+            return Err(crate::Error::Runtime {
+                message: "Unexpected entry in filesystem. Can not package.".to_string(),
+            });
+        }
+
+        let path = packet_path.path();
+
+        if packet_path.is_file() {
+            let file = std::fs::OpenOptions::new().read(true).open(&on_disk_path)?;
+            tb.append_data(&mut header, &path, std::io::BufReader::new(file))?;
+        } else {
+            tb.append_data(&mut header, &path, std::io::empty())?;
+        };
+
         Ok(())
     }
 
