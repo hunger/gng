@@ -487,8 +487,8 @@ where
             gnu.set_ctime(0);
         }
 
-        header.set_device_major(0);
-        header.set_device_minor(0);
+        header.set_device_major(0)?;
+        header.set_device_minor(0)?;
         header.set_size(packet_path.size());
         header.set_mode(packet_path.mode());
 
