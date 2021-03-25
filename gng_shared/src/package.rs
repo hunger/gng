@@ -16,9 +16,9 @@ enum PathLeaf {
         /// The permissions on the `File`
         mode: u32,
         /// The uid of the `File`
-        uid: u32,
+        user_id: u32,
         /// The gid of the `File`
-        gid: u32,
+        group_id: u32,
         /// The size of the `File` in bytes
         size: u64,
     },
@@ -29,9 +29,9 @@ enum PathLeaf {
         /// The `Link` target (complete with base directories, etc.!)
         target: std::path::PathBuf,
         /// The uid of the `File`
-        uid: u32,
+        user_id: u32,
         /// The gid of the `File`
-        gid: u32,
+        group_id: u32,
     },
     /// A `Directory`
     Directory {
@@ -40,9 +40,9 @@ enum PathLeaf {
         /// The permissions on the `Dir`
         mode: u32,
         /// The uid of the `Dir`
-        uid: u32,
+        user_id: u32,
         /// The gid of the `Dir`
-        gid: u32,
+        group_id: u32,
     },
 }
 
@@ -52,21 +52,21 @@ impl PathLeaf {
             PathLeaf::File {
                 name,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
                 size: _,
             }
             | PathLeaf::Link {
                 name,
                 target: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             }
             | PathLeaf::Directory {
                 name,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             } => name.clone(),
         }
     }
@@ -76,64 +76,64 @@ impl PathLeaf {
             PathLeaf::File {
                 name: _,
                 mode: m,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
                 size: _,
             }
             | PathLeaf::Directory {
                 name: _,
                 mode: m,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             } => *m,
             _ => 0o777,
         }
     }
 
-    const fn uid(&self) -> u32 {
+    const fn user_id(&self) -> u32 {
         match &self {
             PathLeaf::File {
                 name: _,
                 mode: _,
-                uid: u,
-                gid: _,
+                user_id: u,
+                group_id: _,
                 size: _,
             }
             | PathLeaf::Link {
                 name: _,
                 target: _,
-                uid: u,
-                gid: _,
+                user_id: u,
+                group_id: _,
             }
             | PathLeaf::Directory {
                 name: _,
                 mode: _,
-                uid: u,
-                gid: _,
+                user_id: u,
+                group_id: _,
             } => *u,
         }
     }
 
-    const fn gid(&self) -> u32 {
+    const fn group_id(&self) -> u32 {
         match &self {
             PathLeaf::File {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: g,
+                user_id: _,
+                group_id: g,
                 size: _,
             }
             | PathLeaf::Link {
                 name: _,
                 target: _,
-                uid: _,
-                gid: g,
+                user_id: _,
+                group_id: g,
             }
             | PathLeaf::Directory {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: g,
+                user_id: _,
+                group_id: g,
             } => *g,
         }
     }
@@ -143,8 +143,8 @@ impl PathLeaf {
             PathLeaf::File {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
                 size: s,
             } => *s,
             _ => 0,
@@ -156,8 +156,8 @@ impl PathLeaf {
             PathLeaf::Link {
                 name: _,
                 target: t,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             } => Some(t.clone()),
             _ => None,
         }
@@ -168,21 +168,21 @@ impl PathLeaf {
             PathLeaf::File {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
                 size: _,
             } => "f",
             PathLeaf::Link {
                 name: _,
                 target: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             } => "l",
             PathLeaf::Directory {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             } => "d",
         }
     }
@@ -193,8 +193,8 @@ impl PathLeaf {
             PathLeaf::Directory {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             }
         )
     }
@@ -205,8 +205,8 @@ impl PathLeaf {
             PathLeaf::Link {
                 name: _,
                 target: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
             }
         )
     }
@@ -217,8 +217,8 @@ impl PathLeaf {
             PathLeaf::File {
                 name: _,
                 mode: _,
-                uid: _,
-                gid: _,
+                user_id: _,
+                group_id: _,
                 size: _,
             }
         )
@@ -240,8 +240,8 @@ impl Path {
         directory: &std::path::Path,
         name: &std::ffi::OsString,
         mode: u32,
-        uid: u32,
-        gid: u32,
+        user_id: u32,
+        group_id: u32,
         size: u64,
     ) -> Self {
         Self {
@@ -249,8 +249,8 @@ impl Path {
             leaf: PathLeaf::File {
                 name: name.clone(),
                 mode,
-                uid,
-                gid,
+                user_id,
+                group_id,
                 size,
             },
         }
@@ -262,16 +262,16 @@ impl Path {
         directory: &std::path::Path,
         name: &std::ffi::OsString,
         target: &std::path::Path,
-        uid: u32,
-        gid: u32,
+        user_id: u32,
+        group_id: u32,
     ) -> Self {
         Self {
             directory: directory.to_path_buf(),
             leaf: PathLeaf::Link {
                 name: name.clone(),
                 target: target.to_path_buf(),
-                uid,
-                gid,
+                user_id,
+                group_id,
             },
         }
     }
@@ -282,16 +282,16 @@ impl Path {
         directory: &std::path::Path,
         name: &std::ffi::OsString,
         mode: u32,
-        uid: u32,
-        gid: u32,
+        user_id: u32,
+        group_id: u32,
     ) -> Self {
         Self {
             directory: directory.to_path_buf(),
             leaf: PathLeaf::Directory {
                 name: name.clone(),
                 mode,
-                uid,
-                gid,
+                user_id,
+                group_id,
             },
         }
     }
@@ -316,12 +316,12 @@ impl Path {
         self.leaf.mode()
     }
 
-    const fn uid(&self) -> u32 {
-        self.leaf.uid()
+    const fn user_id(&self) -> u32 {
+        self.leaf.user_id()
     }
 
-    const fn gid(&self) -> u32 {
-        self.leaf.gid()
+    const fn group_id(&self) -> u32 {
+        self.leaf.group_id()
     }
 
     const fn size(&self) -> u64 {
@@ -358,8 +358,8 @@ impl std::fmt::Debug for Path {
             self.leaf_type(),
             pp,
             self.mode(),
-            self.uid(),
-            self.gid(),
+            self.user_id(),
+            self.group_id(),
             self.size(),
             target
         )
