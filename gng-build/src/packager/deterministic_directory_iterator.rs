@@ -49,12 +49,12 @@ fn dir_entry_for_path(path: &std::path::Path) -> gng_shared::Result<std::fs::Dir
 // - DeterministicDirectoryIterator:
 // ----------------------------------------------------------------------
 
-pub(crate) struct DeterministicDirectoryIterator {
+pub struct DeterministicDirectoryIterator {
     stack: Vec<(Vec<std::fs::DirEntry>, std::path::PathBuf)>,
 }
 
 impl DeterministicDirectoryIterator {
-    pub(crate) fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
+    pub fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
         let base_dir_entry = dir_entry_for_path(directory)?;
 
         if base_dir_entry.file_type()?.is_dir() {
@@ -83,20 +83,22 @@ impl DeterministicDirectoryIterator {
         let file_type = entry.file_type()?;
         let meta = entry.path().symlink_metadata()?;
         let mode = meta.mode() & 0o7777_u32;
-        let uid = meta.uid();
-        let gid = meta.gid();
+        let user_id = meta.uid();
+        let group_id = meta.gid();
         let size = meta.size();
 
         if file_type.is_symlink() {
             let target = entry.path().read_link()?;
             Ok((
                 entry.path(),
-                gng_shared::package::Path::new_link(&directory, &name, &target, uid, gid),
+                gng_shared::package::Path::new_link(&directory, &name, &target, user_id, group_id),
             ))
         } else if file_type.is_file() {
             Ok((
                 entry.path(),
-                gng_shared::package::Path::new_file(&directory, &name, mode, uid, gid, size),
+                gng_shared::package::Path::new_file(
+                    &directory, &name, mode, user_id, group_id, size,
+                ),
             ))
         } else if file_type.is_dir() {
             let contents = collect_contents(&entry.path())?;
@@ -114,8 +116,8 @@ impl DeterministicDirectoryIterator {
                     &directory,
                     &new_directory_name,
                     mode,
-                    uid,
-                    gid,
+                    user_id,
+                    group_id,
                 ),
             ))
         } else {

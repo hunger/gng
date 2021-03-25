@@ -3,7 +3,9 @@
 
 use gng_shared::package::{PacketWriter, PacketWriterFactory};
 
-use crate::deterministic_directory_iterator::DeterministicDirectoryIterator;
+pub mod deterministic_directory_iterator;
+
+use deterministic_directory_iterator::DeterministicDirectoryIterator;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -13,6 +15,7 @@ fn same_packet_name(packet: &Packet, packets: &[Packet]) -> bool {
 }
 
 fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<()> {
+    // TODO: More sanity checking!
     if same_packet_name(packet, packets) {
         return Err(gng_shared::Error::Runtime {
             message: format!(
@@ -28,8 +31,7 @@ fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<(
 // - Types:
 // ----------------------------------------------------------------------
 
-pub(crate) type PackagingIteration =
-    gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
+type PackagingIteration = gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
 type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
 type PackagingIteratorFactory =
     dyn Fn(&std::path::Path) -> gng_shared::Result<Box<PackagingIterator>>;
@@ -260,7 +262,7 @@ impl Packager {
         }
 
         let mut result = Vec::new();
-        for p in packets.iter_mut() {
+        for p in &mut packets {
             result.append(&mut p.finish()?);
         }
         Ok(result)
