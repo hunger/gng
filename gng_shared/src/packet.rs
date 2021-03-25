@@ -267,61 +267,6 @@ impl std::fmt::Display for Name {
 }
 
 // ----------------------------------------------------------------------
-// - Suffix:
-// ----------------------------------------------------------------------
-
-/// A package `Name`
-#[derive(Clone, Debug, PartialOrd, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct Suffix(String);
-
-impl Suffix {
-    /// Create a package 'Suffix' from a '&str'
-    ///
-    /// # Errors
-    /// * `Error::Conversion`: When the input string is not a valid `Name`
-    pub fn new(value: &str) -> crate::Result<Self> {
-        if !crate::start_alnum_char(value) {
-            return Err(crate::Error::Conversion {
-                expression: value.to_string(),
-                typename: "Name".to_string(),
-                message: "Package name must start with a number or lowercase letter.".into(),
-            });
-        }
-        if !crate::all_name_chars(value) {
-            return Err(crate::Error::Conversion {
-                expression: value.to_string(),
-                typename: "Name".to_string(),
-                message:
-                    "Package name must consist of numbers, lowercase letter or '_' characters only."
-                        .into(),
-            });
-        }
-        Ok(Self(value.to_string()))
-    }
-}
-
-impl std::convert::From<Suffix> for String {
-    fn from(suffix: Suffix) -> Self {
-        suffix.0
-    }
-}
-
-impl std::convert::TryFrom<String> for Suffix {
-    type Error = crate::Error;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(&value[..])
-    }
-}
-
-impl std::fmt::Display for Suffix {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:}", &self.0)
-    }
-}
-
-// ----------------------------------------------------------------------
 // - Version:
 // ----------------------------------------------------------------------
 
@@ -486,6 +431,7 @@ pub struct Packet {
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
+    #[builder(default = "None")]
     pub url: Option<String>,
     /// The upstream bug tracker url
     #[builder(default = "None")]
@@ -500,12 +446,9 @@ pub struct Packet {
     #[builder(default = "vec!()")]
     pub provides: Vec<Name>,
 
-    /// The other packages this Package conflicts with
+    /// `Packet`s this `Packet` depends on.
     #[builder(default = "vec!()")]
     pub dependencies: Vec<Name>,
-    /// Abstract interfaces provided by this package
-    #[builder(default = "vec!()")]
-    pub optional_dependencies: Vec<Name>,
 }
 
 impl std::cmp::PartialEq for Packet {
@@ -523,7 +466,7 @@ mod tests {
     use std::convert::From;
     use std::convert::TryFrom;
 
-    use super::{GpgKeyId, Hash, Name, Suffix, Version};
+    use super::{GpgKeyId, Hash, Name, Version};
 
     #[test]
     fn test_package_gpg_key_id_ok() {
@@ -611,33 +554,6 @@ mod tests {
         let name = Name::try_from(String::from("9_foobar__")).unwrap();
         assert_eq!(name.0, String::from("9_foobar__"));
         assert_eq!(String::from(name), String::from("9_foobar__"));
-    }
-
-    // Suffix:
-    #[test]
-    fn test_package_suffix_ok() {
-        let _suffix = Suffix::new("").unwrap();
-
-        let suffix = Suffix::new("test").unwrap();
-        assert_eq!(suffix, Suffix(String::from("test")));
-
-        let suffix = Suffix::try_from(String::from("9_foobar__")).unwrap();
-        assert_eq!(suffix.0, String::from("9_foobar__"));
-    }
-
-    #[test]
-    fn test_package_suffix_not_ok() {
-        assert!(Suffix::new("töst").is_err());
-        assert!(Suffix::new("teSt").is_err());
-        assert!(Suffix::new("Test").is_err());
-        assert!(Suffix::new("_foobar").is_err());
-    }
-
-    #[test]
-    fn test_package_suffix_conversion() {
-        let suffix = Suffix::try_from(String::from("9_foobar__")).unwrap();
-        assert_eq!(suffix.0, String::from("9_foobar__"));
-        assert_eq!(String::from(suffix), String::from("9_foobar__"));
     }
 
     // Version:

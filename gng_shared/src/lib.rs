@@ -137,4 +137,4 @@ pub mod config;
 pub mod package;
 mod packet;
 
-pub use packet::{GpgKeyId, Hash, Name, Packet, Suffix, Version};
+pub use packet::{GpgKeyId, Hash, Name, Packet, Version};
