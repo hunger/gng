@@ -42,7 +42,7 @@ type PackagingIteratorFactory =
 
 struct Packet {
     path: std::path::PathBuf,
-    name: gng_shared::Name,
+    data: gng_shared::Packet,
     pattern: Vec<glob::Pattern>,
     writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
 }
@@ -69,7 +69,7 @@ impl Packet {
             Ok(vec![packet_path])
         } else {
             Err(gng_shared::Error::Runtime {
-                message: format!("Packet \"{}\" is empty.", &self.name),
+                message: format!("Packet \"{}\" is empty.", &self.data.name),
             })
         }
     }
@@ -87,7 +87,7 @@ impl Packet {
         factory: &PacketWriterFactory,
     ) -> gng_shared::Result<&mut dyn PacketWriter> {
         let writer = if self.writer.is_none() {
-            Some((factory)(&self.path, &self.name)?)
+            Some((factory)(&self.path, &self.data.name)?)
         } else {
             None
         };
@@ -137,7 +137,7 @@ impl PackagerBuilder {
     /// `gng_shared::Error::Runtime` if this given `path` is not a directory
     pub fn add_packet(
         mut self,
-        name: &gng_shared::Name,
+        data: &gng_shared::Packet,
         patterns: &[glob::Pattern],
     ) -> gng_shared::Result<Self> {
         let path = self
@@ -147,7 +147,7 @@ impl PackagerBuilder {
 
         let p = Packet {
             path,
-            name: name.clone(),
+            data: data.clone(),
             pattern: patterns.to_vec(),
             writer: None,
         };
@@ -253,7 +253,7 @@ impl Packager {
 
             tracing::trace!(
                 "    [{}] {:?}: [= {}]",
-                packet.name,
+                packet.data.name,
                 packaged_path,
                 fs_path.to_string_lossy()
             );

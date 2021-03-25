@@ -11,7 +11,7 @@ use itertools::Itertools;
 
 /// A GPG key id (16 hex values)
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(try_from = "&str", into = "String")]
 pub struct GpgKeyId(String);
 
 impl GpgKeyId {
@@ -52,11 +52,19 @@ impl std::convert::From<GpgKeyId> for String {
     }
 }
 
+impl std::convert::TryFrom<&str> for GpgKeyId {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
 impl std::convert::TryFrom<String> for GpgKeyId {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(&value[..])
+        Self::try_from(value.as_str())
     }
 }
 
@@ -101,7 +109,7 @@ fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
 
 /// A supported `Hash`
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(try_from = "&str", into = "String")]
 pub enum Hash {
     /// No hash validation needed
     None(),
@@ -142,11 +150,11 @@ impl Hash {
 
     /// The hash algorithm
     #[must_use]
-    pub fn algorithm(&self) -> String {
+    pub const fn algorithm(&self) -> &'static str {
         match self {
-            Self::None() => String::from("none"),
-            Self::Sha256(_) => String::from("sha256"),
-            Self::Sha512(_) => String::from("sha512"),
+            Self::None() => "none",
+            Self::Sha256(_) => "sha256",
+            Self::Sha512(_) => "sha512",
         }
     }
 
@@ -167,10 +175,10 @@ impl std::convert::From<Hash> for String {
     }
 }
 
-impl std::convert::TryFrom<String> for Hash {
+impl std::convert::TryFrom<&str> for Hash {
     type Error = crate::Error;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.to_lowercase();
         if value == "none" {
             return Ok(Self::none());
@@ -186,6 +194,14 @@ impl std::convert::TryFrom<String> for Hash {
             typename: "Hash".to_string(),
             message: "Unsupported hash type.".into(),
         })
+    }
+}
+
+impl std::convert::TryFrom<String> for Hash {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
     }
 }
 
@@ -210,7 +226,7 @@ impl std::fmt::Display for Hash {
 
 /// A package `Name`
 #[derive(Clone, Debug, PartialOrd, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(try_from = "&str", into = "String")]
 pub struct Name(String);
 
 impl Name {
@@ -252,11 +268,19 @@ impl std::convert::From<Name> for String {
     }
 }
 
+impl std::convert::TryFrom<&str> for Name {
+    type Error = crate::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
 impl std::convert::TryFrom<String> for Name {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(&value[..])
+        Self::try_from(value.as_str())
     }
 }
 
@@ -272,7 +296,7 @@ impl std::fmt::Display for Name {
 
 /// A `Version` number
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "String", into = "String")]
+#[serde(try_from = "&str", into = "String")]
 pub struct Version {
     /// The distributions package version `epoch`
     epoch: u32,
@@ -357,15 +381,15 @@ impl std::convert::From<Version> for String {
     }
 }
 
-impl std::convert::TryFrom<String> for Version {
+impl std::convert::TryFrom<&str> for Version {
     type Error = crate::Error;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         let epoch;
         let upstream;
         let release;
 
-        let epoch_upstream_release = &value[..];
+        let epoch_upstream_release = value;
         let mut colon_index = epoch_upstream_release
             .chars()
             .position(|c| c == ':')
@@ -400,6 +424,14 @@ impl std::convert::TryFrom<String> for Version {
     }
 }
 
+impl std::convert::TryFrom<String> for Version {
+    type Error = crate::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_str())
+    }
+}
+
 impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (
@@ -424,10 +456,19 @@ impl std::fmt::Display for Version {
 #[derive(derive_builder::Builder, Clone, Debug)]
 #[builder(try_setter, setter(into))]
 pub struct Packet {
-    /// The package `name`
-    pub name: Name,
+    /// The source package `name`
+    #[builder(try_setter)]
+    pub source_name: Name,
     /// The package `version`
+    #[builder(try_setter)]
     pub version: Version,
+    /// `license`
+    pub license: String,
+
+    /// The package `name`
+    #[builder(try_setter)]
+    pub name: Name,
+
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
@@ -436,8 +477,6 @@ pub struct Packet {
     /// The upstream bug tracker url
     #[builder(default = "None")]
     pub bug_url: Option<String>,
-    /// The upstream license
-    pub license: String,
 
     /// The other packages this Package conflicts with
     #[builder(default = "vec!()")]
@@ -474,7 +513,7 @@ mod tests {
         assert_eq!(key_id.0, "abcd 1234 efab 5678");
 
         assert_eq!(
-            GpgKeyId::try_from(String::from("aB-c D1---23   4EFAB5678")).unwrap(),
+            GpgKeyId::try_from("aB-c D1---23   4EFAB5678").unwrap(),
             GpgKeyId::new("ABCD1234EFAB5678").unwrap()
         )
     }
@@ -505,9 +544,9 @@ mod tests {
         );
 
         assert_eq!(
-            Hash::try_from(String::from(
+            Hash::try_from(
                 "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-            ))
+            )
             .unwrap()
             .to_string(),
             "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
@@ -516,17 +555,17 @@ mod tests {
 
     #[test]
     fn test_package_hash_not_ok() {
-        assert!(Hash::try_from(String::from("foobar")).is_err()); // unsupported hash
-        assert!(Hash::try_from(String::from("foobar:baz")).is_err()); // unsupported hash
-        assert!(Hash::try_from(String::from("sha256:")).is_err()); // No hex
-        assert!(Hash::try_from(String::from("sha256:0123424")).is_err()); // too short
-        assert!(Hash::try_from(String::from(
+        assert!(Hash::try_from("foobar").is_err()); // unsupported hash
+        assert!(Hash::try_from("foobar:baz").is_err()); // unsupported hash
+        assert!(Hash::try_from("sha256:").is_err()); // No hex
+        assert!(Hash::try_from("sha256:0123424").is_err()); // too short
+        assert!(Hash::try_from(
             "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0"
-        ))
+        )
         .is_err()); // too long
-        assert!(Hash::try_from(String::from(
+        assert!(Hash::try_from(
             "sha256:000102030405060708090a0b0cXd0e0f101112131415161718191a1b1c1d1e1f"
-        ))
+        )
         .is_err()); // not hex
     }
 
@@ -534,10 +573,10 @@ mod tests {
     #[test]
     fn test_package_name_ok() {
         let name = Name::new("test").unwrap();
-        assert_eq!(name, Name(String::from("test")));
+        assert_eq!(name, Name("test".to_string()));
 
-        let name = Name::try_from(String::from("9_foobar__")).unwrap();
-        assert_eq!(name.0, String::from("9_foobar__"));
+        let name = Name::try_from("9_foobar__").unwrap();
+        assert_eq!(name.0, "9_foobar__");
     }
 
     #[test]
@@ -551,9 +590,9 @@ mod tests {
 
     #[test]
     fn test_package_name_conversion() {
-        let name = Name::try_from(String::from("9_foobar__")).unwrap();
-        assert_eq!(name.0, String::from("9_foobar__"));
-        assert_eq!(String::from(name), String::from("9_foobar__"));
+        let name = Name::try_from("9_foobar__").unwrap();
+        assert_eq!(name.0, "9_foobar__");
+        assert_eq!(String::from(name), "9_foobar__".to_string());
     }
 
     // Version:
@@ -565,89 +604,83 @@ mod tests {
         assert_eq!(version.release, "foo");
 
         assert_eq!(
-            Version::try_from(String::from("1")).unwrap(),
+            Version::try_from("1").unwrap(),
             Version::new(0, "1", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("42")).unwrap(),
+            Version::try_from("42").unwrap(),
             Version::new(0, "42", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("42.0")).unwrap(),
+            Version::try_from("42.0").unwrap(),
             Version::new(0, "42.0", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("42.0_alpha")).unwrap(),
+            Version::try_from("42.0_alpha").unwrap(),
             Version::new(0, "42.0_alpha", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("0:42.0_alpha")).unwrap(),
+            Version::try_from("0:42.0_alpha").unwrap(),
             Version::new(0, "42.0_alpha", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("23:42.0_alpha")).unwrap(),
+            Version::try_from("23:42.0_alpha").unwrap(),
             Version::new(23, "42.0_alpha", "").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("23:42.0_alpha-x")).unwrap(),
+            Version::try_from("23:42.0_alpha-x").unwrap(),
             Version::new(23, "42.0_alpha", "x").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("54:x-42.0_alpha")).unwrap(),
+            Version::try_from("54:x-42.0_alpha").unwrap(),
             Version::new(54, "x", "42.0_alpha").unwrap()
         );
         assert_eq!(
-            Version::try_from(String::from("54:2.4.5-arch1")).unwrap(),
+            Version::try_from("54:2.4.5-arch1").unwrap(),
             Version::new(54, "2.4.5", "arch1").unwrap()
         );
     }
 
     #[test]
     fn test_package_version_not_ok() {
-        assert!(Version::try_from(String::from("")).is_err());
+        assert!(Version::try_from("").is_err());
 
-        assert!(Version::try_from(String::from("2.4.5!")).is_err());
-        assert!(Version::try_from(String::from("2.4.5!-arch1")).is_err());
-        assert!(Version::try_from(String::from("54:2.4.5!-arch1")).is_err());
-        assert!(Version::try_from(String::from("54:2.4.5-ärch1")).is_err());
+        assert!(Version::try_from("2.4.5!").is_err());
+        assert!(Version::try_from("2.4.5!-arch1").is_err());
+        assert!(Version::try_from("54:2.4.5!-arch1").is_err());
+        assert!(Version::try_from("54:2.4.5-ärch1").is_err());
 
-        assert!(Version::try_from(String::from("_2.4.5")).is_err());
-        assert!(Version::try_from(String::from("_2.4.5-arch1")).is_err());
-        assert!(Version::try_from(String::from("2.4.5-_arch1")).is_err());
-        assert!(Version::try_from(String::from("54:2.4.5-_arch1")).is_err());
-        assert!(Version::try_from(String::from("_54:2.4.5-arch1")).is_err());
+        assert!(Version::try_from("_2.4.5").is_err());
+        assert!(Version::try_from("_2.4.5-arch1").is_err());
+        assert!(Version::try_from("2.4.5-_arch1").is_err());
+        assert!(Version::try_from("54:2.4.5-_arch1").is_err());
+        assert!(Version::try_from("_54:2.4.5-arch1").is_err());
 
-        assert!(Version::try_from(String::from("-1:2.4.5-arch1")).is_err());
-        assert!(Version::try_from(String::from("9999999999999999999:2.4.5-arch1")).is_err());
+        assert!(Version::try_from("-1:2.4.5-arch1").is_err());
+        assert!(Version::try_from("9999999999999999999:2.4.5-arch1").is_err());
     }
 
     #[test]
     fn test_package_version_conversion() {
-        let version = Version::try_from(String::from("42:foobar-baz")).unwrap();
+        let version = Version::try_from("42:foobar-baz").unwrap();
         assert_eq!(version.epoch, 42);
         assert_eq!(version.upstream, "foobar".to_string());
         assert_eq!(version.release, "baz".to_string());
-        assert_eq!(String::from(version), String::from("42:foobar-baz"));
+        assert_eq!(String::from(version), "42:foobar-baz".to_string());
 
         assert_eq!(
-            String::from(Version::new(0, "test", "baz").unwrap()),
-            String::from("test-baz")
+            Version::new(0, "test", "baz").unwrap().to_string(),
+            "test-baz"
         );
         assert_eq!(
-            String::from(Version::new(1, "test", "baz").unwrap()),
-            String::from("1:test-baz")
+            Version::new(1, "test", "baz").unwrap().to_string(),
+            "1:test-baz"
         );
         assert_eq!(
-            String::from(Version::new(0, "test", "baz").unwrap()),
-            String::from("test-baz")
+            Version::new(0, "test", "baz").unwrap().to_string(),
+            "test-baz"
         );
-        assert_eq!(
-            String::from(Version::new(0, "test", "").unwrap()),
-            String::from("test")
-        );
-        assert_eq!(
-            String::from(Version::new(1, "test", "").unwrap()),
-            String::from("1:test")
-        );
+        assert_eq!(Version::new(0, "test", "").unwrap().to_string(), "test");
+        assert_eq!(Version::new(1, "test", "").unwrap().to_string(), "1:test");
     }
 }

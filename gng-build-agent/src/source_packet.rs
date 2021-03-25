@@ -32,9 +32,9 @@ fn from_expression<T: serde::de::DeserializeOwned>(
         .map_err(|e| map_error(e, expression))
 }
 
-fn converted_expression<T: std::convert::TryFrom<String, Error = gng_shared::Error>>(
-    engine: &mut crate::engine::Engine,
-    expression: &str,
+fn converted_expression<'a, T: std::convert::TryFrom<String, Error = gng_shared::Error> + Clone>(
+    engine: &'a mut crate::engine::Engine,
+    expression: &'a str,
 ) -> gng_shared::Result<T> {
     let name = from_expression::<String>(engine, expression)?;
     T::try_from(name)
