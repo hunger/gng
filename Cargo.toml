@@ -1,2 +1,3 @@
 [workspace]
+resolver = "2"
 members = ["gng_shared", "gng_build_shared", "gng-build", "gng-build-agent"]
