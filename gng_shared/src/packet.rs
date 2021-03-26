@@ -452,8 +452,8 @@ impl std::fmt::Display for Version {
 // - Packet:
 // ----------------------------------------------------------------------
 
-/// `Package` meta data
-#[derive(derive_builder::Builder, Clone, Debug)]
+/// `Packet` meta data
+#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[builder(try_setter, setter(into))]
 pub struct Packet {
     /// The source package `name`

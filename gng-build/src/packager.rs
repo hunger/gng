@@ -52,6 +52,7 @@ struct Packet {
     data: gng_shared::Packet,
     pattern: Vec<glob::Pattern>,
     writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
+    reproducibility_files: Vec<std::path::PathBuf>,
 }
 
 impl Packet {
@@ -71,9 +72,13 @@ impl Packet {
     }
 
     fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
-        if let Ok(writer) = self.get_writer() {
-            let packet_path = writer.finish()?;
-            Ok(vec![packet_path])
+        if self.writer.is_some() {
+            self.write_packet_metadata()?;
+
+            Ok(vec![self
+                .get_writer()
+                .expect("Was just is_some()!")
+                .finish()?])
         } else {
             Err(gng_shared::Error::Runtime {
                 message: format!("Packet \"{}\" is empty.", &self.data.name),
@@ -104,6 +109,91 @@ impl Packet {
         }
 
         self.get_writer()
+    }
+
+    fn write_packet_metadata(&mut self) -> gng_shared::Result<()> {
+        let reproducibility_files = std::mem::take(&mut self.reproducibility_files);
+        let data = std::mem::replace(
+            &mut self.data,
+            gng_shared::PacketBuilder::default()
+                .try_source_name("unknown")?
+                .try_version("unknown")?
+                .license("unknown")
+                .try_name("unknown")?
+                .description("unknown")
+                .build()
+                .map_err(|e| gng_shared::Error::Runtime {
+                    message: format!("Failed to create empty packet: {}", e),
+                })?,
+        );
+        let writer = self.get_writer()?;
+
+        let meta_dir = std::path::PathBuf::from(".gng");
+
+        writer.add_path(
+            &gng_shared::package::Path::new_directory(
+                &std::path::PathBuf::from("."),
+                &meta_dir.as_os_str().to_owned(),
+                0o755,
+                0,
+                0,
+            ),
+            &std::path::PathBuf::new(),
+        )?;
+
+        writer.add_path(
+            &gng_shared::package::Path::new_directory(
+                &meta_dir,
+                &std::ffi::OsString::from(&data.name.to_string()),
+                0o755,
+                0,
+                0,
+            ),
+            &std::path::PathBuf::new(),
+        )?;
+
+        let packet_meta_dir = meta_dir.join(data.name.to_string());
+
+        let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
+            expression: "Packet".to_string(),
+            typename: "JSON".to_string(),
+            message: e.to_string(),
+        })?;
+
+        writer.add_data(
+            &gng_shared::package::Path::new_file(
+                &packet_meta_dir,
+                &std::ffi::OsString::from("info.json"),
+                0o755,
+                0,
+                0,
+                buffer.len() as u64,
+            ),
+            &buffer,
+        )?;
+
+        let repro_name = std::ffi::OsString::from("reproducibility");
+        writer.add_path(
+            &gng_shared::package::Path::new_directory(&packet_meta_dir, &repro_name, 0o755, 0, 0),
+            &std::path::PathBuf::new(),
+        )?;
+
+        let repro_dir = packet_meta_dir.join(repro_name);
+        for repro in reproducibility_files {
+            let meta = repro.metadata()?;
+            let name = repro.file_name().unwrap_or_default().to_owned();
+
+            if name.is_empty() {
+                continue;
+            }
+
+            writer.add_path(
+                &gng_shared::package::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
+                &repro,
+            )?;
+        }
+
+        Ok(())
     }
 }
 
@@ -146,6 +236,7 @@ impl PackagerBuilder {
         mut self,
         data: &gng_shared::Packet,
         patterns: &[glob::Pattern],
+        reproducibility_files: &[std::path::PathBuf],
     ) -> gng_shared::Result<Self> {
         let path = self
             .packet_directory
@@ -157,6 +248,7 @@ impl PackagerBuilder {
             data: data.clone(),
             pattern: patterns.to_vec(),
             writer: None,
+            reproducibility_files: reproducibility_files.to_vec(),
         };
 
         validate_packets(&p, &self.packets)?;
