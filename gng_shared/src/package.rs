@@ -304,41 +304,63 @@ impl Path {
         path
     }
 
-    fn leaf_name(&self) -> std::ffi::OsString {
+    /// The last part of the `Path`
+    #[must_use]
+    pub fn leaf_name(&self) -> std::ffi::OsString {
         self.leaf.leaf_name()
     }
 
-    const fn leaf_type(&self) -> &'static str {
+    /// A `&'static str` describing the type of `Path`
+    #[must_use]
+    pub const fn leaf_type(&self) -> &'static str {
         self.leaf.leaf_type()
     }
 
-    const fn mode(&self) -> u32 {
+    /// The `mode` of the leaf
+    #[must_use]
+    pub const fn mode(&self) -> u32 {
         self.leaf.mode()
     }
 
-    const fn user_id(&self) -> u32 {
+    /// The `user_id` of the leaf
+    #[must_use]
+    pub const fn user_id(&self) -> u32 {
         self.leaf.user_id()
     }
 
-    const fn group_id(&self) -> u32 {
+    /// The `group_id` of the leaf
+    #[must_use]
+    pub const fn group_id(&self) -> u32 {
         self.leaf.group_id()
     }
 
-    const fn size(&self) -> u64 {
+    /// The `size` of the leaf. Will be 0 for anything but normal files.
+    #[must_use]
+    pub const fn size(&self) -> u64 {
         self.leaf.size()
     }
 
-    fn link_target(&self) -> Option<std::path::PathBuf> {
+    /// The target this leaf is pointing to (if it is a symlink).
+    #[must_use]
+    pub fn link_target(&self) -> Option<std::path::PathBuf> {
         self.leaf.link_target()
     }
 
-    const fn is_dir(&self) -> bool {
+    /// Is the leaf a directory?
+    #[must_use]
+    pub const fn is_dir(&self) -> bool {
         self.leaf.is_dir()
     }
-    const fn is_link(&self) -> bool {
+
+    /// Is the leaf a link?
+    #[must_use]
+    pub const fn is_link(&self) -> bool {
         self.leaf.is_link()
     }
-    const fn is_file(&self) -> bool {
+
+    /// Is the leaf a file?
+    #[must_use]
+    pub const fn is_file(&self) -> bool {
         self.leaf.is_file()
     }
 }

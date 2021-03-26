@@ -87,19 +87,21 @@ impl DeterministicDirectoryIterator {
 
         if file_type.is_symlink() {
             let target = entry.path().read_link()?;
-            Ok((
-                entry.path(),
-                gng_shared::package::Path::new_link(&directory, &name, &target, user_id, group_id),
-                String::new(),
-            ))
+            Ok(crate::packager::PacketPath {
+                on_disk: entry.path(),
+                in_packet: gng_shared::package::Path::new_link(
+                    &directory, &name, &target, user_id, group_id,
+                ),
+                mime_type: String::new(),
+            })
         } else if file_type.is_file() {
-            Ok((
-                entry.path(),
-                gng_shared::package::Path::new_file(
+            Ok(crate::packager::PacketPath {
+                on_disk: entry.path(),
+                in_packet: gng_shared::package::Path::new_file(
                     &directory, &name, mode, user_id, group_id, size,
                 ),
-                String::new(),
-            ))
+                mime_type: String::new(),
+            })
         } else if file_type.is_dir() {
             let contents = collect_contents(&entry.path())?;
             let (new_directory_path, new_directory_name) = if directory.as_os_str().is_empty() {
@@ -110,17 +112,17 @@ impl DeterministicDirectoryIterator {
 
             self.stack.push((contents, new_directory_path));
 
-            Ok((
-                entry.path(),
-                gng_shared::package::Path::new_directory(
+            Ok(crate::packager::PacketPath {
+                on_disk: entry.path(),
+                in_packet: gng_shared::package::Path::new_directory(
                     &directory,
                     &new_directory_name,
                     mode,
                     user_id,
                     group_id,
                 ),
-                String::new(),
-            ))
+                mime_type: String::new(),
+            })
         } else {
             Err(gng_shared::Error::Runtime {
                 message: format!(

@@ -32,8 +32,13 @@ fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<(
 // - Types:
 // ----------------------------------------------------------------------
 
-type PackagingIteration =
-    gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path, String)>;
+pub struct PacketPath {
+    on_disk: std::path::PathBuf,
+    in_packet: gng_shared::package::Path,
+    mime_type: String,
+}
+
+type PackagingIteration = gng_shared::Result<PacketPath>;
 type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
 type PackagingIteratorFactory =
     dyn Fn(&std::path::Path) -> gng_shared::Result<Box<PackagingIterator>>;
@@ -236,16 +241,16 @@ impl Packager {
         })?;
 
         for d in (self.iterator_factory)(&package_directory)? {
-            let (fs_path, packaged_path, mime_type) = d?;
-            if fs_path == package_directory {
+            let packet_info = d?;
+            if packet_info.on_disk == package_directory {
                 continue;
             }
 
-            let packaged_path_str = packaged_path.path().to_string_lossy().to_string();
+            let packaged_path_str = packet_info.in_packet.path().to_string_lossy().to_string();
 
             let packet = packets
                 .iter_mut()
-                .find(|p| p.contains(&packaged_path, &mime_type))
+                .find(|p| p.contains(&packet_info.in_packet, &packet_info.mime_type))
                 .ok_or(gng_shared::Error::Runtime {
                     message: format!(
                         "\"{}\" not packaged: no glob pattern matched.",
@@ -254,13 +259,18 @@ impl Packager {
                 })?;
 
             tracing::trace!(
-                "    [{}] {:?}: [= {}]",
+                "    [{}] {:?} - {}: [= {}]",
                 packet.data.name,
-                packaged_path,
-                fs_path.to_string_lossy()
+                packet_info.in_packet,
+                packet_info.mime_type,
+                packet_info.on_disk.to_string_lossy()
             );
 
-            packet.store_path(&self.packet_factory, &packaged_path, &fs_path)?;
+            packet.store_path(
+                &self.packet_factory,
+                &packet_info.in_packet,
+                &packet_info.on_disk,
+            )?;
         }
 
         let mut result = Vec::new();
