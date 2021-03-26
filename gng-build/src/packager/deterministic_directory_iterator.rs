@@ -72,9 +72,7 @@ impl DeterministicDirectoryIterator {
         self.stack.is_empty()
     }
 
-    fn find_iterator_value(
-        &mut self,
-    ) -> gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)> {
+    fn find_iterator_value(&mut self) -> crate::packager::PackagingIteration {
         let stack_frame = self.stack.last_mut().expect("Can not be empty!");
         let entry = stack_frame.0.pop().expect("Can not be empty!");
         let directory = stack_frame.1.clone();
@@ -92,6 +90,7 @@ impl DeterministicDirectoryIterator {
             Ok((
                 entry.path(),
                 gng_shared::package::Path::new_link(&directory, &name, &target, user_id, group_id),
+                String::new(),
             ))
         } else if file_type.is_file() {
             Ok((
@@ -99,6 +98,7 @@ impl DeterministicDirectoryIterator {
                 gng_shared::package::Path::new_file(
                     &directory, &name, mode, user_id, group_id, size,
                 ),
+                String::new(),
             ))
         } else if file_type.is_dir() {
             let contents = collect_contents(&entry.path())?;
@@ -119,6 +119,7 @@ impl DeterministicDirectoryIterator {
                     user_id,
                     group_id,
                 ),
+                String::new(),
             ))
         } else {
             Err(gng_shared::Error::Runtime {

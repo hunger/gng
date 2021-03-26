@@ -4,8 +4,9 @@
 use gng_shared::package::{PacketWriter, PacketWriterFactory};
 
 pub mod deterministic_directory_iterator;
+pub mod mimetype_directory_iterator;
 
-use deterministic_directory_iterator::DeterministicDirectoryIterator;
+use mimetype_directory_iterator::MimeTypeDirectoryIterator;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -31,7 +32,8 @@ fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<(
 // - Types:
 // ----------------------------------------------------------------------
 
-type PackagingIteration = gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path)>;
+type PackagingIteration =
+    gng_shared::Result<(std::path::PathBuf, gng_shared::package::Path, String)>;
 type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
 type PackagingIteratorFactory =
     dyn Fn(&std::path::Path) -> gng_shared::Result<Box<PackagingIterator>>;
@@ -48,7 +50,7 @@ struct Packet {
 }
 
 impl Packet {
-    fn contains(&self, packaged_path: &gng_shared::package::Path) -> bool {
+    fn contains(&self, packaged_path: &gng_shared::package::Path, _mime_type: &str) -> bool {
         let packaged_path = packaged_path.path();
         self.pattern.iter().any(|p| p.matches_path(&packaged_path))
     }
@@ -194,7 +196,7 @@ impl Default for PackagerBuilder {
             packets: Vec::new(),
             iterator_factory: Box::new(
                 |packaging_directory| -> gng_shared::Result<Box<PackagingIterator>> {
-                    Ok(Box::new(DeterministicDirectoryIterator::new(
+                    Ok(Box::new(MimeTypeDirectoryIterator::new(
                         packaging_directory,
                     )?))
                 },
@@ -234,7 +236,7 @@ impl Packager {
         })?;
 
         for d in (self.iterator_factory)(&package_directory)? {
-            let (fs_path, packaged_path) = d?;
+            let (fs_path, packaged_path, mime_type) = d?;
             if fs_path == package_directory {
                 continue;
             }
@@ -243,7 +245,7 @@ impl Packager {
 
             let packet = packets
                 .iter_mut()
-                .find(|p| p.contains(&packaged_path))
+                .find(|p| p.contains(&packaged_path, &mime_type))
                 .ok_or(gng_shared::Error::Runtime {
                     message: format!(
                         "\"{}\" not packaged: no glob pattern matched.",
