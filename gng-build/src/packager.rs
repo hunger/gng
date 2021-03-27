@@ -28,6 +28,91 @@ fn validate_packets(packet: &Packet, packets: &[Packet]) -> gng_shared::Result<(
     Ok(())
 }
 
+fn create_packet_meta_data_directory(
+    writer: &mut dyn PacketWriter,
+    packet_name: &std::ffi::OsStr,
+) -> gng_shared::Result<std::path::PathBuf> {
+    let meta_dir = std::path::PathBuf::from(".gng");
+
+    writer.add_path(
+        &gng_shared::package::Path::new_directory(
+            &std::path::PathBuf::from("."),
+            &meta_dir.as_os_str().to_owned(),
+            0o755,
+            0,
+            0,
+        ),
+        &std::path::PathBuf::new(),
+    )?;
+
+    writer.add_path(
+        &gng_shared::package::Path::new_directory(
+            &meta_dir,
+            &std::ffi::OsString::from(&packet_name),
+            0o755,
+            0,
+            0,
+        ),
+        &std::path::PathBuf::new(),
+    )?;
+
+    Ok(meta_dir.join(packet_name))
+}
+
+fn create_packet_meta_data(
+    writer: &mut dyn PacketWriter,
+    meta_data_directory: &std::path::Path,
+    data: &gng_shared::Packet,
+) -> gng_shared::Result<()> {
+    let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
+        expression: "Packet".to_string(),
+        typename: "JSON".to_string(),
+        message: e.to_string(),
+    })?;
+
+    writer.add_data(
+        &gng_shared::package::Path::new_file(
+            meta_data_directory,
+            &std::ffi::OsString::from("info.json"),
+            0o755,
+            0,
+            0,
+            buffer.len() as u64,
+        ),
+        &buffer,
+    )
+}
+
+fn create_packet_reproducibility_director(
+    writer: &mut dyn PacketWriter,
+    meta_data_directory: &std::path::Path,
+    reproducibility_data_files: &[std::path::PathBuf],
+) -> gng_shared::Result<()> {
+    let repro_name = std::ffi::OsString::from("reproducibility");
+    writer.add_path(
+        &gng_shared::package::Path::new_directory(&meta_data_directory, &repro_name, 0o755, 0, 0),
+        &std::path::PathBuf::new(),
+    )?;
+
+    let repro_dir = meta_data_directory.join(repro_name);
+    for repro in reproducibility_data_files {
+        let meta = repro.metadata()?;
+        let name = repro
+            .file_name()
+            .ok_or(gng_shared::Error::Runtime {
+                message: "Invalid file name given for reproducibility file!".to_string(),
+            })?
+            .to_owned();
+
+        writer.add_path(
+            &gng_shared::package::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
+            &repro,
+        )?;
+    }
+
+    Ok(())
+}
+
 // ----------------------------------------------------------------------
 // - Types:
 // ----------------------------------------------------------------------
@@ -126,74 +211,16 @@ impl Packet {
                     message: format!("Failed to create empty packet: {}", e),
                 })?,
         );
+
         let writer = self.get_writer()?;
-
-        let meta_dir = std::path::PathBuf::from(".gng");
-
-        writer.add_path(
-            &gng_shared::package::Path::new_directory(
-                &std::path::PathBuf::from("."),
-                &meta_dir.as_os_str().to_owned(),
-                0o755,
-                0,
-                0,
-            ),
-            &std::path::PathBuf::new(),
+        let meta_data_directory = create_packet_meta_data_directory(
+            writer,
+            &std::ffi::OsString::from(data.name.to_string()),
         )?;
 
-        writer.add_path(
-            &gng_shared::package::Path::new_directory(
-                &meta_dir,
-                &std::ffi::OsString::from(&data.name.to_string()),
-                0o755,
-                0,
-                0,
-            ),
-            &std::path::PathBuf::new(),
-        )?;
+        create_packet_meta_data(writer, &meta_data_directory, &data)?;
 
-        let packet_meta_dir = meta_dir.join(data.name.to_string());
-
-        let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
-            expression: "Packet".to_string(),
-            typename: "JSON".to_string(),
-            message: e.to_string(),
-        })?;
-
-        writer.add_data(
-            &gng_shared::package::Path::new_file(
-                &packet_meta_dir,
-                &std::ffi::OsString::from("info.json"),
-                0o755,
-                0,
-                0,
-                buffer.len() as u64,
-            ),
-            &buffer,
-        )?;
-
-        let repro_name = std::ffi::OsString::from("reproducibility");
-        writer.add_path(
-            &gng_shared::package::Path::new_directory(&packet_meta_dir, &repro_name, 0o755, 0, 0),
-            &std::path::PathBuf::new(),
-        )?;
-
-        let repro_dir = packet_meta_dir.join(repro_name);
-        for repro in reproducibility_files {
-            let meta = repro.metadata()?;
-            let name = repro.file_name().unwrap_or_default().to_owned();
-
-            if name.is_empty() {
-                continue;
-            }
-
-            writer.add_path(
-                &gng_shared::package::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
-                &repro,
-            )?;
-        }
-
-        Ok(())
+        create_packet_reproducibility_director(writer, &meta_data_directory, &reproducibility_files)
     }
 }
 
