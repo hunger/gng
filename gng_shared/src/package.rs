@@ -15,20 +15,17 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
             .as_gnu_mut()
             .expect("Created this as GNU, so should work!");
 
-        gnu.set_device_major(0);
-        gnu.set_device_minor(0);
         gnu.set_atime(0);
         gnu.set_ctime(0);
     }
 
+    header.set_mtime(0);
     header.set_device_major(0)?;
     header.set_device_minor(0)?;
     header.set_size(packet_path.size());
     header.set_mode(packet_path.mode());
-
-    header.set_mtime(0);
-    header.set_uid(0);
-    header.set_gid(0);
+    header.set_uid(packet_path.user_id() as u64);
+    header.set_gid(packet_path.group_id() as u64);
 
     if let Some(t) = packet_path.link_target() {
         header.set_link_name(&t)?;
@@ -562,17 +559,6 @@ where
         Ok(())
     }
 
-    fn finish(&mut self) -> crate::Result<std::path::PathBuf> {
-        let tb = self.tarball.take().ok_or(crate::Error::Runtime {
-            message: "Writer has finished already.".to_string(),
-        })?;
-        let inner = tb.into_inner()?;
-        (self
-            .cleanup_function
-            .take()
-            .unwrap_or_else(|| Box::new(|_| Ok(std::path::PathBuf::new()))))(inner)
-    }
-
     fn add_data(&mut self, packet_path: &Path, data: &[u8]) -> crate::Result<()> {
         if packet_path.is_file() {
             let tb = self.tarball.as_mut().ok_or(crate::Error::Runtime {
@@ -587,5 +573,16 @@ where
                 message: "Need a file path to store a buffer in.".to_string(),
             })
         }
+    }
+
+    fn finish(&mut self) -> crate::Result<std::path::PathBuf> {
+        let tb = self.tarball.take().ok_or(crate::Error::Runtime {
+            message: "Writer has finished already.".to_string(),
+        })?;
+        let inner = tb.into_inner()?;
+        (self
+            .cleanup_function
+            .take()
+            .unwrap_or_else(|| Box::new(|_| Ok(std::path::PathBuf::new()))))(inner)
     }
 }
