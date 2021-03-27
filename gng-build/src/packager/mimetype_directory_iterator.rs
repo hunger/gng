@@ -23,7 +23,7 @@ impl MimeTypeDirectoryIterator {
     fn get_mime_type(
         &self,
         on_disk: &std::path::Path,
-        in_packet: &gng_shared::package::Path,
+        in_packet: &gng_shared::packet::Path,
     ) -> String {
         if in_packet.is_file() {
             let mut guesser = self.mime_db.guess_mime_type();

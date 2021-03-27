@@ -134,7 +134,7 @@ pub fn start_alnum_char(input: &str) -> bool {
 // ----------------------------------------------------------------------
 
 pub mod config;
-pub mod package;
-mod packet;
+mod definitions;
+pub mod packet;
 
-pub use packet::{GpgKeyId, Hash, Name, Packet, PacketBuilder, Version};
+pub use definitions::{GpgKeyId, Hash, Name, Packet, PacketBuilder, Version};

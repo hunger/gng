@@ -89,7 +89,7 @@ impl DeterministicDirectoryIterator {
             let target = entry.path().read_link()?;
             Ok(crate::packager::PacketPath {
                 on_disk: entry.path(),
-                in_packet: gng_shared::package::Path::new_link(
+                in_packet: gng_shared::packet::Path::new_link(
                     &directory, &name, &target, user_id, group_id,
                 ),
                 mime_type: String::new(),
@@ -97,7 +97,7 @@ impl DeterministicDirectoryIterator {
         } else if file_type.is_file() {
             Ok(crate::packager::PacketPath {
                 on_disk: entry.path(),
-                in_packet: gng_shared::package::Path::new_file(
+                in_packet: gng_shared::packet::Path::new_file(
                     &directory, &name, mode, user_id, group_id, size,
                 ),
                 mime_type: String::new(),
@@ -114,7 +114,7 @@ impl DeterministicDirectoryIterator {
 
             Ok(crate::packager::PacketPath {
                 on_disk: entry.path(),
-                in_packet: gng_shared::package::Path::new_directory(
+                in_packet: gng_shared::packet::Path::new_directory(
                     &directory,
                     &new_directory_name,
                     mode,

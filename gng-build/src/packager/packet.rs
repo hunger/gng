@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::package::{PacketWriter, PacketWriterFactory};
+use gng_shared::packet::{PacketWriter, PacketWriterFactory};
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -30,7 +30,7 @@ fn create_packet_meta_data_directory(
     let meta_dir = std::path::PathBuf::from(".gng");
 
     writer.add_path(
-        &gng_shared::package::Path::new_directory(
+        &gng_shared::packet::Path::new_directory(
             &std::path::PathBuf::from("."),
             &meta_dir.as_os_str().to_owned(),
             0o755,
@@ -41,7 +41,7 @@ fn create_packet_meta_data_directory(
     )?;
 
     writer.add_path(
-        &gng_shared::package::Path::new_directory(
+        &gng_shared::packet::Path::new_directory(
             &meta_dir,
             &std::ffi::OsString::from(&packet_name),
             0o755,
@@ -66,7 +66,7 @@ fn create_packet_meta_data(
     })?;
 
     writer.add_data(
-        &gng_shared::package::Path::new_file(
+        &gng_shared::packet::Path::new_file(
             meta_data_directory,
             &std::ffi::OsString::from("info.json"),
             0o755,
@@ -85,7 +85,7 @@ fn create_packet_reproducibility_director(
 ) -> gng_shared::Result<()> {
     let repro_name = std::ffi::OsString::from("reproducibility");
     writer.add_path(
-        &gng_shared::package::Path::new_directory(meta_data_directory, &repro_name, 0o755, 0, 0),
+        &gng_shared::packet::Path::new_directory(meta_data_directory, &repro_name, 0o755, 0, 0),
         &std::path::PathBuf::new(),
     )?;
 
@@ -100,7 +100,7 @@ fn create_packet_reproducibility_director(
             .to_owned();
 
         writer.add_path(
-            &gng_shared::package::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
+            &gng_shared::packet::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
             repro,
         )?;
     }
@@ -116,12 +116,12 @@ pub struct Packet {
     pub path: std::path::PathBuf,
     pub data: gng_shared::Packet,
     pub pattern: Vec<glob::Pattern>,
-    pub writer: Option<Box<dyn gng_shared::package::PacketWriter>>,
+    pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
     pub reproducibility_files: Vec<std::path::PathBuf>,
 }
 
 impl Packet {
-    pub fn contains(&self, packaged_path: &gng_shared::package::Path, _mime_type: &str) -> bool {
+    pub fn contains(&self, packaged_path: &gng_shared::packet::Path, _mime_type: &str) -> bool {
         let packaged_path = packaged_path.path();
         self.pattern.iter().any(|p| p.matches_path(&packaged_path))
     }
@@ -129,7 +129,7 @@ impl Packet {
     pub fn store_path(
         &mut self,
         factory: &PacketWriterFactory,
-        packet_path: &gng_shared::package::Path,
+        packet_path: &gng_shared::packet::Path,
         on_disk_path: &std::path::Path,
     ) -> gng_shared::Result<()> {
         let writer = self.get_or_insert_writer(factory)?;

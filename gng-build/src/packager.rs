@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::package::PacketWriterFactory;
+use gng_shared::packet::PacketWriterFactory;
 
 pub mod deterministic_directory_iterator;
 pub mod mimetype_directory_iterator;
@@ -15,7 +15,7 @@ use mimetype_directory_iterator::MimeTypeDirectoryIterator;
 
 pub struct PacketPath {
     on_disk: std::path::PathBuf,
-    in_packet: gng_shared::package::Path,
+    in_packet: gng_shared::packet::Path,
     mime_type: String,
 }
 
@@ -115,7 +115,7 @@ impl Default for PackagerBuilder {
         Self {
             packet_directory: None,
             packet_factory: Box::new(|packet_path, packet_name| {
-                gng_shared::package::create_packet_writer(packet_path, packet_name)
+                gng_shared::packet::create_packet_writer(packet_path, packet_name)
             }),
             packets: Vec::new(),
             iterator_factory: Box::new(
