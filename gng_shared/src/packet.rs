@@ -496,6 +496,24 @@ impl std::cmp::PartialEq for Packet {
     }
 }
 
+impl Packet {
+    /// Create a simple `Packet` with all necessary fields set to "unknown"
+    #[must_use]
+    pub fn unknown_packet() -> Self {
+        PacketBuilder::default()
+            .try_source_name("unknown")
+            .expect("Name was valid")
+            .try_version("unknown")
+            .expect("Version was valid")
+            .license("unknown")
+            .try_name("unknown")
+            .expect("Name was valid")
+            .description("unknown")
+            .build()
+            .expect("This should return a valid `Packet`.")
+    }
+}
+
 // ----------------------------------------------------------------------
 // - Tests:
 // ----------------------------------------------------------------------
