@@ -24,8 +24,8 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
     header.set_device_minor(0)?;
     header.set_size(packet_path.size());
     header.set_mode(packet_path.mode());
-    header.set_uid(packet_path.user_id() as u64);
-    header.set_gid(packet_path.group_id() as u64);
+    header.set_uid(u64::from(packet_path.user_id()));
+    header.set_gid(u64::from(packet_path.group_id()));
 
     if let Some(t) = packet_path.link_target() {
         header.set_link_name(&t)?;
@@ -277,14 +277,8 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Returns mostly `Error::Io`
-    fn add_path(&mut self, packet_path: &Path, on_disk_path: &std::path::Path)
+    fn add_path(&mut self, packet_path: &Path, reader: Box<dyn std::io::Read>)
         -> crate::Result<()>;
-
-    /// Add a directory into the packet.
-    ///
-    /// # Errors
-    /// Returns mostly `Error::Io`
-    fn add_data(&mut self, packet_path: &Path, data: &[u8]) -> crate::Result<()>;
 
     /// finish writing the packet.
     ///
@@ -379,40 +373,17 @@ where
     fn add_path(
         &mut self,
         packet_path: &Path,
-        on_disk_path: &std::path::Path,
+        reader: Box<dyn std::io::Read>,
     ) -> crate::Result<()> {
         let tb = self.tarball.as_mut().ok_or(crate::Error::Runtime {
             message: "Writer has finished already.".to_string(),
         })?;
 
-        let mut header = create_header(packet_path)?;
+        let mut tar_header = create_header(packet_path)?;
 
         let path = packet_path.path();
-
-        if packet_path.is_file() {
-            let file = std::fs::OpenOptions::new().read(true).open(&on_disk_path)?;
-            tb.append_data(&mut header, &path, std::io::BufReader::new(file))?;
-        } else {
-            tb.append_data(&mut header, &path, std::io::empty())?;
-        };
-
-        Ok(())
-    }
-
-    fn add_data(&mut self, packet_path: &Path, data: &[u8]) -> crate::Result<()> {
-        if packet_path.is_file() {
-            let tb = self.tarball.as_mut().ok_or(crate::Error::Runtime {
-                message: "Writer has finished already.".to_string(),
-            })?;
-
-            let mut header = create_header(packet_path)?;
-            tb.append_data(&mut header, packet_path.path(), data)
-                .map_err(|e| e.into())
-        } else {
-            Err(crate::Error::Runtime {
-                message: "Need a file path to store a buffer in.".to_string(),
-            })
-        }
+        tb.append_data(&mut tar_header, &path, reader)
+            .map_err(|e| e.into())
     }
 
     fn finish(&mut self) -> crate::Result<std::path::PathBuf> {
