@@ -54,217 +54,51 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
 enum PathLeaf {
     /// A `File`
     File {
-        /// The `File` name with extension, etc. but without the base directory part
-        name: std::ffi::OsString,
-        /// The permissions on the `File`
-        mode: u32,
-        /// The uid of the `File`
-        user_id: u32,
-        /// The gid of the `File`
-        group_id: u32,
         /// The size of the `File` in bytes
         size: u64,
     },
     /// A `Link`
     Link {
-        /// The `Link` name with extension, etc. but without the base directory part
-        name: std::ffi::OsString,
         /// The `Link` target (complete with base directories, etc.!)
         target: std::path::PathBuf,
-        /// The uid of the `File`
-        user_id: u32,
-        /// The gid of the `File`
-        group_id: u32,
     },
     /// A `Directory`
-    Directory {
-        /// The `Dir` name with extension, etc. but without the base directory part
-        name: std::ffi::OsString,
-        /// The permissions on the `Dir`
-        mode: u32,
-        /// The uid of the `Dir`
-        user_id: u32,
-        /// The gid of the `Dir`
-        group_id: u32,
-    },
+    Directory {},
 }
 
 impl PathLeaf {
-    fn leaf_name(&self) -> std::ffi::OsString {
-        match &self {
-            PathLeaf::File {
-                name,
-                mode: _,
-                user_id: _,
-                group_id: _,
-                size: _,
-            }
-            | PathLeaf::Link {
-                name,
-                target: _,
-                user_id: _,
-                group_id: _,
-            }
-            | PathLeaf::Directory {
-                name,
-                mode: _,
-                user_id: _,
-                group_id: _,
-            } => name.clone(),
-        }
-    }
-
-    const fn mode(&self) -> u32 {
-        match &self {
-            PathLeaf::File {
-                name: _,
-                mode: m,
-                user_id: _,
-                group_id: _,
-                size: _,
-            }
-            | PathLeaf::Directory {
-                name: _,
-                mode: m,
-                user_id: _,
-                group_id: _,
-            } => *m,
-            _ => 0o777,
-        }
-    }
-
-    const fn user_id(&self) -> u32 {
-        match &self {
-            PathLeaf::File {
-                name: _,
-                mode: _,
-                user_id: u,
-                group_id: _,
-                size: _,
-            }
-            | PathLeaf::Link {
-                name: _,
-                target: _,
-                user_id: u,
-                group_id: _,
-            }
-            | PathLeaf::Directory {
-                name: _,
-                mode: _,
-                user_id: u,
-                group_id: _,
-            } => *u,
-        }
-    }
-
-    const fn group_id(&self) -> u32 {
-        match &self {
-            PathLeaf::File {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: g,
-                size: _,
-            }
-            | PathLeaf::Link {
-                name: _,
-                target: _,
-                user_id: _,
-                group_id: g,
-            }
-            | PathLeaf::Directory {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: g,
-            } => *g,
-        }
-    }
-
     const fn size(&self) -> u64 {
         match &self {
-            PathLeaf::File {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: _,
-                size: s,
-            } => *s,
+            PathLeaf::File { size: s } => *s,
             _ => 0,
         }
     }
 
     fn link_target(&self) -> Option<std::path::PathBuf> {
         match &self {
-            PathLeaf::Link {
-                name: _,
-                target: t,
-                user_id: _,
-                group_id: _,
-            } => Some(t.clone()),
+            PathLeaf::Link { target: t } => Some(t.clone()),
             _ => None,
         }
     }
 
     const fn leaf_type(&self) -> &'static str {
         match &self {
-            PathLeaf::File {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: _,
-                size: _,
-            } => "f",
-            PathLeaf::Link {
-                name: _,
-                target: _,
-                user_id: _,
-                group_id: _,
-            } => "l",
-            PathLeaf::Directory {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: _,
-            } => "d",
+            PathLeaf::File { size: _ } => "f",
+            PathLeaf::Link { target: _ } => "l",
+            PathLeaf::Directory {} => "d",
         }
     }
 
     const fn is_dir(&self) -> bool {
-        matches!(
-            &self,
-            PathLeaf::Directory {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: _,
-            }
-        )
+        matches!(&self, PathLeaf::Directory {})
     }
 
     const fn is_link(&self) -> bool {
-        matches!(
-            &self,
-            PathLeaf::Link {
-                name: _,
-                target: _,
-                user_id: _,
-                group_id: _,
-            }
-        )
+        matches!(&self, PathLeaf::Link { target: _ })
     }
 
     const fn is_file(&self) -> bool {
-        matches!(
-            &self,
-            PathLeaf::File {
-                name: _,
-                mode: _,
-                user_id: _,
-                group_id: _,
-                size: _,
-            }
-        )
+        matches!(&self, PathLeaf::File { size: _ })
     }
 }
 
@@ -272,8 +106,16 @@ impl PathLeaf {
 pub struct Path {
     /// The directories up to the leaf
     directory: std::path::PathBuf,
+    /// The `File` name with extension, etc. but without the base directory part
+    name: std::ffi::OsString,
+    /// The permissions on the `File`
+    mode: u32,
+    /// The uid of the `File`
+    user_id: u32,
+    /// The gid of the `File`
+    group_id: u32,
     /// The leaf node on the directory
-    leaf: PathLeaf,
+    leaf_type: PathLeaf,
 }
 
 impl Path {
@@ -289,13 +131,11 @@ impl Path {
     ) -> Self {
         Self {
             directory: directory.to_path_buf(),
-            leaf: PathLeaf::File {
-                name: name.clone(),
-                mode,
-                user_id,
-                group_id,
-                size,
-            },
+            name: name.clone(),
+            mode,
+            user_id,
+            group_id,
+            leaf_type: PathLeaf::File { size },
         }
     }
 
@@ -310,11 +150,12 @@ impl Path {
     ) -> Self {
         Self {
             directory: directory.to_path_buf(),
-            leaf: PathLeaf::Link {
-                name: name.clone(),
+            name: name.clone(),
+            user_id,
+            group_id,
+            mode: 0x777,
+            leaf_type: PathLeaf::Link {
                 target: target.to_path_buf(),
-                user_id,
-                group_id,
             },
         }
     }
@@ -330,12 +171,11 @@ impl Path {
     ) -> Self {
         Self {
             directory: directory.to_path_buf(),
-            leaf: PathLeaf::Directory {
-                name: name.clone(),
-                mode,
-                user_id,
-                group_id,
-            },
+            name: name.clone(),
+            mode,
+            user_id,
+            group_id,
+            leaf_type: PathLeaf::Directory {},
         }
     }
 
@@ -343,68 +183,68 @@ impl Path {
     #[must_use]
     pub fn path(&self) -> std::path::PathBuf {
         let mut path = self.directory.clone();
-        path.push(self.leaf.leaf_name());
+        path.push(self.leaf_name());
         path
     }
 
     /// The last part of the `Path`
     #[must_use]
     pub fn leaf_name(&self) -> std::ffi::OsString {
-        self.leaf.leaf_name()
+        self.name.clone()
     }
 
     /// A `&'static str` describing the type of `Path`
     #[must_use]
     pub const fn leaf_type(&self) -> &'static str {
-        self.leaf.leaf_type()
+        self.leaf_type.leaf_type()
     }
 
     /// The `mode` of the leaf
     #[must_use]
     pub const fn mode(&self) -> u32 {
-        self.leaf.mode()
+        self.mode
     }
 
     /// The `user_id` of the leaf
     #[must_use]
     pub const fn user_id(&self) -> u32 {
-        self.leaf.user_id()
+        self.user_id
     }
 
     /// The `group_id` of the leaf
     #[must_use]
     pub const fn group_id(&self) -> u32 {
-        self.leaf.group_id()
+        self.group_id
     }
 
     /// The `size` of the leaf. Will be 0 for anything but normal files.
     #[must_use]
     pub const fn size(&self) -> u64 {
-        self.leaf.size()
+        self.leaf_type.size()
     }
 
     /// The target this leaf is pointing to (if it is a symlink).
     #[must_use]
     pub fn link_target(&self) -> Option<std::path::PathBuf> {
-        self.leaf.link_target()
+        self.leaf_type.link_target()
     }
 
     /// Is the leaf a directory?
     #[must_use]
     pub const fn is_dir(&self) -> bool {
-        self.leaf.is_dir()
+        self.leaf_type.is_dir()
     }
 
     /// Is the leaf a link?
     #[must_use]
     pub const fn is_link(&self) -> bool {
-        self.leaf.is_link()
+        self.leaf_type.is_link()
     }
 
     /// Is the leaf a file?
     #[must_use]
     pub const fn is_file(&self) -> bool {
-        self.leaf.is_file()
+        self.leaf_type.is_file()
     }
 }
 
