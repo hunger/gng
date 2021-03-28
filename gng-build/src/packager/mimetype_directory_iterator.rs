@@ -20,17 +20,22 @@ impl MimeTypeDirectoryIterator {
         })
     }
 
-    fn get_mime_type(
-        &self,
-        on_disk: &std::path::Path,
-        in_packet: &gng_shared::packet::Path,
-    ) -> String {
-        if in_packet.is_file() {
+    fn get_mime_type(&self, in_packet: &mut gng_shared::packet::Path) -> String {
+        if let Some(contents) = in_packet.file_contents() {
             let mut guesser = self.mime_db.guess_mime_type();
-            let guess = guesser.path(&on_disk).guess();
+
+            match contents {
+                gng_shared::packet::FileContents::OnDisk(p) => guesser.path(p),
+                gng_shared::packet::FileContents::Buffer(b) => guesser.data(b),
+            };
+            let guess = guesser.guess();
             guess.mime_type().essence_str().to_string()
+        } else if in_packet.is_dir() {
+            String::from("inode/directory")
+        } else if in_packet.is_link() {
+            String::from("inode/symlink")
         } else {
-            String::new()
+            String::from("error/error")
         }
     }
 }
@@ -43,12 +48,10 @@ impl Iterator for MimeTypeDirectoryIterator {
             None => None,
             Some(Err(e)) => Some(Err(e)),
             Some(Ok(p)) => {
-                let on_disk = p.on_disk;
-                let in_packet = p.in_packet;
-                let mime_type = self.get_mime_type(&on_disk, &in_packet);
+                let mut in_packet = p.in_packet;
+                let mime_type = self.get_mime_type(&mut in_packet);
 
                 Some(Ok(crate::packager::PacketPath {
-                    on_disk,
                     in_packet,
                     mime_type,
                 }))

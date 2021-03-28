@@ -14,7 +14,6 @@ use mimetype_directory_iterator::MimeTypeDirectoryIterator;
 // ----------------------------------------------------------------------
 
 pub struct PacketPath {
-    on_disk: std::path::PathBuf,
     in_packet: gng_shared::packet::Path,
     mime_type: String,
 }
@@ -160,8 +159,8 @@ impl Packager {
         })?;
 
         for d in (self.iterator_factory)(&package_directory)? {
-            let packet_info = d?;
-            if packet_info.on_disk == package_directory {
+            let mut packet_info = d?;
+            if packet_info.in_packet.path() == std::path::PathBuf::from(".") {
                 continue;
             }
 
@@ -178,18 +177,13 @@ impl Packager {
                 })?;
 
             tracing::trace!(
-                "    [{}] {:?} - {}: [= {}]",
+                "    [{}] {:?} - {}",
                 packet.data.name,
                 packet_info.in_packet,
                 packet_info.mime_type,
-                packet_info.on_disk.to_string_lossy()
             );
 
-            packet.store_path(
-                &self.packet_factory,
-                &packet_info.in_packet,
-                &packet_info.on_disk,
-            )?;
+            packet.store_path(&self.packet_factory, &mut packet_info.in_packet)?;
         }
 
         let mut result = Vec::new();

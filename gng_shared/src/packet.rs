@@ -50,10 +50,20 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
 // - PacketWriter:
 // ----------------------------------------------------------------------
 
+/// The file contents
+pub enum FileContents {
+    /// `FileContents` is taken from a buffer
+    Buffer(Vec<u8>),
+    /// `FileContents` is read from a file on disk
+    OnDisk(std::path::PathBuf),
+}
+
 /// Different types of paths
 enum PathLeaf {
     /// A `File`
     File {
+        /// Source to the `File` on disk.
+        contents: FileContents,
         /// The size of the `File` in bytes
         size: u64,
     },
@@ -69,7 +79,10 @@ enum PathLeaf {
 impl PathLeaf {
     const fn size(&self) -> u64 {
         match &self {
-            PathLeaf::File { size: s } => *s,
+            PathLeaf::File {
+                size: s,
+                contents: _,
+            } => *s,
             _ => 0,
         }
     }
@@ -83,7 +96,10 @@ impl PathLeaf {
 
     const fn leaf_type(&self) -> &'static str {
         match &self {
-            PathLeaf::File { size: _ } => "f",
+            PathLeaf::File {
+                size: _,
+                contents: _,
+            } => "f",
             PathLeaf::Link { target: _ } => "l",
             PathLeaf::Directory {} => "d",
         }
@@ -98,7 +114,35 @@ impl PathLeaf {
     }
 
     const fn is_file(&self) -> bool {
-        matches!(&self, PathLeaf::File { size: _ })
+        matches!(
+            &self,
+            PathLeaf::File {
+                size: _,
+                contents: _
+            }
+        )
+    }
+
+    fn get_source(&mut self) -> Option<&mut FileContents> {
+        match self {
+            PathLeaf::File { contents, size: _ } => Some(contents),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Debug for PathLeaf {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match &self {
+            PathLeaf::File { contents, size } => match contents {
+                FileContents::OnDisk(p) => {
+                    write!(fmt, "FILE ({}bytes) from \"{}\"", size, p.to_string_lossy())
+                }
+                FileContents::Buffer(_) => write!(fmt, "FILE ({}bytes) from <BUFFER>", size),
+            },
+            PathLeaf::Link { target } => write!(fmt, "LINK to \"{}\"", target.to_string_lossy()),
+            PathLeaf::Directory {} => write!(fmt, "DIR"),
+        }
     }
 }
 
@@ -120,22 +164,52 @@ pub struct Path {
 
 impl Path {
     /// Create a new Path for a file.
-    #[must_use]
-    pub fn new_file(
+    ///
+    /// # Errors
+    /// `crate::Error::Io` if access to the `on_disk` entry does not work.
+    pub fn new_file_from_disk(
+        on_disk: &std::path::Path,
         directory: &std::path::Path,
         name: &std::ffi::OsString,
         mode: u32,
         user_id: u32,
         group_id: u32,
         size: u64,
+    ) -> crate::Result<Self> {
+        Ok(Self {
+            directory: directory.to_path_buf(),
+            name: name.clone(),
+            mode,
+            user_id,
+            group_id,
+            leaf_type: PathLeaf::File {
+                size,
+                contents: FileContents::OnDisk(on_disk.to_path_buf()),
+            },
+        })
+    }
+
+    /// Create a new Path for a file.
+    #[must_use]
+    pub fn new_file_from_buffer(
+        buffer: Vec<u8>,
+        directory: &std::path::Path,
+        name: &std::ffi::OsString,
+        mode: u32,
+        user_id: u32,
+        group_id: u32,
     ) -> Self {
+        let size = buffer.len() as u64;
         Self {
             directory: directory.to_path_buf(),
             name: name.clone(),
             mode,
             user_id,
             group_id,
-            leaf_type: PathLeaf::File { size },
+            leaf_type: PathLeaf::File {
+                size,
+                contents: FileContents::Buffer(buffer),
+            },
         }
     }
 
@@ -157,6 +231,7 @@ impl Path {
             leaf_type: PathLeaf::Link {
                 target: target.to_path_buf(),
             },
+            // reader: std::io::empty(),
         }
     }
 
@@ -176,6 +251,7 @@ impl Path {
             user_id,
             group_id,
             leaf_type: PathLeaf::Directory {},
+            // reader: std::io::empty(),
         }
     }
 
@@ -246,27 +322,25 @@ impl Path {
     pub const fn is_file(&self) -> bool {
         self.leaf_type.is_file()
     }
+
+    /// Get the file data source
+    #[must_use]
+    pub fn file_contents(&mut self) -> Option<&mut FileContents> {
+        self.leaf_type.get_source()
+    }
 }
 
 impl std::fmt::Debug for Path {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        let pp = self.path().to_string_lossy().to_string();
-        let target = if let Some(t) = self.link_target() {
-            format!(" -> {}", t.to_string_lossy())
-        } else {
-            String::new()
-        };
-
         write!(
             fmt,
-            "{}:{} [m:{:#o},u:{},g{}], {}bytes{}",
+            "{}:{} [m:{:#o},u:{},g{}], {:?}",
             self.leaf_type(),
-            pp,
+            self.path().to_string_lossy().to_string(),
             self.mode(),
             self.user_id(),
             self.group_id(),
-            self.size(),
-            target
+            self.leaf_type,
         )
     }
 }
@@ -277,8 +351,7 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Returns mostly `Error::Io`
-    fn add_path(&mut self, packet_path: &Path, reader: Box<dyn std::io::Read>)
-        -> crate::Result<()>;
+    fn add_path(&mut self, packet_path: &mut Path) -> crate::Result<()>;
 
     /// finish writing the packet.
     ///
@@ -370,11 +443,7 @@ impl<T> PacketWriter for PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    fn add_path(
-        &mut self,
-        packet_path: &Path,
-        reader: Box<dyn std::io::Read>,
-    ) -> crate::Result<()> {
+    fn add_path(&mut self, packet_path: &mut Path) -> crate::Result<()> {
         let tb = self.tarball.as_mut().ok_or(crate::Error::Runtime {
             message: "Writer has finished already.".to_string(),
         })?;
@@ -382,8 +451,23 @@ where
         let mut tar_header = create_header(packet_path)?;
 
         let path = packet_path.path();
-        tb.append_data(&mut tar_header, &path, reader)
-            .map_err(|e| e.into())
+
+        match packet_path.leaf_type.get_source() {
+            Some(FileContents::OnDisk(p)) => {
+                let reader = std::fs::OpenOptions::new().read(true).open(&p)?;
+                let reader = std::io::BufReader::new(reader);
+                tb.append_data(&mut tar_header, &path, reader)
+                    .map_err(|e| e.into())
+            }
+            Some(FileContents::Buffer(b)) => {
+                let reader = std::io::Cursor::new(b);
+                tb.append_data(&mut tar_header, &path, reader)
+                    .map_err(|e| e.into())
+            }
+            _ => tb
+                .append_data(&mut tar_header, &path, std::io::empty())
+                .map_err(|e| e.into()),
+        }
     }
 
     fn finish(&mut self) -> crate::Result<std::path::PathBuf> {

@@ -29,27 +29,21 @@ fn create_packet_meta_data_directory(
 ) -> gng_shared::Result<std::path::PathBuf> {
     let meta_dir = std::path::PathBuf::from(".gng");
 
-    writer.add_path(
-        &gng_shared::packet::Path::new_directory(
-            &std::path::PathBuf::from("."),
-            &meta_dir.as_os_str().to_owned(),
-            0o755,
-            0,
-            0,
-        ),
-        Box::new(std::io::empty()),
-    )?;
+    writer.add_path(&mut gng_shared::packet::Path::new_directory(
+        &std::path::PathBuf::from("."),
+        &meta_dir.as_os_str().to_owned(),
+        0o755,
+        0,
+        0,
+    ))?;
 
-    writer.add_path(
-        &gng_shared::packet::Path::new_directory(
-            &meta_dir,
-            &std::ffi::OsString::from(&packet_name),
-            0o755,
-            0,
-            0,
-        ),
-        Box::new(std::io::empty()),
-    )?;
+    writer.add_path(&mut gng_shared::packet::Path::new_directory(
+        &meta_dir,
+        &std::ffi::OsString::from(&packet_name),
+        0o755,
+        0,
+        0,
+    ))?;
 
     Ok(meta_dir.join(packet_name))
 }
@@ -65,20 +59,14 @@ fn create_packet_meta_data(
         message: e.to_string(),
     })?;
 
-    let file_size = buffer.len() as u64;
-    let reader = std::io::Cursor::new(buffer);
-
-    writer.add_path(
-        &gng_shared::packet::Path::new_file(
-            meta_data_directory,
-            &std::ffi::OsString::from("info.json"),
-            0o755,
-            0,
-            0,
-            file_size,
-        ),
-        Box::new(reader),
-    )
+    writer.add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
+        buffer,
+        meta_data_directory,
+        &std::ffi::OsString::from("info.json"),
+        0o755,
+        0,
+        0,
+    ))
 }
 
 fn create_packet_reproducibility_directory(
@@ -87,10 +75,13 @@ fn create_packet_reproducibility_directory(
     reproducibility_data_files: &[std::path::PathBuf],
 ) -> gng_shared::Result<()> {
     let repro_name = std::ffi::OsString::from("reproducibility");
-    writer.add_path(
-        &gng_shared::packet::Path::new_directory(meta_data_directory, &repro_name, 0o755, 0, 0),
-        Box::new(std::io::empty()),
-    )?;
+    writer.add_path(&mut gng_shared::packet::Path::new_directory(
+        meta_data_directory,
+        &repro_name,
+        0o755,
+        0,
+        0,
+    ))?;
 
     let repro_dir = meta_data_directory.join(repro_name);
     for repro in reproducibility_data_files {
@@ -102,13 +93,15 @@ fn create_packet_reproducibility_directory(
             })?
             .to_owned();
 
-        let reader = std::fs::OpenOptions::new().read(true).open(repro)?;
-        let reader = std::io::BufReader::new(reader);
-
-        writer.add_path(
-            &gng_shared::packet::Path::new_file(&repro_dir, &name, 0o644, 0, 0, meta.len()),
-            Box::new(reader),
-        )?;
+        writer.add_path(&mut gng_shared::packet::Path::new_file_from_disk(
+            repro,
+            &repro_dir,
+            &name,
+            0o644,
+            0,
+            0,
+            meta.len(),
+        )?)?;
     }
 
     Ok(())
@@ -135,18 +128,10 @@ impl Packet {
     pub fn store_path(
         &mut self,
         factory: &PacketWriterFactory,
-        packet_path: &gng_shared::packet::Path,
-        on_disk_path: &std::path::Path,
+        packet_path: &mut gng_shared::packet::Path,
     ) -> gng_shared::Result<()> {
         let writer = self.get_or_insert_writer(factory)?;
-        let reader: Box<dyn std::io::Read> = if packet_path.is_file() {
-            let reader = std::fs::OpenOptions::new().read(true).open(on_disk_path)?;
-            let reader = std::io::BufReader::new(reader);
-            Box::new(reader)
-        } else {
-            Box::new(std::io::empty())
-        };
-        writer.add_path(packet_path, reader)
+        writer.add_path(packet_path)
     }
 
     pub fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
