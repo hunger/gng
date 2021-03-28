@@ -81,7 +81,7 @@ fn create_packet_meta_data(
     )
 }
 
-fn create_packet_reproducibility_director(
+fn create_packet_reproducibility_directory(
     writer: &mut dyn PacketWriter,
     meta_data_directory: &std::path::Path,
     reproducibility_data_files: &[std::path::PathBuf],
@@ -201,6 +201,10 @@ impl Packet {
 
         create_packet_meta_data(writer, &meta_data_directory, &data)?;
 
-        create_packet_reproducibility_director(writer, &meta_data_directory, &reproducibility_files)
+        create_packet_reproducibility_directory(
+            writer,
+            &meta_data_directory,
+            &reproducibility_files,
+        )
     }
 }
