@@ -69,44 +69,6 @@ fn create_packet_meta_data(
     ))
 }
 
-fn create_packet_reproducibility_directory(
-    writer: &mut dyn PacketWriter,
-    meta_data_directory: &std::path::Path,
-    reproducibility_data_files: &[std::path::PathBuf],
-) -> gng_shared::Result<()> {
-    let repro_name = std::ffi::OsString::from("reproducibility");
-    writer.add_path(&mut gng_shared::packet::Path::new_directory(
-        meta_data_directory,
-        &repro_name,
-        0o755,
-        0,
-        0,
-    ))?;
-
-    let repro_dir = meta_data_directory.join(repro_name);
-    for repro in reproducibility_data_files {
-        let meta = repro.metadata()?;
-        let name = repro
-            .file_name()
-            .ok_or(gng_shared::Error::Runtime {
-                message: "Invalid file name given for reproducibility file!".to_string(),
-            })?
-            .to_owned();
-
-        writer.add_path(&mut gng_shared::packet::Path::new_file_from_disk(
-            repro,
-            &repro_dir,
-            &name,
-            0o644,
-            0,
-            0,
-            meta.len(),
-        )?)?;
-    }
-
-    Ok(())
-}
-
 // ----------------------------------------------------------------------
 // - Packet:
 // ----------------------------------------------------------------------
@@ -116,7 +78,6 @@ pub struct Packet {
     pub data: gng_shared::Packet,
     pub pattern: Vec<glob::Pattern>,
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
-    pub reproducibility_files: Vec<std::path::PathBuf>,
 }
 
 impl Packet {
@@ -175,21 +136,14 @@ impl Packet {
     }
 
     fn write_packet_metadata(&mut self) -> gng_shared::Result<()> {
-        let reproducibility_files = std::mem::take(&mut self.reproducibility_files);
         let data = std::mem::replace(&mut self.data, gng_shared::Packet::unknown_packet());
 
         let writer = self.get_writer()?;
+
         let meta_data_directory = create_packet_meta_data_directory(
             writer,
             &std::ffi::OsString::from(data.name.to_string()),
         )?;
-
-        create_packet_meta_data(writer, &meta_data_directory, &data)?;
-
-        create_packet_reproducibility_directory(
-            writer,
-            &meta_data_directory,
-            &reproducibility_files,
-        )
+        create_packet_meta_data(writer, &meta_data_directory, &data)
     }
 }

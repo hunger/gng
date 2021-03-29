@@ -62,7 +62,6 @@ impl PackagerBuilder {
         mut self,
         data: &gng_shared::Packet,
         patterns: &[glob::Pattern],
-        reproducibility_files: &[std::path::PathBuf],
     ) -> gng_shared::Result<Self> {
         let path = self
             .packet_directory
@@ -74,7 +73,6 @@ impl PackagerBuilder {
             data: data.clone(),
             pattern: patterns.to_vec(),
             writer: None,
-            reproducibility_files: reproducibility_files.to_vec(),
         };
 
         packet::validate_packets(&p, &self.packets)?;

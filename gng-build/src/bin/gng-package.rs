@@ -80,7 +80,7 @@ fn main() -> Result<()> {
         })?;
 
     let mut packager = gng_build::PackagerBuilder::default()
-        .add_packet(&p, &globs, &[])?
+        .add_packet(&p, &globs)?
         .build();
 
     let package_files = packager.package(&args.packet_dir).wrap_err(format!(
