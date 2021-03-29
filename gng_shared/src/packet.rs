@@ -363,15 +363,26 @@ pub trait PacketWriter {
 /// The product of a `PacketWriterFactory`
 pub type PacketWriterProduct = crate::Result<Box<dyn PacketWriter>>;
 /// A type for factories of `PacketWriter`
-pub type PacketWriterFactory =
-    dyn Fn(&std::path::Path, &crate::Name) -> crate::Result<Box<dyn PacketWriter>>;
+pub type PacketWriterFactory = dyn Fn(
+    &std::path::Path,
+    &crate::Name,
+    &Option<crate::Name>,
+    &crate::Version,
+) -> crate::Result<Box<dyn PacketWriter>>;
 
 /// Create the full packet name from the base name.
 fn full_packet_path(
     packet_path: &std::path::Path,
     packet_name: &crate::Name,
+    facet_name: &Option<crate::Name>,
+    version: &crate::Version,
 ) -> std::path::PathBuf {
-    packet_path.join(format!("{}.gng", packet_name))
+    let facet_name_string = match facet_name {
+        Some(n) => format!("-{}", n),
+        None => String::new(),
+    };
+    let file_name = format!("{}{}-{}.gng", packet_name, facet_name_string, version);
+    packet_path.join(file_name)
 }
 
 /// Create a default packet writer
@@ -381,9 +392,11 @@ fn full_packet_path(
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
     packet_name: &crate::Name,
+    facet_name: &Option<crate::Name>,
+    version: &crate::Version,
 ) -> PacketWriterProduct {
     // TODO: Make this configurable?
-    let full_name = full_packet_path(packet_path, packet_name);
+    let full_name = full_packet_path(packet_path, packet_name, facet_name, version);
 
     let writer = std::fs::OpenOptions::new()
         .write(true)

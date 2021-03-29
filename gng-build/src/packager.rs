@@ -4,6 +4,7 @@
 use gng_shared::packet::PacketWriterFactory;
 
 pub mod deterministic_directory_iterator;
+pub mod facet;
 pub mod mimetype_directory_iterator;
 pub mod packet;
 
@@ -68,12 +69,7 @@ impl PackagerBuilder {
             .take()
             .unwrap_or(std::env::current_dir()?);
 
-        let p = crate::packager::packet::Packet {
-            path,
-            data: data.clone(),
-            pattern: patterns.to_vec(),
-            writer: None,
-        };
+        let p = crate::packager::packet::Packet::new(&path, data, patterns.to_vec());
 
         packet::validate_packets(&p, &self.packets)?;
 
@@ -111,8 +107,13 @@ impl Default for PackagerBuilder {
     fn default() -> Self {
         Self {
             packet_directory: None,
-            packet_factory: Box::new(|packet_path, packet_name| {
-                gng_shared::packet::create_packet_writer(packet_path, packet_name)
+            packet_factory: Box::new(|packet_path, packet_name, facet_name, version| {
+                gng_shared::packet::create_packet_writer(
+                    packet_path,
+                    packet_name,
+                    facet_name,
+                    version,
+                )
             }),
             packets: Vec::new(),
             iterator_factory: Box::new(
@@ -181,7 +182,11 @@ impl Packager {
                 packet_info.mime_type,
             );
 
-            packet.store_path(&self.packet_factory, &mut packet_info.in_packet)?;
+            packet.store_path(
+                &self.packet_factory,
+                &mut packet_info.in_packet,
+                &packet_info.mime_type,
+            )?;
         }
 
         let mut result = Vec::new();
