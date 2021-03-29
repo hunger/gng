@@ -291,6 +291,72 @@ impl std::fmt::Display for Name {
 }
 
 // ----------------------------------------------------------------------
+// - Packet:
+// ----------------------------------------------------------------------
+
+/// `Packet` meta data
+#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[builder(try_setter, setter(into))]
+pub struct Packet {
+    /// The source package `name`
+    #[builder(try_setter)]
+    pub source_name: Name,
+    /// The package `version`
+    #[builder(try_setter)]
+    pub version: Version,
+    /// `license`
+    pub license: String,
+
+    /// The package `name`
+    #[builder(try_setter)]
+    pub name: Name,
+
+    /// A short description of the package
+    pub description: String,
+    /// The upstream `url`
+    #[builder(default = "None")]
+    pub url: Option<String>,
+    /// The upstream bug tracker url
+    #[builder(default = "None")]
+    pub bug_url: Option<String>,
+
+    /// The other packages this Package conflicts with
+    #[builder(default = "vec!()")]
+    pub conflicts: Vec<Name>,
+    /// Abstract interfaces provided by this package
+    #[builder(default = "vec!()")]
+    pub provides: Vec<Name>,
+
+    /// `Packet`s this `Packet` depends on.
+    #[builder(default = "vec!()")]
+    pub dependencies: Vec<Name>,
+}
+
+impl std::cmp::PartialEq for Packet {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.version == other.version
+    }
+}
+
+impl Packet {
+    /// Create a simple `Packet` with all necessary fields set to "unknown"
+    #[must_use]
+    pub fn unknown_packet() -> Self {
+        PacketBuilder::default()
+            .try_source_name("unknown")
+            .expect("Name was valid")
+            .try_version("unknown")
+            .expect("Version was valid")
+            .license("unknown")
+            .try_name("unknown")
+            .expect("Name was valid")
+            .description("unknown")
+            .build()
+            .expect("This should return a valid `Packet`.")
+    }
+}
+
+// ----------------------------------------------------------------------
 // - Version:
 // ----------------------------------------------------------------------
 
@@ -445,72 +511,6 @@ impl std::fmt::Display for Version {
             (true, true, true) => write!(f, "{:}:{:}-{:}", self.epoch, self.upstream, self.release),
             (_, false, _) => unreachable!("Version was invalid during Display!"),
         }
-    }
-}
-
-// ----------------------------------------------------------------------
-// - Packet:
-// ----------------------------------------------------------------------
-
-/// `Packet` meta data
-#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
-#[builder(try_setter, setter(into))]
-pub struct Packet {
-    /// The source package `name`
-    #[builder(try_setter)]
-    pub source_name: Name,
-    /// The package `version`
-    #[builder(try_setter)]
-    pub version: Version,
-    /// `license`
-    pub license: String,
-
-    /// The package `name`
-    #[builder(try_setter)]
-    pub name: Name,
-
-    /// A short description of the package
-    pub description: String,
-    /// The upstream `url`
-    #[builder(default = "None")]
-    pub url: Option<String>,
-    /// The upstream bug tracker url
-    #[builder(default = "None")]
-    pub bug_url: Option<String>,
-
-    /// The other packages this Package conflicts with
-    #[builder(default = "vec!()")]
-    pub conflicts: Vec<Name>,
-    /// Abstract interfaces provided by this package
-    #[builder(default = "vec!()")]
-    pub provides: Vec<Name>,
-
-    /// `Packet`s this `Packet` depends on.
-    #[builder(default = "vec!()")]
-    pub dependencies: Vec<Name>,
-}
-
-impl std::cmp::PartialEq for Packet {
-    fn eq(&self, other: &Self) -> bool {
-        self.name == other.name && self.version == other.version
-    }
-}
-
-impl Packet {
-    /// Create a simple `Packet` with all necessary fields set to "unknown"
-    #[must_use]
-    pub fn unknown_packet() -> Self {
-        PacketBuilder::default()
-            .try_source_name("unknown")
-            .expect("Name was valid")
-            .try_version("unknown")
-            .expect("Version was valid")
-            .license("unknown")
-            .try_name("unknown")
-            .expect("Name was valid")
-            .description("unknown")
-            .build()
-            .expect("This should return a valid `Packet`.")
     }
 }
 
