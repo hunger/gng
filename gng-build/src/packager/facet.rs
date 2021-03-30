@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::packet::{PacketWriter, PacketWriterFactory};
+use gng_shared::packet::PacketWriter;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -13,7 +13,7 @@ fn create_packet_meta_data_directory(
     let meta_dir = std::path::PathBuf::from(".gng");
 
     writer.add_path(&mut gng_shared::packet::Path::new_directory(
-        &std::path::PathBuf::from("."),
+        &std::path::PathBuf::new(),
         &meta_dir.as_os_str().to_owned(),
         0o755,
         0,
@@ -35,7 +35,22 @@ fn create_packet_meta_data(
     writer: &mut dyn PacketWriter,
     meta_data_directory: &std::path::Path,
     data: &gng_shared::Packet,
+    facet: &Option<gng_shared::Name>,
+    description_suffix: &str,
 ) -> gng_shared::Result<()> {
+    let mut data = data.clone();
+    let mut ds = description_suffix.to_owned();
+    if let Some(facet) = facet {
+        data.dependencies.push(facet.clone());
+        if ds.is_empty() {
+            ds = facet.to_string();
+        }
+    }
+
+    if !ds.is_empty() {
+        data.description = format!("{} [{}]", &data.description, ds);
+    }
+
     let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
         expression: "Packet".to_string(),
         typename: "JSON".to_string(),
@@ -51,40 +66,66 @@ fn create_packet_meta_data(
         0,
     ))
 }
+// ----------------------------------------------------------------------
+// - FacetDefinition:
+// ----------------------------------------------------------------------
+
+pub struct FacetDefinition {
+    pub name: gng_shared::Name,
+    pub mime_types: Vec<String>,
+    pub patterns: Vec<glob::Pattern>,
+}
 
 // ----------------------------------------------------------------------
 // - Facet:
 // ----------------------------------------------------------------------
 
 pub struct Facet {
-    pub path: std::path::PathBuf,
     pub facet_name: Option<gng_shared::Name>,
+    pub mime_types: Vec<String>,
+    pub patterns: Vec<glob::Pattern>,
     pub data: gng_shared::Packet,
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
 }
 
 impl Facet {
-    pub fn facets_from(path: &std::path::Path, packet: &gng_shared::Packet) -> Vec<Self> {
-        vec![Self {
-            path: path.to_owned(),
+    pub fn facets_from(
+        definitions: &[FacetDefinition],
+        packet: &gng_shared::Packet,
+    ) -> gng_shared::Result<Vec<Self>> {
+        let mut result = Vec::with_capacity(definitions.len() + 1);
+        for d in definitions {
+            result.push(Self {
+                facet_name: Some(d.name.clone()),
+                mime_types: d.mime_types.clone(),
+                patterns: d.patterns.clone(),
+                data: packet.clone(),
+                writer: None,
+            });
+        }
+        result.push(Self {
             facet_name: None,
+            mime_types: Vec::new(),
+            patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
             data: packet.clone(),
             writer: None,
-        }]
+        });
+        Ok(result)
     }
 
-    pub fn contains(&self, _packaged_path: &gng_shared::packet::Path, _mime_type: &str) -> bool {
-        true
+    pub fn contains(&self, path: &std::path::Path, mime_type: &str) -> bool {
+        self.patterns.iter().any(|p| p.matches_path(path))
+            || self.mime_types.iter().any(|mt| mt == mime_type)
     }
 
     pub fn store_path(
         &mut self,
-        factory: &PacketWriterFactory,
-        packet_path: &mut gng_shared::packet::Path,
+        factory: &super::InternalPacketWriterFactory,
+        package_path: &mut gng_shared::packet::Path,
         _mime_type: &str,
     ) -> gng_shared::Result<()> {
         let writer = self.get_or_insert_writer(factory)?;
-        writer.add_path(packet_path)
+        writer.add_path(package_path)
     }
 
     pub fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
@@ -112,11 +153,10 @@ impl Facet {
 
     fn get_or_insert_writer(
         &mut self,
-        factory: &PacketWriterFactory,
+        factory: &super::InternalPacketWriterFactory,
     ) -> gng_shared::Result<&mut dyn PacketWriter> {
         let writer = if self.writer.is_none() {
             Some((factory)(
-                &self.path,
                 &self.data.name,
                 &self.facet_name,
                 &self.data.version,
@@ -141,6 +181,6 @@ impl Facet {
             &std::ffi::OsString::from(data.name.to_string()),
         )?;
 
-        create_packet_meta_data(writer, &meta_data_directory, &data)
+        create_packet_meta_data(writer, &meta_data_directory, &data, &None, "")
     }
 }

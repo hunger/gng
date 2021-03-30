@@ -3,6 +3,8 @@
 
 //! Handle packing/unpacking a packets.
 
+use nix::NixPath;
+
 // ----------------------------------------------------------------------
 // - Helper:
 // ----------------------------------------------------------------------
@@ -51,6 +53,7 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
 // ----------------------------------------------------------------------
 
 /// The file contents
+#[derive(Clone, PartialEq)]
 pub enum FileContents {
     /// `FileContents` is taken from a buffer
     Buffer(Vec<u8>),
@@ -59,6 +62,7 @@ pub enum FileContents {
 }
 
 /// Different types of paths
+#[derive(Clone, PartialEq)]
 enum PathLeaf {
     /// A `File`
     File {
@@ -147,6 +151,7 @@ impl std::fmt::Debug for PathLeaf {
 }
 
 /// A full path
+#[derive(Clone, PartialEq)]
 pub struct Path {
     /// The directories up to the leaf
     directory: std::path::PathBuf,
@@ -231,7 +236,6 @@ impl Path {
             leaf_type: PathLeaf::Link {
                 target: target.to_path_buf(),
             },
-            // reader: std::io::empty(),
         }
     }
 
@@ -244,22 +248,27 @@ impl Path {
         user_id: u32,
         group_id: u32,
     ) -> Self {
-        Self {
+        let r = Self {
             directory: directory.to_path_buf(),
             name: name.clone(),
             mode,
             user_id,
             group_id,
             leaf_type: PathLeaf::Directory {},
-            // reader: std::io::empty(),
-        }
+        };
+        println!("New dir: {:?}...", &r);
+        r
     }
 
     /// Get the full path (abs or relative) stored in `Path`
     #[must_use]
     pub fn path(&self) -> std::path::PathBuf {
         let mut path = self.directory.clone();
-        path.push(self.leaf_name());
+        if path.is_empty() {
+            path = std::path::PathBuf::from(self.leaf_name());
+        } else {
+            path.push(self.leaf_name());
+        }
         path
     }
 
@@ -334,9 +343,10 @@ impl std::fmt::Debug for Path {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             fmt,
-            "{}:{} [m:{:#o},u:{},g{}], {:?}",
+            "{}:{} ({}) [m:{:#o},u:{},g{}], {:?}",
             self.leaf_type(),
             self.path().to_string_lossy().to_string(),
+            self.leaf_name().to_string_lossy(),
             self.mode(),
             self.user_id(),
             self.group_id(),

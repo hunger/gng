@@ -32,9 +32,9 @@ struct Args {
     #[structopt(long, value_name = "FILE_NAME")]
     packet_name: String,
 
-    /// the directory containing the Lua runtime environment
+    /// the directory to package up
     #[structopt(long, parse(from_os_str), value_name = "DIR")]
-    packet_dir: PathBuf,
+    package_dir: PathBuf,
 
     /// the directory to store temporary data
     #[structopt(long, default_value = "", value_name = "GLOB PATTERNS")]
@@ -81,12 +81,14 @@ fn main() -> Result<()> {
 
     let mut packager = gng_build::PackagerBuilder::default()
         .add_packet(&p, &globs)?
-        .build();
+        .build()?;
 
-    let package_files = packager.package(&args.packet_dir).wrap_err(format!(
-        "Failed to package \"{}\".",
-        args.packet_dir.to_string_lossy()
-    ))?;
+    let package_files = packager
+        .package(&args.package_dir, &std::env::current_dir()?)
+        .wrap_err(format!(
+            "Failed to package \"{}\".",
+            args.package_dir.to_string_lossy()
+        ))?;
 
     for pf in package_files {
         println!("Package \"{}\" created.", pf.to_string_lossy());

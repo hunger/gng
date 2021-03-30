@@ -48,6 +48,7 @@ impl Iterator for MimeTypeDirectoryIterator {
             None => None,
             Some(Err(e)) => Some(Err(e)),
             Some(Ok(p)) => {
+                println!("MIME_iterator: {:?}.", p);
                 let mut in_packet = p.in_packet;
                 let mime_type = self.get_mime_type(&mut in_packet);
 

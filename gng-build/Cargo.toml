@@ -27,3 +27,6 @@ tracing = { version = "0.1.22" }
 tracing-subscriber = { version = "0.2.15" }
 url = { version = "2.2.0" }
 xdg-mime = { version = "0.3.2" }
+
+[dev-dependencies]
+temp-dir = { version = "0.1.10" }
