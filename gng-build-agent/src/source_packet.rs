@@ -77,13 +77,43 @@ fn extract_array<T>(
     Ok(result)
 }
 
+fn extract_facet(
+    engine: &mut crate::engine::Engine,
+    expr: &str,
+) -> gng_shared::Result<Option<gng_build_shared::Facet>> {
+    println!("Extracting Facet data.");
+    if from_expression::<bool>(
+        engine,
+        &format!("{} == nil or next({}) == nil", expr, expr,),
+    )? {
+        println!("Extracting Facet data: NONE");
+        Ok(None)
+    } else {
+        println!("Extracting Facet data: Some");
+        Ok(Some(gng_build_shared::Facet {
+            description_suffix: from_expression::<String>(
+                engine,
+                &format!("{}.description_suffix or \"\"", expr,),
+            )?,
+            mime_types: extract_array(engine, &format!("{}.mime_types", expr), |engine, expr| {
+                from_expression::<String>(engine, expr)
+            })?,
+            patterns: extract_array(engine, &format!("{}.patterns", expr), |engine, expr| {
+                from_expression::<String>(engine, expr)
+            })?,
+        }))
+    }
+}
+
 fn extract_packets(
     engine: &mut crate::engine::Engine,
     packet_base: &str,
 ) -> gng_shared::Result<Vec<gng_build_shared::PacketDefinition>> {
     extract_array(engine, packet_base, |engine, expr| {
+        println!("extracting one packet");
+
         Ok(gng_build_shared::PacketDefinition {
-            name: from_expression::<Name>(engine, &format!("{}.name", expr))?,
+            name: converted_expression::<Name>(engine, &format!("{}.name", expr))?,
             description: from_expression::<String>(engine, &format!("{}.description", expr))?,
             dependencies: extract_array(
                 engine,
@@ -93,6 +123,7 @@ fn extract_packets(
             files: extract_array(engine, &format!("{}.files", expr), |engine, expr| {
                 from_expression::<String>(engine, expr)
             })?,
+            facet: extract_facet(engine, &format!("{}.facet", expr))?,
         })
     })
 }

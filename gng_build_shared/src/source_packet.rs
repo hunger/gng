@@ -54,11 +54,29 @@ impl std::fmt::Display for Source {
 }
 
 // ----------------------------------------------------------------------
+// - Facet:
+// ----------------------------------------------------------------------
+
+/// `Facet` meta data
+///
+/// A `Facet` is some aspect of a `Packet` that should get separated from the rest.
+/// This could be to reduce system size or to reduce dependencies of the main packet.
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+pub struct Facet {
+    /// A bit of text to append to the packet description
+    pub description_suffix: String,
+    /// Mime-types that should go into this `Facet`
+    pub mime_types: Vec<String>,
+    /// Glob patterns that cause matching files to go into this `Facet`
+    pub patterns: Vec<String>,
+}
+
+// ----------------------------------------------------------------------
 // - PacketDefinition:
 // ----------------------------------------------------------------------
 
 /// A definition for `Packet` that should get built
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
 pub struct PacketDefinition {
     /// The `name` of the Packet.
     pub name: Name,
@@ -69,6 +87,9 @@ pub struct PacketDefinition {
     pub dependencies: Vec<Name>,
     /// Glob-patterns for `files` to include in the `Packet`
     pub files: Vec<String>,
+
+    /// An optional `Facet` that will be used for dependent packages
+    pub facet: Option<Facet>,
 }
 
 impl std::fmt::Display for PacketDefinition {
