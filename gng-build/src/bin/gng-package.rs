@@ -29,8 +29,12 @@ use structopt::StructOpt;
 #[structopt(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
-    #[structopt(long, value_name = "FILE_NAME")]
+    #[structopt(long, value_name = "PACKET_NAME")]
     packet_name: String,
+
+    /// configuration file to read
+    #[structopt(long, value_name = "PACKET_VERSION")]
+    packet_version: String,
 
     /// the directory to package up
     #[structopt(long, parse(from_os_str), value_name = "DIR")]
@@ -73,6 +77,7 @@ fn main() -> Result<()> {
         .license("unknown")
         .try_version("unknown")?
         .try_name(args.packet_name.as_str())?
+        .try_version(args.packet_version.as_str())?
         .description("Unknown")
         .build()
         .map_err(|e| gng_shared::Error::Runtime {
