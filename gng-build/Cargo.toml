@@ -12,6 +12,7 @@ repository = "<PRIVATE_REPOSITORY>"
 [dependencies]
 downloader = { version = "0.2.6", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
 eyre = { version = "0.6.3" }
+filemagic = { version = "0.12.3" }
 glob = { version = "0.3.0" }
 gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
@@ -26,7 +27,6 @@ tempfile = { version = "3.1.0" }
 tracing = { version = "0.1.22" }
 tracing-subscriber = { version = "0.2.15" }
 url = { version = "2.2.0" }
-xdg-mime = { version = "0.3.2" }
 
 [dev-dependencies]
 temp-dir = { version = "0.1.10" }

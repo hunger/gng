@@ -8,34 +8,44 @@ use super::deterministic_directory_iterator::DeterministicDirectoryIterator;
 // ----------------------------------------------------------------------
 
 pub struct MimeTypeDirectoryIterator {
-    mime_db: xdg_mime::SharedMimeInfo,
+    cookie: filemagic::Magic,
     iterator: DeterministicDirectoryIterator,
 }
 
 impl MimeTypeDirectoryIterator {
     pub fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
+        let cookie = filemagic::Magic::open(filemagic::flags::Flags::default()).map_err(|e| {
+            gng_shared::Error::Runtime {
+                message: format!("File type detection setup failed: {}", e),
+            }
+        })?;
+        cookie
+            .load::<String>(&[])
+            .map_err(|e| gng_shared::Error::Runtime {
+                message: format!("File type detection database failed to load: {}", e),
+            })?;
         Ok(Self {
-            mime_db: xdg_mime::SharedMimeInfo::new(),
+            cookie,
             iterator: DeterministicDirectoryIterator::new(directory)?,
         })
     }
 
     fn get_mime_type(&self, in_packet: &mut gng_shared::packet::Path) -> String {
         if let Some(contents) = in_packet.file_contents() {
-            let mut guesser = self.mime_db.guess_mime_type();
-
             match contents {
-                gng_shared::packet::FileContents::OnDisk(p) => guesser.path(p),
-                gng_shared::packet::FileContents::Buffer(b) => guesser.data(b),
-            };
-            let guess = guesser.guess();
-            guess.mime_type().essence_str().to_string()
+                gng_shared::packet::FileContents::OnDisk(p) => {
+                    self.cookie.file(p).unwrap_or_default()
+                }
+                gng_shared::packet::FileContents::Buffer(b) => {
+                    self.cookie.buffer(b).unwrap_or_default()
+                }
+            }
         } else if in_packet.is_dir() {
-            String::from("inode/directory")
+            String::from("directory")
         } else if in_packet.is_link() {
-            String::from("inode/symlink")
+            String::from("symlink")
         } else {
-            String::from("error/error")
+            String::from("<UNKNOWN>")
         }
     }
 }
