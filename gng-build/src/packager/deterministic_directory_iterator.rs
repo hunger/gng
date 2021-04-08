@@ -49,7 +49,7 @@ fn populate_directory_stack(
     directory: &std::path::Path,
     name: &std::path::Path,
 ) -> gng_shared::Result<(Vec<std::fs::DirEntry>, std::path::PathBuf)> {
-    let contents = collect_contents(&directory)?;
+    let contents = collect_contents(directory)?;
     Ok((contents, name.to_owned()))
 }
 
