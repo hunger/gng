@@ -386,8 +386,47 @@ mod tests {
 
         let results = results.replace(Vec::new());
         for d in &results {
+            assert!(d.0.ends_with("/gng-build-foo-None-1.0-5"));
             println!("{}: {:?}", d.0, d.1);
         }
-        assert_eq!(results.len(), 5);
+        assert_eq!(results.len(), 4);
+        assert_eq!(
+            results[0].1,
+            gng_shared::packet::Path::new_directory(
+                std::path::Path::new(""),
+                &std::ffi::OsString::from(""),
+                0o755,
+                0,
+                0
+            )
+        );
+
+        // Metadata
+        assert_eq!(
+            results[1].1,
+            gng_shared::packet::Path::new_directory(
+                std::path::Path::new(""),
+                &std::ffi::OsString::from(".gng"),
+                0o755,
+                0,
+                0
+            )
+        );
+        assert_eq!(
+            results[2].1,
+            gng_shared::packet::Path::new_directory(
+                std::path::Path::new(".gng"),
+                &std::ffi::OsString::from("foo"),
+                0o755,
+                0,
+                0
+            )
+        );
+        let meta = &results[3].1;
+        assert_eq!(meta.path(), std::path::Path::new(".gng/foo/info.json"));
+        assert_eq!(meta.mode(), 0o755);
+        assert_eq!(meta.user_id(), 0);
+        assert_eq!(meta.group_id(), 0);
+        assert_eq!(meta.leaf_type(), "f");
     }
 }
