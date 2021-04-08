@@ -4,15 +4,15 @@
 use super::deterministic_directory_iterator::DeterministicDirectoryIterator;
 
 // ----------------------------------------------------------------------
-// - MimeTypeDirectoryIterator:
+// - ClassifyingDirectoryIterator:
 // ----------------------------------------------------------------------
 
-pub struct MimeTypeDirectoryIterator {
+pub struct ClassifyingDirectoryIterator {
     cookie: filemagic::Magic,
     iterator: DeterministicDirectoryIterator,
 }
 
-impl MimeTypeDirectoryIterator {
+impl ClassifyingDirectoryIterator {
     pub fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
         let cookie = filemagic::Magic::open(filemagic::flags::Flags::default()).map_err(|e| {
             gng_shared::Error::Runtime {
@@ -50,7 +50,7 @@ impl MimeTypeDirectoryIterator {
     }
 }
 
-impl Iterator for MimeTypeDirectoryIterator {
+impl Iterator for ClassifyingDirectoryIterator {
     type Item = crate::packager::PackagingIteration;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -64,7 +64,7 @@ impl Iterator for MimeTypeDirectoryIterator {
 
                 Some(Ok(crate::packager::PacketPath {
                     in_packet,
-                    mime_type,
+                    classification: mime_type,
                 }))
             }
         }

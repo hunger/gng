@@ -101,7 +101,7 @@ impl DeterministicDirectoryIterator {
                 in_packet: gng_shared::packet::Path::new_link(
                     &directory, &name, &target, user_id, group_id,
                 ),
-                mime_type: String::new(),
+                classification: String::new(),
             })
         } else if file_type.is_file() {
             Ok(crate::packager::PacketPath {
@@ -114,7 +114,7 @@ impl DeterministicDirectoryIterator {
                     group_id,
                     size,
                 )?,
-                mime_type: String::new(),
+                classification: String::new(),
             })
         } else if file_type.is_dir() {
             let new_directory = if directory.as_os_str().is_empty() {
@@ -132,7 +132,7 @@ impl DeterministicDirectoryIterator {
                 in_packet: gng_shared::packet::Path::new_directory(
                     &directory, &name, mode, user_id, group_id,
                 ),
-                mime_type: String::new(),
+                classification: String::new(),
             })
         } else {
             Err(gng_shared::Error::Runtime {
@@ -245,7 +245,7 @@ mod tests {
                     0,
                 )
                 .unwrap(),
-                mime_type: String::new(),
+                classification: String::new(),
             }
         );
         assert_eq!(
@@ -258,7 +258,7 @@ mod tests {
                     tmp_meta.uid(),
                     tmp_meta.gid(),
                 ),
-                mime_type: String::new(),
+                classification: String::new(),
             }
         );
         assert_eq!(
@@ -274,7 +274,7 @@ mod tests {
                     0,
                 )
                 .unwrap(),
-                mime_type: String::new(),
+                classification: String::new(),
             }
         );
         assert_eq!(
@@ -287,7 +287,7 @@ mod tests {
                     tmp_meta.uid(),
                     tmp_meta.gid(),
                 ),
-                mime_type: String::new(),
+                classification: String::new(),
             }
         );
         assert_eq!(
@@ -300,7 +300,7 @@ mod tests {
                     tmp_meta.uid(),
                     tmp_meta.gid(),
                 ),
-                mime_type: String::new(),
+                classification: String::new(),
             }
         );
         assert!(it.next().is_none())

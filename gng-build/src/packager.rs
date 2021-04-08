@@ -3,12 +3,12 @@
 
 use gng_shared::packet::PacketWriterFactory;
 
+pub mod classifying_directory_iterator;
 pub mod deterministic_directory_iterator;
 pub mod facet;
-pub mod mimetype_directory_iterator;
 pub mod packet;
 
-use mimetype_directory_iterator::MimeTypeDirectoryIterator;
+use classifying_directory_iterator::ClassifyingDirectoryIterator;
 
 // ----------------------------------------------------------------------
 // - Types:
@@ -17,7 +17,7 @@ use mimetype_directory_iterator::MimeTypeDirectoryIterator;
 #[derive(Clone, Debug, PartialEq)]
 pub struct PacketPath {
     in_packet: gng_shared::packet::Path,
-    mime_type: String,
+    classification: String,
 }
 
 type PackagingIteration = gng_shared::Result<PacketPath>;
@@ -112,7 +112,7 @@ impl Default for PackagerBuilder {
             facet_definitions: Vec::new(),
             iterator_factory_fn: Box::new(
                 |packaging_directory| -> gng_shared::Result<Box<PackagingIterator>> {
-                    Ok(Box::new(MimeTypeDirectoryIterator::new(
+                    Ok(Box::new(ClassifyingDirectoryIterator::new(
                         packaging_directory,
                     )?))
                 },
@@ -189,7 +189,7 @@ impl Packager {
 
             let packet = packets
                 .iter_mut()
-                .find(|p| p.contains(&path, &packet_info.mime_type))
+                .find(|p| p.contains(&path, &packet_info.classification))
                 .ok_or(gng_shared::Error::Runtime {
                     message: format!(
                         "\"{}\" not packaged: no glob pattern matched.",
@@ -201,10 +201,14 @@ impl Packager {
                 "    [{}] {:?} - {}",
                 packet.data.name,
                 packet_info.in_packet,
-                packet_info.mime_type,
+                packet_info.classification,
             );
 
-            packet.store_path(&factory, &mut packet_info.in_packet, &packet_info.mime_type)?;
+            packet.store_path(
+                &factory,
+                &mut packet_info.in_packet,
+                &packet_info.classification,
+            )?;
         }
 
         let mut result = Vec::new();
@@ -282,7 +286,7 @@ mod tests {
 
         PacketPath {
             in_packet: gng_shared::packet::Path::new_directory(&directory, &name, 0o755, 0, 0),
-            mime_type: String::new(),
+            classification: String::new(),
         }
     }
 
@@ -303,7 +307,7 @@ mod tests {
             in_packet: gng_shared::packet::Path::new_file_from_buffer(
                 buffer, &directory, &name, 0o755, 0, 0,
             ),
-            mime_type: String::new(),
+            classification: String::new(),
         }
     }
 
