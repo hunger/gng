@@ -9,6 +9,7 @@ use gng_shared::packet::PacketWriter;
 fn create_packet_meta_data_directory(
     writer: &mut dyn PacketWriter,
     packet_name: &std::ffi::OsStr,
+    facet_name: &Option<std::ffi::OsString>,
 ) -> gng_shared::Result<std::path::PathBuf> {
     let meta_dir = std::path::PathBuf::from(".gng");
 
@@ -28,7 +29,20 @@ fn create_packet_meta_data_directory(
         0,
     ))?;
 
-    Ok(meta_dir.join(packet_name))
+    let packet_meta_dir = meta_dir.join(packet_name);
+    let facet_string = facet_name
+        .clone()
+        .unwrap_or_else(|| std::ffi::OsString::from("_MAIN_"));
+
+    writer.add_path(&mut gng_shared::packet::Path::new_directory(
+        &packet_meta_dir,
+        &facet_string,
+        0o755,
+        0,
+        0,
+    ))?;
+
+    Ok(packet_meta_dir.join(facet_string))
 }
 
 fn create_packet_meta_data(
@@ -137,9 +151,7 @@ impl Facet {
                 .expect("Was just is_some()!")
                 .finish()?])
         } else {
-            Err(gng_shared::Error::Runtime {
-                message: format!("Packet \"{}\" is empty.", &self.data.name),
-            })
+            Ok(Vec::new())
         }
     }
 
@@ -175,10 +187,15 @@ impl Facet {
     fn write_packet_metadata(&mut self) -> gng_shared::Result<()> {
         let data = std::mem::replace(&mut self.data, gng_shared::Packet::unknown_packet());
 
+        let facet_name = self
+            .facet_name
+            .as_ref()
+            .map(|n| std::ffi::OsString::from(n.to_string()));
         let writer = self.get_writer()?;
         let meta_data_directory = create_packet_meta_data_directory(
             writer,
             &std::ffi::OsString::from(data.name.to_string()),
+            &facet_name,
         )?;
 
         create_packet_meta_data(writer, &meta_data_directory, &data, &None, "")

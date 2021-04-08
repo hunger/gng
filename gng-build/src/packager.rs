@@ -263,7 +263,10 @@ mod tests {
         }
 
         fn finish(&mut self) -> gng_shared::Result<std::path::PathBuf> {
-            Ok(std::path::PathBuf::from("test_package.gng"))
+            Ok(std::path::PathBuf::from(format!(
+                "{}.gng",
+                self.packet_info
+            )))
         }
     }
 
@@ -279,6 +282,27 @@ mod tests {
 
         PacketPath {
             in_packet: gng_shared::packet::Path::new_directory(&directory, &name, 0o755, 0, 0),
+            mime_type: String::new(),
+        }
+    }
+
+    fn file(path: &std::path::Path, contents: &[u8]) -> PacketPath {
+        let directory = path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."))
+            .to_owned();
+        let name = path
+            .file_name()
+            .unwrap_or(&std::ffi::OsString::new())
+            .to_owned();
+
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(contents);
+
+        PacketPath {
+            in_packet: gng_shared::packet::Path::new_file_from_buffer(
+                buffer, &directory, &name, 0o755, 0, 0,
+            ),
             mime_type: String::new(),
         }
     }
@@ -347,7 +371,7 @@ mod tests {
             &std::path::PathBuf::from("."),
         );
 
-        assert!(result.is_err());
+        assert!(result.is_ok());
 
         let result_map = result_map.replace(Vec::new());
         assert!(result_map.is_empty());
@@ -389,9 +413,9 @@ mod tests {
             assert!(d.0.ends_with("/gng-build-foo-None-1.0-5"));
             println!("{}: {:?}", d.0, d.1);
         }
-        assert_eq!(results.len(), 4);
+        let mut it = results.iter();
         assert_eq!(
-            results[0].1,
+            it.next().unwrap().1,
             gng_shared::packet::Path::new_directory(
                 std::path::Path::new(""),
                 &std::ffi::OsString::from(""),
@@ -403,7 +427,7 @@ mod tests {
 
         // Metadata
         assert_eq!(
-            results[1].1,
+            it.next().unwrap().1,
             gng_shared::packet::Path::new_directory(
                 std::path::Path::new(""),
                 &std::ffi::OsString::from(".gng"),
@@ -413,7 +437,7 @@ mod tests {
             )
         );
         assert_eq!(
-            results[2].1,
+            it.next().unwrap().1,
             gng_shared::packet::Path::new_directory(
                 std::path::Path::new(".gng"),
                 &std::ffi::OsString::from("foo"),
@@ -422,11 +446,112 @@ mod tests {
                 0
             )
         );
-        let meta = &results[3].1;
-        assert_eq!(meta.path(), std::path::Path::new(".gng/foo/info.json"));
+        assert_eq!(
+            it.next().unwrap().1,
+            gng_shared::packet::Path::new_directory(
+                std::path::Path::new(".gng/foo"),
+                &std::ffi::OsString::from("_MAIN_"),
+                0o755,
+                0,
+                0
+            )
+        );
+        let meta = &it.next().unwrap().1;
+        assert_eq!(
+            meta.path(),
+            std::path::Path::new(".gng/foo/_MAIN_/info.json")
+        );
         assert_eq!(meta.mode(), 0o755);
         assert_eq!(meta.user_id(), 0);
         assert_eq!(meta.group_id(), 0);
         assert_eq!(meta.leaf_type(), "f");
+
+        assert_eq!(it.next(), None);
+    }
+
+    #[test]
+    fn test_packager_builder_one_faceted() {
+        let (results, mut builder) = packaging_setup(&[
+            dir(std::path::Path::new("f1")),
+            file(std::path::Path::new("f1/foo"), b"Test FOO"),
+            dir(std::path::Path::new("f2")),
+            file(std::path::Path::new("f2/bar"), b"Test BAR"),
+        ]);
+        builder = builder
+            .add_packet(
+                &gng_shared::Packet {
+                    source_name: gng_shared::Name::try_from("foo").unwrap(),
+                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
+                    license: "GPL_v3+".to_string(),
+                    name: gng_shared::Name::try_from("foo").unwrap(),
+                    description: "The foo packet".to_string(),
+                    url: None,
+                    bug_url: None,
+                    conflicts: Vec::new(),
+                    provides: Vec::new(),
+                    dependencies: Vec::new(),
+                },
+                &[glob::Pattern::new("**").unwrap()],
+            )
+            .unwrap()
+            .add_facet(facet::FacetDefinition {
+                mime_types: vec![],
+                name: gng_shared::Name::try_from("f1").unwrap(),
+                patterns: vec![
+                    glob::Pattern::new("f1").unwrap(),
+                    glob::Pattern::new("f1/**").unwrap(),
+                ],
+            })
+            .unwrap()
+            .add_facet(facet::FacetDefinition {
+                mime_types: vec![],
+                name: gng_shared::Name::try_from("unused").unwrap(),
+                patterns: vec![
+                    glob::Pattern::new("unused").unwrap(),
+                    glob::Pattern::new("unused/**").unwrap(),
+                ],
+            })
+            .unwrap()
+            .add_facet(facet::FacetDefinition {
+                mime_types: vec![],
+                name: gng_shared::Name::try_from("f2").unwrap(),
+                patterns: vec![
+                    glob::Pattern::new("f2").unwrap(),
+                    glob::Pattern::new("f2/**").unwrap(),
+                ],
+            })
+            .unwrap();
+        let mut packager = builder.build().unwrap();
+
+        let result = packager
+            .package(
+                &std::path::PathBuf::from("."),
+                &std::path::PathBuf::from("."),
+            )
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+
+        let results = results.replace(Vec::new());
+        for p in &results {
+            let path = p.1.path();
+
+            if path.starts_with(".gng/") {
+                continue;
+            }
+            println!("{}: {:?}", p.0, p.1);
+
+            if path.as_os_str() == std::ffi::OsStr::new("f1")
+                || path.as_os_str() == std::ffi::OsStr::new("f1/foo")
+            {
+                assert!(p.0.contains(r#"Name("f1")"#))
+            } else if path.as_os_str() == std::ffi::OsStr::new("f2")
+                || path.as_os_str() == std::ffi::OsStr::new("f2/bar")
+            {
+                assert!(p.0.contains(r#"Name("f2")"#))
+            } else {
+                assert!(p.0.contains("UNEXPECTED FILE FOUND"));
+            }
+        }
     }
 }
