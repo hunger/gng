@@ -78,31 +78,31 @@ struct Context {
 
 fn prepare(ctx: &mut Context) -> Result<()> {
     ctx.engine
-        .evaluate::<()>("PKG.prepare()")
+        .evaluate::<()>("prepare()")
         .wrap_err("Failed to prepare package")
 }
 
 fn build(ctx: &mut Context) -> Result<()> {
     ctx.engine
-        .evaluate::<()>("PKG.build()")
+        .evaluate::<()>("build()")
         .wrap_err("Failed to build package.")
 }
 
 fn check(ctx: &mut Context) -> Result<()> {
     ctx.engine
-        .evaluate::<()>("PKG.check()")
+        .evaluate::<()>("check()")
         .wrap_err("Failed to check package.")
 }
 
 fn install(ctx: &mut Context) -> Result<()> {
     ctx.engine
-        .evaluate::<()>("PKG.install()")
+        .evaluate::<()>("install()")
         .wrap_err("Failed to install package.")
 }
 
 fn polish(ctx: &mut Context) -> Result<()> {
     ctx.engine
-        .evaluate::<()>("PKG.polish()")
+        .evaluate::<()>("polish()")
         .wrap_err("Failed to polish package.")
 }
 

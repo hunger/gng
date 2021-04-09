@@ -98,6 +98,9 @@ fn main() -> Result<()> {
         .add_message_handler(Box::new(
             gng_build::message_handler::ImmutableSourceDataHandler::default(),
         ))
+        .add_message_handler(Box::new(
+            gng_build::message_handler::ValidatePacketsHandler::default(),
+        ))
         .build(&args.pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 

@@ -29,7 +29,8 @@ pub struct Source {
     pub url: String,
 
     /// The file or directory name to create
-    pub name: String,
+    #[serde(default)]
+    pub directory: Option<String>,
 
     /// A list of possible mirrors to download from
     #[serde(default)]
@@ -49,7 +50,11 @@ pub struct Source {
 
 impl std::fmt::Display for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Source @{} -> {}", self.url, self.name)
+        let name_str = match &self.directory {
+            None => String::new(),
+            Some(d) => format!(" -> \"{}\"", d),
+        };
+        write!(f, "Source @\"{}\"{}", self.url, name_str)
     }
 }
 
@@ -89,13 +94,8 @@ pub struct PacketDefinition {
     pub files: Vec<String>,
 
     /// An optional `Facet` that will be used for dependent packages
+    #[serde(default)]
     pub facet: Option<Facet>,
-}
-
-impl std::fmt::Display for PacketDefinition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "***PacketDefinition***")
-    }
 }
 
 // ----------------------------------------------------------------------
@@ -107,6 +107,8 @@ impl std::fmt::Display for PacketDefinition {
 pub struct SourcePacket {
     /// `name` of the sources
     pub name: Name,
+    /// `description` of the source packet.
+    pub description: String,
     /// `version`
     pub version: Version,
     /// `license`
@@ -118,19 +120,17 @@ pub struct SourcePacket {
     #[serde(default = "always_none_string")]
     pub bug_url: Option<String>,
 
-    /// The `BuildStage` to apply
+    /// Enable `bootstrap` support in the build container.
     #[serde(default = "always_false")]
     pub bootstrap: bool,
-
-    /// `build_dependencies`
+    /// `build_dependencies` of the source packet.
     pub build_dependencies: Vec<Name>,
-    /// `check_dependencies`
-    pub check_dependencies: Vec<Name>,
-
-    /// `sources`
+    /// `check_dependencies` of the source packet.
     #[serde(default)]
+    pub check_dependencies: Vec<Name>,
+    /// The `sources` to build.
     pub sources: Vec<Source>,
-    /// `packets`
+    /// The different `packets` to generate from the sources.
     #[serde(default)]
     pub packets: Vec<PacketDefinition>,
 }

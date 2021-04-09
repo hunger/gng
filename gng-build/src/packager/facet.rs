@@ -109,13 +109,15 @@ impl Facet {
     ) -> gng_shared::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
         for d in definitions {
-            result.push(Self {
-                facet_name: Some(d.name.clone()),
-                mime_types: d.mime_types.clone(),
-                patterns: d.patterns.clone(),
-                data: packet.clone(),
-                writer: None,
-            });
+            if !packet.dependencies.iter().any(|dep| dep == &d.name) {
+                result.push(Self {
+                    facet_name: Some(d.name.clone()),
+                    mime_types: d.mime_types.clone(),
+                    patterns: d.patterns.clone(),
+                    data: packet.clone(),
+                    writer: None,
+                });
+            }
         }
         result.push(Self {
             facet_name: None,

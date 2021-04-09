@@ -6,6 +6,8 @@
 use eyre::Result;
 use sha3::{Digest, Sha3_256};
 
+use std::collections::hash_map::RandomState;
+
 // - Helper:
 // ----------------------------------------------------------------------
 
@@ -31,6 +33,9 @@ pub trait MessageHandler {
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()>;
 
     /// Handle one message from `gng-build-agent`
+    ///
+    /// Return `Ok(true)` if this handler handled the message and it does
+    /// not need to get passed on to other handlers.
     ///
     /// # Errors
     /// Generic Error
@@ -120,6 +125,59 @@ impl MessageHandler for ImmutableSourceDataHandler {
             tracing::error!("No source data received during Query mode.");
             panic!("gng-build-agent did not react as expected!");
         }
+        Ok(())
+    }
+}
+
+// ----------------------------------------------------------------------
+// - ValidatePacketsHandler:
+// ----------------------------------------------------------------------
+
+/// Make sure the source as seen by the `gng-build-agent` stays constant
+#[derive(Debug)]
+pub struct ValidatePacketsHandler {}
+
+impl Default for ValidatePacketsHandler {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+impl MessageHandler for ValidatePacketsHandler {
+    #[tracing::instrument(level = "trace")]
+    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn handle(
+        &mut self,
+        mode: &crate::Mode,
+        message_type: &gng_build_shared::MessageType,
+        message: &str,
+    ) -> Result<bool> {
+        if *mode == crate::Mode::Query {
+            let data: gng_build_shared::SourcePacket = serde_json::from_str(message)?;
+
+            let build_dependencies: std::collections::HashSet<String, RandomState> = data
+                .build_dependencies
+                .iter()
+                .map(gng_shared::Name::to_string)
+                .collect();
+            for p in &data.packets {
+                for pd in &p.dependencies {
+                    if !build_dependencies.contains(&pd.to_string()) {
+                        tracing::error!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd);
+                        return Err(eyre::eyre!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd));
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn verify(&mut self, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 }

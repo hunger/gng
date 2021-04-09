@@ -5,6 +5,8 @@
 
 use std::path::PathBuf;
 
+use eyre::WrapErr;
+
 // - Helpers:
 
 fn map_error(error: &rlua::Error) -> gng_shared::Error {
@@ -78,7 +80,7 @@ fn map_error(error: &rlua::Error) -> gng_shared::Error {
             message: "External error.".to_string(),
         },
         rlua::Error::GarbageCollectorError(_) => gng_shared::Error::Script {
-            message: "Garbadge collection error.".to_string(),
+            message: "Garbage collection error.".to_string(),
         },
     }
 }
@@ -157,8 +159,8 @@ impl EngineBuilder {
     /// Evaluate a script file
     ///
     /// # Errors
-    /// * `Error::Script`: When the build script is invalid
-    pub fn eval_pkgsrc_directory(&mut self) -> gng_shared::Result<Engine> {
+    /// A generic error when the build script is not valid
+    pub fn eval_pkgsrc_directory(&mut self) -> eyre::Result<Engine> {
         let build_file = PathBuf::from(format!("/gng/{}", gng_build_shared::BUILD_SCRIPT));
 
         let mut engine = Engine {
@@ -256,24 +258,31 @@ impl Engine {
     /// Evaluate an expression
     ///
     /// # Errors
-    /// * `Error::Script`: When the expression is invalid
+    /// A generic error if the evaluation fails
     pub fn evaluate<T: serde::de::DeserializeOwned>(
         &mut self,
         expression: &str,
-    ) -> gng_shared::Result<T> {
+    ) -> eyre::Result<T> {
         tracing::debug!("Evaluating '{}'.", expression);
 
-        self.lua
-            .context(|lua_context| {
-                let value = lua_context.load(expression).eval::<rlua::Value>()?;
-                rlua_serde::from_value(value)
-            })
-            .map_err(|e| map_error(&e))
+        self.lua.context(|lua_context| -> eyre::Result<T> {
+            let value = lua_context
+                .load(expression)
+                .eval::<rlua::Value>()
+                .wrap_err(format!(
+                    "Failed to evaluate \"{}\" in Lua engine.",
+                    expression
+                ))?;
+            rlua_serde::from_value(value).wrap_err(format!(
+                "Failed to convert \"{}\" from Lua to Rust.",
+                expression
+            ))
+        })
     }
 
     /// Query whether a function is defined.
     pub fn has_function(&mut self, name: &str) -> bool {
-        self.evaluate::<bool>(&format!("type(PKG.{}) == 'function'", name))
+        self.evaluate::<bool>(&format!("type({}) == 'function'", name))
             .unwrap_or(false)
     }
 }

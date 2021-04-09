@@ -9,12 +9,6 @@ function startup.init(pkg_definition)
         check_dependencies = {},
 
         packets = {},
-
-        prepare = function() end,
-        build = function() end,
-        check = function() end,
-        install = function() end,
-        polish = function() end,
     }
 
     PKG_func, err = loadfile(pkg_definition)
@@ -29,6 +23,15 @@ function startup.init(pkg_definition)
         if PKG[k] == nil then
             PKG[k] = v
         end
+    end
+
+    for _, f in ipairs({ "prepare", "build", "check", "install", "polish", }) do
+        local func = PKG[f]
+        if func == nil then
+            func = function() end
+        end
+        _G[f] = func
+        PKG[f] = nil
     end
 end
 

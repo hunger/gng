@@ -11,7 +11,7 @@ use itertools::Itertools;
 
 /// A GPG key id (16 hex values)
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "&str", into = "String")]
+#[serde(try_from = "String", into = "String")]
 pub struct GpgKeyId(String);
 
 impl GpgKeyId {
@@ -109,7 +109,7 @@ fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
 
 /// A supported `Hash`
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "&str", into = "String")]
+#[serde(try_from = "String", into = "String")]
 pub enum Hash {
     /// No hash validation needed
     None(),
@@ -226,7 +226,7 @@ impl std::fmt::Display for Hash {
 
 /// A package `Name`
 #[derive(Clone, Debug, PartialOrd, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "&str", into = "String")]
+#[serde(try_from = "String", into = "String")]
 pub struct Name(String);
 
 impl Name {
@@ -362,7 +362,7 @@ impl Packet {
 
 /// A `Version` number
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[serde(try_from = "&str", into = "String")]
+#[serde(try_from = "String", into = "String")]
 pub struct Version {
     /// The distributions package version `epoch`
     epoch: u32,
