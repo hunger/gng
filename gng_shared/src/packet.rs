@@ -83,7 +83,7 @@ enum PathLeaf {
 impl PathLeaf {
     const fn size(&self) -> u64 {
         match &self {
-            PathLeaf::File {
+            Self::File {
                 size: s,
                 contents: _,
             } => *s,
@@ -93,34 +93,34 @@ impl PathLeaf {
 
     fn link_target(&self) -> Option<std::path::PathBuf> {
         match &self {
-            PathLeaf::Link { target: t } => Some(t.clone()),
+            Self::Link { target: t } => Some(t.clone()),
             _ => None,
         }
     }
 
     const fn leaf_type(&self) -> &'static str {
         match &self {
-            PathLeaf::File {
+            Self::File {
                 size: _,
                 contents: _,
             } => "f",
-            PathLeaf::Link { target: _ } => "l",
-            PathLeaf::Directory {} => "d",
+            Self::Link { target: _ } => "l",
+            Self::Directory {} => "d",
         }
     }
 
     const fn is_dir(&self) -> bool {
-        matches!(&self, PathLeaf::Directory {})
+        matches!(&self, Self::Directory {})
     }
 
     const fn is_link(&self) -> bool {
-        matches!(&self, PathLeaf::Link { target: _ })
+        matches!(&self, Self::Link { target: _ })
     }
 
     const fn is_file(&self) -> bool {
         matches!(
             &self,
-            PathLeaf::File {
+            Self::File {
                 size: _,
                 contents: _
             }
@@ -129,7 +129,7 @@ impl PathLeaf {
 
     fn get_source(&mut self) -> Option<&mut FileContents> {
         match self {
-            PathLeaf::File { contents, size: _ } => Some(contents),
+            Self::File { contents, size: _ } => Some(contents),
             _ => None,
         }
     }
@@ -138,14 +138,14 @@ impl PathLeaf {
 impl std::fmt::Debug for PathLeaf {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match &self {
-            PathLeaf::File { contents, size } => match contents {
+            Self::File { contents, size } => match contents {
                 FileContents::OnDisk(p) => {
                     write!(fmt, "FILE ({}bytes) from \"{}\"", size, p.to_string_lossy())
                 }
                 FileContents::Buffer(_) => write!(fmt, "FILE ({}bytes) from <BUFFER>", size),
             },
-            PathLeaf::Link { target } => write!(fmt, "LINK to \"{}\"", target.to_string_lossy()),
-            PathLeaf::Directory {} => write!(fmt, "DIR"),
+            Self::Link { target } => write!(fmt, "LINK to \"{}\"", target.to_string_lossy()),
+            Self::Directory {} => write!(fmt, "DIR"),
         }
     }
 }
