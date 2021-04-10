@@ -102,7 +102,7 @@ pub struct Facet {
     pub facet_name: Option<gng_shared::Name>,
     pub mime_types: Vec<String>,
     pub patterns: Vec<glob::Pattern>,
-    pub data: gng_shared::Packet,
+    pub data: Option<gng_shared::Packet>,
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
 }
 
@@ -118,7 +118,7 @@ impl Facet {
                     facet_name: Some(d.name.clone()),
                     mime_types: d.mime_types.clone(),
                     patterns: d.patterns.clone(),
-                    data: packet.clone(),
+                    data: Some(packet.clone()),
                     writer: None,
                 });
             }
@@ -127,7 +127,7 @@ impl Facet {
             facet_name: None,
             mime_types: Vec::new(),
             patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
-            data: packet.clone(),
+            data: Some(packet.clone()),
             writer: None,
         });
         Ok(result)
@@ -167,32 +167,30 @@ impl Facet {
         Ok(&mut **(self
             .writer
             .as_mut()
-            .ok_or(eyre::eyre!("No writer found."))?))
+            .ok_or_else(|| eyre::eyre!("No writer found."))?))
     }
 
     fn get_or_insert_writer(
         &mut self,
         factory: &super::InternalPacketWriterFactory,
     ) -> eyre::Result<&mut dyn PacketWriter> {
-        let writer = if self.writer.is_none() {
-            Some((factory)(
-                &self.data.name,
-                &self.facet_name,
-                &self.data.version,
-            )?)
-        } else {
-            None
-        };
+        if self.writer.is_none() {
+            let data = self
+                .data
+                .as_ref()
+                .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
 
-        if writer.is_some() {
-            self.writer = writer;
+            self.writer = Some((factory)(&data.name, &self.facet_name, &data.version)?)
         }
 
         self.get_writer()
     }
 
     fn write_packet_metadata(&mut self) -> eyre::Result<()> {
-        let data = std::mem::replace(&mut self.data, gng_shared::Packet::unknown_packet());
+        let data = std::mem::take(&mut self.data);
+        let data = data
+            .as_ref()
+            .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
 
         let facet_name = self
             .facet_name
@@ -205,6 +203,6 @@ impl Facet {
             &facet_name,
         )?;
 
-        create_packet_meta_data(writer, &meta_data_directory, &data, &None, "")
+        create_packet_meta_data(writer, &meta_data_directory, data, &None, "")
     }
 }
