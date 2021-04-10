@@ -4,13 +4,14 @@
 //! Package configuration
 
 use itertools::Itertools;
+use std::convert::From;
 
 // ----------------------------------------------------------------------
 // - GpgKeyId:
 // ----------------------------------------------------------------------
 
 /// A GPG key id (16 hex values)
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct GpgKeyId(String);
 
@@ -108,7 +109,7 @@ fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
 }
 
 /// A supported `Hash`
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub enum Hash {
     /// No hash validation needed
@@ -225,7 +226,9 @@ impl std::fmt::Display for Hash {
 // ----------------------------------------------------------------------
 
 /// A package `Name`
-#[derive(Clone, Debug, PartialOrd, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
 #[serde(try_from = "String", into = "String")]
 pub struct Name(String);
 
@@ -290,6 +293,87 @@ impl std::fmt::Display for Name {
     }
 }
 
+/// An implicitly sorted and de-duplicated vector of `Name`s
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(try_from = "Vec<String>", into = "Vec<String>")]
+pub struct Names(Vec<Name>);
+
+impl Names {
+    /// Insert a name into the list of `Name`s
+    pub fn insert(&mut self, name: Name) -> &mut Self {
+        self.merge(&[name])
+    }
+
+    /// Merge one vector of `Name`s with another
+
+    pub fn merge(&mut self, names: &[Name]) -> &mut Self {
+        self.0.extend_from_slice(names);
+        self.fix()
+    }
+
+    /// Check whether a `Name` is in this list
+    #[must_use]
+    pub fn contains(&self, name: &Name) -> bool {
+        self.0.contains(name)
+    }
+
+    fn fix(&mut self) -> &mut Self {
+        self.0.sort();
+        self.0.dedup();
+        self
+    }
+}
+
+impl std::convert::From<Names> for Vec<String> {
+    fn from(names: Names) -> Self {
+        names.0.iter().map(Name::to_string).collect()
+    }
+}
+
+impl std::convert::From<Name> for Names {
+    fn from(name: Name) -> Self {
+        Self(vec![name])
+    }
+}
+
+impl std::convert::TryFrom<&[String]> for Names {
+    type Error = crate::Error;
+
+    fn try_from(values: &[String]) -> Result<Self, Self::Error> {
+        let mut result = Self(Vec::with_capacity(values.len()));
+        for n in values {
+            result.0.push(Name::try_from(&n[..])?);
+        }
+        result.fix();
+        Ok(result)
+    }
+}
+
+impl std::convert::TryFrom<Vec<String>> for Names {
+    type Error = crate::Error;
+
+    fn try_from(values: Vec<String>) -> Result<Self, Self::Error> {
+        Self::try_from(&values[..])
+    }
+}
+
+impl std::fmt::Display for Names {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names_string = self.0.iter().sorted().map(Name::to_string).join(" ");
+        write!(f, "{}", &names_string)
+    }
+}
+
+impl<'a> IntoIterator for &'a Names {
+    type Item = &'a Name;
+
+    type IntoIter = std::slice::Iter<'a, Name>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 // ----------------------------------------------------------------------
 // - Packet:
 // ----------------------------------------------------------------------
@@ -314,22 +398,22 @@ pub struct Packet {
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
-    #[builder(default = "None")]
+    #[builder(default)]
     pub url: Option<String>,
     /// The upstream bug tracker url
-    #[builder(default = "None")]
+    #[builder(default)]
     pub bug_url: Option<String>,
 
     /// The other packages this Package conflicts with
-    #[builder(default = "vec!()")]
-    pub conflicts: Vec<Name>,
+    #[builder(default)]
+    pub conflicts: Names,
     /// Abstract interfaces provided by this package
-    #[builder(default = "vec!()")]
-    pub provides: Vec<Name>,
+    #[builder(default)]
+    pub provides: Names,
 
     /// `Packet`s this `Packet` depends on.
-    #[builder(default = "vec!()")]
-    pub dependencies: Vec<Name>,
+    #[builder(default)]
+    pub dependencies: Names,
 }
 
 impl std::cmp::PartialEq for Packet {

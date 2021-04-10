@@ -6,8 +6,6 @@
 use eyre::Result;
 use sha3::{Digest, Sha3_256};
 
-use std::collections::hash_map::RandomState;
-
 // - Helper:
 // ----------------------------------------------------------------------
 
@@ -159,14 +157,10 @@ impl MessageHandler for ValidatePacketsHandler {
         if *mode == crate::Mode::Query {
             let data: gng_build_shared::SourcePacket = serde_json::from_str(message)?;
 
-            let build_dependencies: std::collections::HashSet<String, RandomState> = data
-                .build_dependencies
-                .iter()
-                .map(gng_shared::Name::to_string)
-                .collect();
+            let build_dependencies = data.build_dependencies.clone();
             for p in &data.packets {
                 for pd in &p.dependencies {
-                    if !build_dependencies.contains(&pd.to_string()) {
+                    if !build_dependencies.contains(&pd) {
                         tracing::error!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd);
                         return Err(eyre::eyre!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd));
                     }

@@ -51,17 +51,10 @@ fn create_packet_meta_data(
     writer: &mut dyn PacketWriter,
     meta_data_directory: &std::path::Path,
     data: &gng_shared::Packet,
-    facet: &Option<gng_shared::Name>,
     description_suffix: &str,
 ) -> eyre::Result<()> {
     let mut data = data.clone();
-    let mut ds = description_suffix.to_owned();
-    if let Some(facet) = facet {
-        data.dependencies.push(facet.clone());
-        if ds.is_empty() {
-            ds = facet.to_string();
-        }
-    }
+    let ds = description_suffix.to_owned();
 
     if !ds.is_empty() {
         data.description = format!("{} [{}]", &data.description, ds);
@@ -113,7 +106,7 @@ impl Facet {
     ) -> eyre::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
         for d in definitions {
-            if !packet.dependencies.iter().any(|dep| dep == &d.name) {
+            if !packet.dependencies.contains(&d.name) {
                 result.push(Self {
                     facet_name: Some(d.name.clone()),
                     mime_types: d.mime_types.clone(),
@@ -187,10 +180,17 @@ impl Facet {
     }
 
     fn write_packet_metadata(&mut self) -> eyre::Result<()> {
-        let data = std::mem::take(&mut self.data);
-        let data = data
-            .as_ref()
+        let mut data = self
+            .data
+            .clone()
             .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
+
+        let mut description_suffix = String::new();
+
+        if let Some(n) = &self.facet_name {
+            data.dependencies.insert(n.clone());
+            description_suffix = n.to_string();
+        }
 
         let facet_name = self
             .facet_name
@@ -203,6 +203,6 @@ impl Facet {
             &facet_name,
         )?;
 
-        create_packet_meta_data(writer, &meta_data_directory, data, &None, "")
+        create_packet_meta_data(writer, &meta_data_directory, &data, &description_suffix)
     }
 }

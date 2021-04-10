@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::{GpgKeyId, Hash, Name, Version};
+use gng_shared::{GpgKeyId, Hash, Name, Names, Version};
 
 //  - Helper:
 //  ----------------------------------------------------------------------
@@ -89,7 +89,7 @@ pub struct PacketDefinition {
     pub description: String,
     /// The `dependencies` of the `Packet`
     #[serde(default)]
-    pub dependencies: Vec<Name>,
+    pub dependencies: Names,
     /// Glob-patterns for `files` to include in the `Packet`
     pub files: Vec<String>,
 
@@ -124,10 +124,10 @@ pub struct SourcePacket {
     #[serde(default = "always_false")]
     pub bootstrap: bool,
     /// `build_dependencies` of the source packet.
-    pub build_dependencies: Vec<Name>,
+    pub build_dependencies: gng_shared::Names,
     /// `check_dependencies` of the source packet.
     #[serde(default)]
-    pub check_dependencies: Vec<Name>,
+    pub check_dependencies: Names,
     /// The `sources` to build.
     pub sources: Vec<Source>,
     /// The different `packets` to generate from the sources.
