@@ -398,21 +398,16 @@ pub struct Packet {
     /// A short description of the package
     pub description: String,
     /// The upstream `url`
-    #[builder(default)]
     pub url: Option<String>,
     /// The upstream bug tracker url
-    #[builder(default)]
     pub bug_url: Option<String>,
 
     /// The other packages this Package conflicts with
-    #[builder(default)]
     pub conflicts: Names,
     /// Abstract interfaces provided by this package
-    #[builder(default)]
     pub provides: Names,
 
     /// `Packet`s this `Packet` depends on.
-    #[builder(default)]
     pub dependencies: Names,
 }
 
