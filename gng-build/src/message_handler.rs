@@ -160,7 +160,7 @@ impl MessageHandler for ValidatePacketsHandler {
             let build_dependencies = data.build_dependencies.clone();
             for p in &data.packets {
                 for pd in &p.dependencies {
-                    if !build_dependencies.contains(&pd) {
+                    if !build_dependencies.contains(pd) {
                         tracing::error!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd);
                         return Err(eyre::eyre!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd));
                     }
