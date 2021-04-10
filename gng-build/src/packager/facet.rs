@@ -3,6 +3,8 @@
 
 use gng_shared::packet::PacketWriter;
 
+use eyre::WrapErr;
+
 // - Helper:
 // ----------------------------------------------------------------------
 
@@ -10,7 +12,7 @@ fn create_packet_meta_data_directory(
     writer: &mut dyn PacketWriter,
     packet_name: &std::ffi::OsStr,
     facet_name: &Option<std::ffi::OsString>,
-) -> gng_shared::Result<std::path::PathBuf> {
+) -> eyre::Result<std::path::PathBuf> {
     let meta_dir = std::path::PathBuf::from(".gng");
 
     writer.add_path(&mut gng_shared::packet::Path::new_directory(
@@ -51,7 +53,7 @@ fn create_packet_meta_data(
     data: &gng_shared::Packet,
     facet: &Option<gng_shared::Name>,
     description_suffix: &str,
-) -> gng_shared::Result<()> {
+) -> eyre::Result<()> {
     let mut data = data.clone();
     let mut ds = description_suffix.to_owned();
     if let Some(facet) = facet {
@@ -71,14 +73,16 @@ fn create_packet_meta_data(
         message: e.to_string(),
     })?;
 
-    writer.add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
-        buffer,
-        meta_data_directory,
-        &std::ffi::OsString::from("info.json"),
-        0o755,
-        0,
-        0,
-    ))
+    writer
+        .add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
+            buffer,
+            meta_data_directory,
+            &std::ffi::OsString::from("info.json"),
+            0o755,
+            0,
+            0,
+        ))
+        .wrap_err("Failed to write packet meta data.")
 }
 // ----------------------------------------------------------------------
 // - FacetDefinition:
@@ -106,7 +110,7 @@ impl Facet {
     pub fn facets_from(
         definitions: &[FacetDefinition],
         packet: &gng_shared::Packet,
-    ) -> gng_shared::Result<Vec<Self>> {
+    ) -> eyre::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
         for d in definitions {
             if !packet.dependencies.iter().any(|dep| dep == &d.name) {
@@ -139,12 +143,14 @@ impl Facet {
         factory: &super::InternalPacketWriterFactory,
         package_path: &mut gng_shared::packet::Path,
         _mime_type: &str,
-    ) -> gng_shared::Result<()> {
+    ) -> eyre::Result<()> {
         let writer = self.get_or_insert_writer(factory)?;
-        writer.add_path(package_path)
+        writer
+            .add_path(package_path)
+            .wrap_err("Failed to store a path into packet.")
     }
 
-    pub fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
+    pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
         if self.writer.is_some() {
             self.write_packet_metadata()?;
 
@@ -157,18 +163,17 @@ impl Facet {
         }
     }
 
-    fn get_writer(&mut self) -> gng_shared::Result<&mut dyn PacketWriter> {
-        Ok(
-            &mut **(self.writer.as_mut().ok_or(gng_shared::Error::Runtime {
-                message: "No writer found.".to_string(),
-            })?),
-        )
+    fn get_writer(&mut self) -> eyre::Result<&mut dyn PacketWriter> {
+        Ok(&mut **(self
+            .writer
+            .as_mut()
+            .ok_or(eyre::eyre!("No writer found."))?))
     }
 
     fn get_or_insert_writer(
         &mut self,
         factory: &super::InternalPacketWriterFactory,
-    ) -> gng_shared::Result<&mut dyn PacketWriter> {
+    ) -> eyre::Result<&mut dyn PacketWriter> {
         let writer = if self.writer.is_none() {
             Some((factory)(
                 &self.data.name,
@@ -186,7 +191,7 @@ impl Facet {
         self.get_writer()
     }
 
-    fn write_packet_metadata(&mut self) -> gng_shared::Result<()> {
+    fn write_packet_metadata(&mut self) -> eyre::Result<()> {
         let data = std::mem::replace(&mut self.data, gng_shared::Packet::unknown_packet());
 
         let facet_name = self

@@ -115,7 +115,7 @@ impl EngineBuilder {
     ///
     /// # Errors
     /// Return error from backend language
-    pub fn set_max_operations(&mut self, count: u32) -> gng_shared::Result<&mut Self> {
+    pub fn set_max_operations(&mut self, count: u32) -> eyre::Result<&mut Self> {
         self.lua.set_hook(
             rlua::HookTriggers {
                 every_nth_instruction: Some(count),
@@ -135,7 +135,7 @@ impl EngineBuilder {
     ///
     /// # Errors
     /// Return the error from the backend language
-    pub fn set_max_memory(&mut self, size: usize) -> gng_shared::Result<&mut Self> {
+    pub fn set_max_memory(&mut self, size: usize) -> eyre::Result<&mut Self> {
         self.lua.set_memory_limit(Some(size));
         Ok(self)
     }
@@ -144,11 +144,7 @@ impl EngineBuilder {
     ///
     /// # Errors
     /// * Script Error with details on the issue reported by Lua.
-    pub fn push_string_constant(
-        &mut self,
-        key: &str,
-        value: &str,
-    ) -> gng_shared::Result<&mut Self> {
+    pub fn push_string_constant(&mut self, key: &str, value: &str) -> eyre::Result<&mut Self> {
         {
             self.lua
                 .context(|lua_ctx| lua_ctx.globals().set(key, value).map_err(|e| map_error(&e)))?;
@@ -190,9 +186,9 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn load_functions(&mut self) -> gng_shared::Result<()> {
+    fn load_functions(&mut self) -> eyre::Result<()> {
         self.lua
-            .context(|lua_context| {
+            .context(|lua_context| -> std::result::Result<(), rlua::Error> {
                 let fn_table = lua_context.create_table()?;
 
                 let chdir_function = lua_context.create_function(|lua_context, path: String| {
@@ -252,7 +248,7 @@ impl Engine {
 
                 Ok(())
             })
-            .map_err(|e| map_error(&e))
+            .wrap_err("Export of gng functions into Lua runtime failed.")
     }
 
     /// Evaluate an expression

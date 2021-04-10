@@ -13,7 +13,7 @@ pub struct ClassifyingDirectoryIterator {
 }
 
 impl ClassifyingDirectoryIterator {
-    pub fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
+    pub fn new(directory: &std::path::Path) -> eyre::Result<Self> {
         let cookie = filemagic::Magic::open(filemagic::flags::Flags::default()).map_err(|e| {
             gng_shared::Error::Runtime {
                 message: format!("File type detection setup failed: {}", e),

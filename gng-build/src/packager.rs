@@ -3,6 +3,8 @@
 
 use gng_shared::packet::PacketWriterFactory;
 
+use eyre::WrapErr;
+
 pub mod classifying_directory_iterator;
 pub mod deterministic_directory_iterator;
 pub mod facet;
@@ -20,10 +22,9 @@ pub struct PacketPath {
     classification: String,
 }
 
-type PackagingIteration = gng_shared::Result<PacketPath>;
+type PackagingIteration = eyre::Result<PacketPath>;
 type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
-type PackagingIteratorFactory =
-    dyn FnMut(&std::path::Path) -> gng_shared::Result<Box<PackagingIterator>>;
+type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
 
 //  ----------------------------------------------------------------------
 // - PackagerBuilder:
@@ -42,7 +43,7 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// `gng_shared::Error::Runtime` if this given `facet` is not valid
-    pub fn add_facet(mut self, facet: facet::FacetDefinition) -> gng_shared::Result<Self> {
+    pub fn add_facet(mut self, facet: facet::FacetDefinition) -> eyre::Result<Self> {
         self.facet_definitions.push(facet);
 
         Ok(self)
@@ -56,7 +57,7 @@ impl PackagerBuilder {
         mut self,
         data: &gng_shared::Packet,
         patterns: &[glob::Pattern],
-    ) -> gng_shared::Result<Self> {
+    ) -> eyre::Result<Self> {
         let p = crate::packager::packet::PacketBuilder::new(data, patterns.to_vec());
         packet::validate_packets(&p, &self.packets)?;
         self.packets.push(p);
@@ -82,12 +83,12 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// A `gng_shared::Error::Runtime` may be returned when the facets are not valid somehow
-    pub fn build(mut self) -> gng_shared::Result<Packager> {
+    pub fn build(mut self) -> eyre::Result<Packager> {
         let packets = std::mem::take(&mut self.packets);
         let packets = packets
             .into_iter()
             .map(|p| p.build(&self.facet_definitions[..]))
-            .collect::<gng_shared::Result<Vec<_>>>()?;
+            .collect::<eyre::Result<Vec<_>>>()?;
 
         Ok(Packager {
             packet_factory: Some(self.packet_factory_fn),
@@ -111,7 +112,7 @@ impl Default for PackagerBuilder {
             packets: Vec::new(),
             facet_definitions: Vec::new(),
             iterator_factory_fn: Box::new(
-                |packaging_directory| -> gng_shared::Result<Box<PackagingIterator>> {
+                |packaging_directory| -> eyre::Result<Box<PackagingIterator>> {
                     Ok(Box::new(ClassifyingDirectoryIterator::new(
                         packaging_directory,
                     )?))
@@ -131,7 +132,7 @@ type InternalPacketWriterFactory = Box<
         &gng_shared::Name,
         &Option<gng_shared::Name>,
         &gng_shared::Version,
-    ) -> gng_shared::Result<Box<dyn gng_shared::packet::PacketWriter>>,
+    ) -> eyre::Result<Box<dyn gng_shared::packet::PacketWriter>>,
 >;
 
 /// A simple Packet creator
@@ -153,7 +154,7 @@ impl Packager {
         &mut self,
         package_directory: &std::path::Path,
         packet_directory: &std::path::Path,
-    ) -> gng_shared::Result<Vec<std::path::PathBuf>> {
+    ) -> eyre::Result<Vec<std::path::PathBuf>> {
         let package_directory = package_directory.canonicalize()?;
         let packet_directory = packet_directory.canonicalize()?;
 
@@ -166,8 +167,9 @@ impl Packager {
             move |name,
                   facet,
                   version|
-                  -> gng_shared::Result<Box<dyn gng_shared::packet::PacketWriter>> {
+                  -> eyre::Result<Box<dyn gng_shared::packet::PacketWriter>> {
                 (factory)(&packet_directory, name, facet, version)
+                    .wrap_err("Failed to create a packet writer.")
             },
         );
 
@@ -334,16 +336,14 @@ mod tests {
                     }))
                 },
             ))
-            .iterator_factory(Box::new(
-                move |_| -> gng_shared::Result<Box<PackagingIterator>> {
-                    let inputs = std::mem::take(&mut input_vec);
+            .iterator_factory(Box::new(move |_| -> eyre::Result<Box<PackagingIterator>> {
+                let inputs = std::mem::take(&mut input_vec);
 
-                    Ok(Box::new(TestPackagingIterator {
-                        inputs,
-                        current_pos: 0,
-                    }))
-                },
-            ));
+                Ok(Box::new(TestPackagingIterator {
+                    inputs,
+                    current_pos: 0,
+                }))
+            }));
 
         (result, builder)
     }

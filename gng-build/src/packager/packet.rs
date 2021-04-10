@@ -12,15 +12,10 @@ fn same_packet_name(packet: &PacketBuilder, packets: &[PacketBuilder]) -> bool {
         .any(|p| -> bool { p.data.name == packet.data.name })
 }
 
-pub fn validate_packets(
-    packet: &PacketBuilder,
-    packets: &[PacketBuilder],
-) -> gng_shared::Result<()> {
+pub fn validate_packets(packet: &PacketBuilder, packets: &[PacketBuilder]) -> eyre::Result<()> {
     // TODO: More sanity checking!
     if same_packet_name(packet, packets) {
-        return Err(gng_shared::Error::Runtime {
-            message: "Duplicate packet entry found.".to_string(),
-        });
+        return Err(eyre::eyre!("Duplicate packet entry found."));
     }
     Ok(())
 }
@@ -42,7 +37,7 @@ impl PacketBuilder {
         }
     }
 
-    pub fn build(self, facet_definitions: &[FacetDefinition]) -> gng_shared::Result<Packet> {
+    pub fn build(self, facet_definitions: &[FacetDefinition]) -> eyre::Result<Packet> {
         Packet::new(self.data, self.patterns, facet_definitions)
     }
 }
@@ -63,7 +58,7 @@ impl Packet {
         data: gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
         facet_definitions: &[FacetDefinition],
-    ) -> gng_shared::Result<Self> {
+    ) -> eyre::Result<Self> {
         let facets = Facet::facets_from(facet_definitions, &data)?;
 
         Ok(Self {
@@ -83,7 +78,7 @@ impl Packet {
         factory: &super::InternalPacketWriterFactory,
         package_path: &mut gng_shared::packet::Path,
         mime_type: &str,
-    ) -> gng_shared::Result<()> {
+    ) -> eyre::Result<()> {
         let path = package_path.path();
         let facet = self
             .facets
@@ -95,7 +90,7 @@ impl Packet {
         facet.store_path(factory, package_path, mime_type)
     }
 
-    pub fn finish(&mut self) -> gng_shared::Result<Vec<std::path::PathBuf>> {
+    pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
         let mut result = Vec::with_capacity(self.facets.len());
 
         for f in &mut self.facets {

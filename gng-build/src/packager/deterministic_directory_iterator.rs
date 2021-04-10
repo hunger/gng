@@ -6,7 +6,7 @@ use std::os::unix::fs::MetadataExt;
 // - Helper:
 // ----------------------------------------------------------------------
 
-fn collect_contents(directory: &std::path::Path) -> gng_shared::Result<Vec<std::fs::DirEntry>> {
+fn collect_contents(directory: &std::path::Path) -> eyre::Result<Vec<std::fs::DirEntry>> {
     let mut contents = std::fs::read_dir(directory)?
         .map(|i| i.map_err(|e| e.into()))
         .filter(|i| {
@@ -16,39 +16,36 @@ fn collect_contents(directory: &std::path::Path) -> gng_shared::Result<Vec<std::
                 true
             }
         })
-        .collect::<gng_shared::Result<Vec<std::fs::DirEntry>>>()?;
+        .collect::<eyre::Result<Vec<std::fs::DirEntry>>>()?;
     contents.sort_by_key(std::fs::DirEntry::file_name);
     contents.reverse(); // So that we can pop() in turn later!
 
     Ok(contents)
 }
 
-fn dir_entry_for_path(path: &std::path::Path) -> gng_shared::Result<std::fs::DirEntry> {
-    let search_name = path.file_name().ok_or(gng_shared::Error::Runtime {
-        message: format!(
-            "\"{}\" does not exist: No file name part was found.",
-            path.to_string_lossy()
-        ),
-    })?;
+fn dir_entry_for_path(path: &std::path::Path) -> eyre::Result<std::fs::DirEntry> {
+    let search_name = path.file_name().ok_or(eyre::eyre!(format!(
+        "\"{}\" does not exist: No file name part was found.",
+        path.to_string_lossy()
+    ),))?;
 
-    let parent = path.parent().ok_or(gng_shared::Error::Runtime {
-        message: format!(
-            "\"{}\" does not exist: Parent is not valid.",
-            path.to_string_lossy()
-        ),
-    })?;
+    let parent = path.parent().ok_or(eyre::eyre!(format!(
+        "\"{}\" does not exist: Parent is not valid.",
+        path.to_string_lossy()
+    ),))?;
     collect_contents(parent)?
         .into_iter()
         .find(|d| d.file_name() == search_name)
-        .ok_or(gng_shared::Error::Runtime {
-            message: format!("\"{}\" not found.", path.to_string_lossy()),
-        })
+        .ok_or(eyre::eyre!(format!(
+            "\"{}\" not found.",
+            path.to_string_lossy()
+        )))
 }
 
 fn populate_directory_stack(
     directory: &std::path::Path,
     name: &std::path::Path,
-) -> gng_shared::Result<(Vec<std::fs::DirEntry>, std::path::PathBuf)> {
+) -> eyre::Result<(Vec<std::fs::DirEntry>, std::path::PathBuf)> {
     let contents = collect_contents(directory)?;
     Ok((contents, name.to_owned()))
 }
@@ -62,7 +59,7 @@ pub struct DeterministicDirectoryIterator {
 }
 
 impl DeterministicDirectoryIterator {
-    pub fn new(directory: &std::path::Path) -> gng_shared::Result<Self> {
+    pub fn new(directory: &std::path::Path) -> eyre::Result<Self> {
         let base_dir_entry = dir_entry_for_path(directory)?;
 
         if base_dir_entry.file_type()?.is_dir() {
@@ -71,9 +68,10 @@ impl DeterministicDirectoryIterator {
                 stack: vec![stack_element],
             })
         } else {
-            Err(gng_shared::Error::Runtime {
-                message: format!("\"{}\" is not a directory.", directory.to_string_lossy()),
-            })
+            Err(eyre::eyre!(format!(
+                "\"{}\" is not a directory.",
+                directory.to_string_lossy()
+            )))
         }
     }
 
@@ -135,13 +133,11 @@ impl DeterministicDirectoryIterator {
                 classification: String::new(),
             })
         } else {
-            Err(gng_shared::Error::Runtime {
-                message: format!(
-                    "Unsupported file type {:?} found in {}.",
-                    &file_type,
-                    &entry.path().to_string_lossy()
-                ),
-            })
+            Err(eyre::eyre!(format!(
+                "Unsupported file type {:?} found in {}.",
+                &file_type,
+                &entry.path().to_string_lossy()
+            ),))
         }
     }
 
