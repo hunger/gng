@@ -75,7 +75,6 @@ fn main() -> Result<()> {
     let p = gng_shared::PacketBuilder::default()
         .try_source_name("manual")?
         .license("unknown")
-        .try_version("unknown")?
         .try_name(args.packet_name.as_str())?
         .try_version(args.packet_version.as_str())?
         .description("Unknown")
