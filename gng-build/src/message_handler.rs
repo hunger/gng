@@ -154,7 +154,7 @@ impl MessageHandler for ValidatePacketsHandler {
         message_type: &gng_build_shared::MessageType,
         message: &str,
     ) -> Result<bool> {
-        if *mode == crate::Mode::Query {
+        if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
             let data: gng_build_shared::SourcePacket = serde_json::from_str(message)?;
 
             let build_dependencies = data.build_dependencies.clone();
@@ -183,7 +183,6 @@ impl MessageHandler for ValidatePacketsHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
@@ -295,5 +294,43 @@ mod tests {
             )
             .unwrap();
         handler.verify(&crate::Mode::Query).unwrap();
+    }
+
+    #[test]
+    fn test_validate_packet_handler_ok() {
+        let mut handler = ValidatePacketsHandler::default();
+
+        let mut mode = Some(crate::Mode::Query);
+        while let Some(m) = crate::Mode::next(mode.unwrap()) {
+            handler.prepare(&m).unwrap();
+            handler
+                .handle(&m, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"devel","description":"Development files","dependencies":[],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
+                .unwrap();
+            handler.verify(&m).unwrap();
+            mode = Some(m)
+        }
+
+        let mut mode = Some(crate::Mode::Query);
+        while let Some(m) = crate::Mode::next(mode.unwrap()) {
+            handler.prepare(&m).unwrap();
+            handler
+                .handle(
+                    &m,
+                    &gng_build_shared::MessageType::Test,
+                    r#"{"nXXX broken JSON"#,
+                )
+                .unwrap();
+            handler.verify(&m).unwrap();
+            mode = Some(m)
+        }
+    }
+
+    #[test]
+    fn test_validate_packet_handler_err_wrong_dependencies() {
+        let mut handler = ValidatePacketsHandler::default();
+
+        assert!(handler
+            .handle(&crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"devel","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
+            .is_err());
     }
 }

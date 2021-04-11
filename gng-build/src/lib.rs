@@ -48,7 +48,7 @@ impl Mode {
     pub const fn next(self) -> Option<Self> {
         match self {
             Self::Query => Some(Self::Prepare), // default entry point
-            Self::Prepare => Some(Self::Build), // default entry point
+            Self::Prepare => Some(Self::Build),
             Self::Build => Some(Self::Check),
             Self::Check => Some(Self::Install),
             Self::Install => Some(Self::Package),
