@@ -49,7 +49,7 @@ struct Args {
     // TODO: need to be cleverer about finding the agent!
     /// The build agent to use
     #[structopt(long, parse(from_os_str), value_name = "EXECUTABLE")]
-    agent: PathBuf,
+    agent: Option<PathBuf>,
 
     /// The directory with the build information
     #[structopt(parse(from_os_str), value_name = "DIR")]
@@ -92,9 +92,11 @@ fn main() -> Result<()> {
     if args.install_dir.is_some() {
         case_officer.set_install_directory(&args.install_dir.unwrap());
     }
+    if args.agent.is_some() {
+        case_officer.set_agent(&args.agent.unwrap());
+    }
 
     let mut case_officer = case_officer
-        .set_agent(&args.agent)
         .add_message_handler(Box::new(
             gng_build::message_handler::ImmutableSourceDataHandler::default(),
         ))

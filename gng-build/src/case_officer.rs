@@ -119,26 +119,26 @@ fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
     Ok(build_file)
 }
 
-fn validate_executable(path: &mut Option<PathBuf>) -> Result<PathBuf> {
-    if let Some(path) = path {
-        let path = path
-            .canonicalize()
-            .wrap_err("Failed to canonicalize executable path.")?;
+fn validate_executable(path: &Path) -> Result<PathBuf> {
+    let path = path.canonicalize().wrap_err(format!(
+        "Failed to canonicalize executable path \"{}\".",
+        path.to_string_lossy()
+    ))?;
 
-        if !path.is_file() {
-            return Err(eyre!("Path \"{}\" is not a file.", path.to_string_lossy()));
-        }
-        if !is_executable(&path) {
-            return Err(eyre!(
-                "Path \"{}\" is not executable.",
-                path.to_string_lossy()
-            ));
-        }
-
-        return Ok(path);
+    if !path.is_file() {
+        return Err(eyre!(
+            "Executable \"{}\" is not a file.",
+            path.to_string_lossy()
+        ));
+    }
+    if !is_executable(&path) {
+        return Err(eyre!(
+            "Executable \"{}\" is not marked executable.",
+            path.to_string_lossy()
+        ));
     }
 
-    Err(eyre!("Path is not set."))
+    Ok(path)
 }
 
 fn path_buf_or_tempdir(
@@ -164,6 +164,40 @@ fn path_buf_or_tempdir(
     temp_dirs.push(tmp);
 
     Ok(path)
+}
+
+fn find_installed_agent(exe_directory: &std::path::Path) -> std::path::PathBuf {
+    let base_search_dir = exe_directory.parent().unwrap_or(exe_directory);
+    base_search_dir.join("lib/gng/gng-build-agent")
+}
+
+fn find_development_agent(exe_directory: &std::path::Path) -> std::path::PathBuf {
+    exe_directory.join("gng-build-agent")
+}
+
+fn find_gng_build_agent() -> eyre::Result<PathBuf> {
+    let exe_directory = std::env::current_exe()
+        .wrap_err("Could not find current executable path.")?
+        .parent()
+        .ok_or_else(|| eyre::eyre!("Failed to get parent directory of current executable."))?
+        .to_owned();
+
+    tracing::trace!(
+        "Looking for gng-build-agent relative to: \"{}\".",
+        exe_directory.to_string_lossy()
+    );
+
+    for i in &[
+        find_installed_agent(&exe_directory),
+        find_development_agent(&exe_directory),
+    ] {
+        if validate_executable(i).is_ok() {
+            tracing::debug!("Found gng-build-agent: \"{}\".", i.to_string_lossy());
+            return Ok(i.clone());
+        }
+    }
+
+    Err(eyre!("Could not find Lua directory for gng-build-agent"))
 }
 
 fn is_lua_directory(lua_directory: &std::path::Path) -> bool {
@@ -196,7 +230,7 @@ fn find_lua_directory(agent: &std::path::Path) -> eyre::Result<std::path::PathBu
         find_development_lua_directory(agent_dir),
     ] {
         if is_lua_directory(i) {
-            tracing::debug!("Using Lua directory: \"{}\".", i.to_string_lossy());
+            tracing::debug!("Found Lua directory: \"{}\".", i.to_string_lossy());
             return Ok(i.clone());
         }
     }
@@ -305,7 +339,15 @@ impl CaseOfficerBuilder {
             &mut temp_dirs,
         )?;
 
-        let agent = validate_executable(&mut self.agent)?;
+        let agent = if let Some(a) = &self.agent {
+            tracing::debug!(
+                "Using provided gng-build-agent: \"{}\".",
+                a.to_string_lossy()
+            );
+            validate_executable(a)?
+        } else {
+            find_gng_build_agent()?
+        };
 
         let lua_directory = if let Some(ld) = self.lua_directory.take() {
             tracing::debug!(
@@ -319,7 +361,7 @@ impl CaseOfficerBuilder {
 
         Ok(CaseOfficer {
             build_script: build_script(pkgsrc_directory)?,
-            nspawn_binary: validate_executable(&mut Some(std::mem::take(&mut self.nspawn_binary)))?,
+            nspawn_binary: validate_executable(&std::mem::take(&mut self.nspawn_binary))?,
             agent,
 
             lua_directory,
