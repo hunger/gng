@@ -120,22 +120,25 @@ fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
 }
 
 fn validate_executable(path: &mut Option<PathBuf>) -> Result<PathBuf> {
-    if path.is_none() {
-        return Err(eyre!("Path is not set."));
+    if let Some(path) = path {
+        let path = path
+            .canonicalize()
+            .wrap_err("Failed to canonicalize executable path.")?;
+
+        if !path.is_file() {
+            return Err(eyre!("Path \"{}\" is not a file.", path.to_string_lossy()));
+        }
+        if !is_executable(&path) {
+            return Err(eyre!(
+                "Path \"{}\" is not executable.",
+                path.to_string_lossy()
+            ));
+        }
+
+        return Ok(path);
     }
 
-    let path = path.take().expect("It was some just a if ago!");
-    if !path.is_file() {
-        return Err(eyre!("Path \"{}\" is not a file.", path.to_string_lossy()));
-    }
-    if !is_executable(&path) {
-        return Err(eyre!(
-            "Path \"{}\" is not executable.",
-            path.to_string_lossy()
-        ));
-    }
-
-    Ok(path)
+    Err(eyre!("Path is not set."))
 }
 
 fn path_buf_or_tempdir(
@@ -144,8 +147,8 @@ fn path_buf_or_tempdir(
     scratch_directory: &Path,
     temp_dirs: &mut Vec<tempfile::TempDir>,
 ) -> Result<PathBuf> {
-    if path.is_some() {
-        return Ok(path.as_ref().unwrap().clone());
+    if let Some(p) = path {
+        return Ok(p.clone());
     }
 
     let tmp = tempfile::Builder::new()
@@ -163,6 +166,44 @@ fn path_buf_or_tempdir(
     Ok(path)
 }
 
+fn is_lua_directory(lua_directory: &std::path::Path) -> bool {
+    lua_directory.join("startup.lua").is_file()
+}
+
+fn find_installed_lua_directory(agent_dir: &std::path::Path) -> std::path::PathBuf {
+    let base_search_dir = agent_dir.parent().unwrap_or(agent_dir);
+    base_search_dir.join("share/gng/gng-build-agent/lua")
+}
+
+fn find_development_lua_directory(agent_dir: &std::path::Path) -> std::path::PathBuf {
+    let target_dir = agent_dir
+        .ancestors()
+        .find(|a| a.file_name() == Some(std::ffi::OsStr::new("target")))
+        .unwrap_or(agent_dir);
+    target_dir
+        .parent()
+        .unwrap_or(target_dir)
+        .join("gng-build-agent/lua")
+}
+
+fn find_lua_directory(agent: &std::path::Path) -> eyre::Result<std::path::PathBuf> {
+    let agent_dir = agent
+        .parent()
+        .ok_or_else(|| eyre!("Failed to get directory containing gng-build-agent executable"))?;
+
+    for i in &[
+        find_installed_lua_directory(agent_dir),
+        find_development_lua_directory(agent_dir),
+    ] {
+        if is_lua_directory(i) {
+            tracing::debug!("Using Lua directory: \"{}\".", i.to_string_lossy());
+            return Ok(i.clone());
+        }
+    }
+
+    Err(eyre!("Could not find Lua directory for gng-build-agent"))
+}
+
 // ----------------------------------------------------------------------
 // - CaseOfficerBuilder:
 // ----------------------------------------------------------------------
@@ -175,7 +216,7 @@ pub struct CaseOfficerBuilder {
     lua_directory: Option<PathBuf>,
     scratch_directory: PathBuf,
     work_directory: Option<PathBuf>,
-    inst_directory: Option<PathBuf>,
+    install_directory: Option<PathBuf>,
 
     message_handlers: Vec<Box<dyn MessageHandler>>,
 }
@@ -189,7 +230,7 @@ impl Default for CaseOfficerBuilder {
             lua_directory: None,
             scratch_directory: std::env::temp_dir(),
             work_directory: None,
-            inst_directory: None,
+            install_directory: None,
 
             message_handlers: vec![],
         }
@@ -215,9 +256,9 @@ impl CaseOfficerBuilder {
         self
     }
 
-    /// Set the `inst_directory` to use
+    /// Set the `install_directory` to use
     pub fn set_install_directory(&mut self, directory: &Path) -> &mut Self {
-        self.inst_directory = Some(directory.to_owned());
+        self.install_directory = Some(directory.to_owned());
         self
     }
 
@@ -257,29 +298,34 @@ impl CaseOfficerBuilder {
             &self.scratch_directory,
             &mut temp_dirs,
         )?;
-        let inst_directory = path_buf_or_tempdir(
-            &self.inst_directory,
+        let install_directory = path_buf_or_tempdir(
+            &self.install_directory,
             "inst-",
             &self.scratch_directory,
             &mut temp_dirs,
         )?;
 
-        let lua_directory = path_buf_or_tempdir(
-            &self.lua_directory,
-            "lua-",
-            &self.scratch_directory,
-            &mut temp_dirs,
-        )?;
+        let agent = validate_executable(&mut self.agent)?;
+
+        let lua_directory = if let Some(ld) = self.lua_directory.take() {
+            tracing::debug!(
+                "Using provided Lua directory: \"{}\".",
+                ld.to_string_lossy()
+            );
+            ld
+        } else {
+            find_lua_directory(&agent)?
+        };
 
         Ok(CaseOfficer {
             build_script: build_script(pkgsrc_directory)?,
             nspawn_binary: validate_executable(&mut Some(std::mem::take(&mut self.nspawn_binary)))?,
-            agent: validate_executable(&mut self.agent)?,
+            agent,
 
             lua_directory,
             root_directory,
             work_directory,
-            inst_directory,
+            install_directory,
 
             message_handlers: std::mem::take(&mut self.message_handlers),
             temporary_directories: temp_dirs,
@@ -300,7 +346,7 @@ pub struct CaseOfficer {
     lua_directory: PathBuf,
     root_directory: PathBuf,
     work_directory: PathBuf,
-    inst_directory: PathBuf,
+    install_directory: PathBuf,
 
     message_handlers: Vec<Box<dyn MessageHandler>>,
     temporary_directories: Vec<tempfile::TempDir>,
@@ -322,7 +368,7 @@ impl CaseOfficer {
     ) -> Vec<OsString> {
         let mut result = vec![
             bind(work_ro, &self.work_directory, &cc::GNG_WORK_DIR),
-            bind(inst_ro, &self.inst_directory, &cc::GNG_INST_DIR),
+            bind(inst_ro, &self.install_directory, &cc::GNG_INST_DIR),
             bind(true, &self.lua_directory, &cc::GNG_LUA_DIR),
         ];
         result.append(extra_args);
@@ -344,7 +390,7 @@ impl CaseOfficer {
                 false,
                 &mut vec![overlay(&[
                     self.root_directory.join("usr"),
-                    self.inst_directory.clone(),
+                    self.install_directory.clone(),
                     PathBuf::from("/usr"),
                 ])],
                 "install",
