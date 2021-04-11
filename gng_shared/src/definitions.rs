@@ -9,6 +9,21 @@ use itertools::Itertools;
 use std::convert::From;
 
 // ----------------------------------------------------------------------
+// - Facet:
+// ----------------------------------------------------------------------
+
+/// A `Facet` that (part of) a `Packet` will be split into
+#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Facet {
+    /// The `name` of this `Facet`
+    pub name: Name,
+    /// Mime-types that should be added to this `Facet`
+    pub mime_types: Vec<String>,
+    /// File Glob `patterns` to put into this `Facet`
+    pub patterns: Vec<String>,
+}
+
+// ----------------------------------------------------------------------
 // - GpgKeyId:
 // ----------------------------------------------------------------------
 
@@ -407,6 +422,9 @@ pub struct Packet {
 
     /// `Packet`s this `Packet` depends on.
     pub dependencies: Names,
+
+    /// A `Facet` defined by this `Packet`
+    pub facet: Option<Facet>,
 }
 
 impl std::cmp::PartialEq for Packet {

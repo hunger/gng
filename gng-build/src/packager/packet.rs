@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use super::facet::{Facet, FacetDefinition};
+use super::facet::Facet;
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -37,7 +37,7 @@ impl PacketBuilder {
         }
     }
 
-    pub fn build(self, facet_definitions: &[FacetDefinition]) -> eyre::Result<Packet> {
+    pub fn build(self, facet_definitions: &[gng_shared::Facet]) -> eyre::Result<Packet> {
         Packet::new(self.data, self.patterns, facet_definitions)
     }
 }
@@ -57,7 +57,7 @@ impl Packet {
     fn new(
         data: gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
-        facet_definitions: &[FacetDefinition],
+        facet_definitions: &[gng_shared::Facet],
     ) -> eyre::Result<Self> {
         let facets = Facet::facets_from(facet_definitions, &data)?;
 

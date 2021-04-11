@@ -34,7 +34,7 @@ type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<
 pub struct PackagerBuilder {
     packet_factory_fn: Box<PacketWriterFactory>,
     packets: Vec<crate::packager::packet::PacketBuilder>,
-    facet_definitions: Vec<facet::FacetDefinition>,
+    facet_definitions: Vec<gng_shared::Facet>,
     iterator_factory_fn: Box<PackagingIteratorFactory>,
 }
 
@@ -43,7 +43,7 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// `gng_shared::Error::Runtime` if this given `facet` is not valid
-    pub fn add_facet(mut self, facet: facet::FacetDefinition) -> eyre::Result<Self> {
+    pub fn add_facet(mut self, facet: gng_shared::Facet) -> eyre::Result<Self> {
         self.facet_definitions.push(facet);
 
         Ok(self)
@@ -370,6 +370,7 @@ mod tests {
                     conflicts: gng_shared::Names::default(),
                     provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
+                    facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
             )
@@ -403,6 +404,7 @@ mod tests {
                     conflicts: gng_shared::Names::default(),
                     provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
+                    facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
             )
@@ -500,35 +502,27 @@ mod tests {
                     conflicts: gng_shared::Names::default(),
                     provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
+                    facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
             )
             .unwrap()
-            .add_facet(facet::FacetDefinition {
+            .add_facet(gng_shared::Facet {
                 mime_types: vec![],
                 name: gng_shared::Name::try_from("f1").unwrap(),
-                patterns: vec![
-                    glob::Pattern::new("f1").unwrap(),
-                    glob::Pattern::new("f1/**").unwrap(),
-                ],
+                patterns: vec!["f1".to_string(), "f1/**".to_string()],
             })
             .unwrap()
-            .add_facet(facet::FacetDefinition {
+            .add_facet(gng_shared::Facet {
                 mime_types: vec![],
                 name: gng_shared::Name::try_from("unused").unwrap(),
-                patterns: vec![
-                    glob::Pattern::new("unused").unwrap(),
-                    glob::Pattern::new("unused/**").unwrap(),
-                ],
+                patterns: vec!["unused".to_string(), "unused/**".to_string()],
             })
             .unwrap()
-            .add_facet(facet::FacetDefinition {
+            .add_facet(gng_shared::Facet {
                 mime_types: vec![],
                 name: gng_shared::Name::try_from("f2").unwrap(),
-                patterns: vec![
-                    glob::Pattern::new("f2").unwrap(),
-                    glob::Pattern::new("f2/**").unwrap(),
-                ],
+                patterns: vec!["f2".to_string(), "f2/**".to_string()],
             })
             .unwrap();
         let mut packager = builder.build().unwrap();
@@ -581,6 +575,7 @@ mod tests {
                     conflicts: gng_shared::Names::default(),
                     provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
+                    facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
             )

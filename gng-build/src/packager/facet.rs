@@ -77,15 +77,6 @@ fn create_packet_meta_data(
         ))
         .wrap_err("Failed to write packet meta data.")
 }
-// ----------------------------------------------------------------------
-// - FacetDefinition:
-// ----------------------------------------------------------------------
-
-pub struct FacetDefinition {
-    pub name: gng_shared::Name,
-    pub mime_types: Vec<String>,
-    pub patterns: Vec<glob::Pattern>,
-}
 
 // ----------------------------------------------------------------------
 // - Facet:
@@ -101,7 +92,7 @@ pub struct Facet {
 
 impl Facet {
     pub fn facets_from(
-        definitions: &[FacetDefinition],
+        definitions: &[gng_shared::Facet],
         packet: &gng_shared::Packet,
     ) -> eyre::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
@@ -110,7 +101,13 @@ impl Facet {
                 result.push(Self {
                     facet_name: Some(d.name.clone()),
                     mime_types: d.mime_types.clone(),
-                    patterns: d.patterns.clone(),
+                    patterns: d
+                        .patterns
+                        .iter()
+                        .map(|s| {
+                            glob::Pattern::new(&s[..]).wrap_err("Invalid glob pattern in facet.")
+                        })
+                        .collect::<eyre::Result<Vec<_>>>()?,
                     data: Some(packet.clone()),
                     writer: None,
                 });

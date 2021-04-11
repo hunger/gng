@@ -137,4 +137,6 @@ pub mod config;
 mod definitions;
 pub mod packet;
 
-pub use definitions::{GpgKeyId, Hash, Name, Names, Packet, PacketBuilder, Version};
+pub use definitions::{
+    Facet, FacetBuilder, GpgKeyId, Hash, Name, Names, Packet, PacketBuilder, Version,
+};
