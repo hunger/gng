@@ -28,6 +28,7 @@ const MESSAGE_PREFIX_LEN: usize = 8;
 #[tracing::instrument]
 fn prepare_for_systemd_nspawn(root_directory: &Path) -> Result<()> {
     std::fs::create_dir(root_directory.join("usr"))?;
+    std::fs::create_dir(root_directory.join("usr/local"))?;
     std::fs::create_dir(root_directory.join("tmp"))?;
     std::fs::create_dir(root_directory.join("run"))?;
     std::fs::create_dir(root_directory.join("proc"))?;

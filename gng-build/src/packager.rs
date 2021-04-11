@@ -182,8 +182,14 @@ impl Packager {
 
         for d in (self.iterator_factory)(&package_directory)? {
             let mut packet_info = d?;
-            if packet_info.in_packet.path() == std::path::PathBuf::from(".") {
+            let in_packet_path = packet_info.in_packet.path();
+            if in_packet_path == std::path::PathBuf::from(".") {
                 continue;
+            }
+            if in_packet_path.starts_with("local") {
+                return Err(eyre::eyre!(
+                    "Trying to package data in admin private area /usr/local"
+                ));
             }
 
             let packaged_path_str = packet_info.in_packet.path().to_string_lossy().to_string();
@@ -557,5 +563,37 @@ mod tests {
                 assert!(p.0.contains("UNEXPECTED FILE FOUND"));
             }
         }
+    }
+
+    #[test]
+    fn test_packager_builder_no_usr_local() {
+        let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("local/foobar"))]);
+        builder = builder
+            .add_packet(
+                &gng_shared::Packet {
+                    source_name: gng_shared::Name::try_from("foo").unwrap(),
+                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
+                    license: "GPL_v3+".to_string(),
+                    name: gng_shared::Name::try_from("foo").unwrap(),
+                    description: "The foo packet".to_string(),
+                    url: None,
+                    bug_url: None,
+                    conflicts: gng_shared::Names::default(),
+                    provides: gng_shared::Names::default(),
+                    dependencies: gng_shared::Names::default(),
+                },
+                &[glob::Pattern::new("**").unwrap()],
+            )
+            .unwrap();
+        let mut packager = builder.build().unwrap();
+
+        let result = packager.package(
+            &std::path::PathBuf::from("."),
+            &std::path::PathBuf::from("."),
+        );
+
+        assert!(result.is_err()); // Things in /usr/local should trigger a packaging error!
+        let results = results.replace(Vec::new());
+        assert_eq!(results.len(), 0);
     }
 }
