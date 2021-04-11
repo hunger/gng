@@ -384,21 +384,16 @@ impl<'a> IntoIterator for &'a Names {
 #[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Packet {
     /// The source package `name`
-    #[builder(try_setter)]
     pub source_name: Name,
     /// The package `version`
-    #[builder(try_setter)]
     pub version: Version,
     /// `license`
-    #[builder(setter(into))]
     pub license: String,
 
     /// The package `name`
-    #[builder(try_setter)]
     pub name: Name,
 
     /// A short description of the package
-    #[builder(setter(into))]
     pub description: String,
     /// The upstream `url`
     pub url: Option<String>,

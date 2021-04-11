@@ -17,7 +17,7 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use std::{path::PathBuf, str::FromStr};
+use std::{convert::TryFrom, path::PathBuf, str::FromStr};
 
 use eyre::{eyre, Result, WrapErr};
 use structopt::StructOpt;
@@ -73,11 +73,11 @@ fn main() -> Result<()> {
         .map_err(|e| eyre!("Invalid glob pattern given on command line: {}", e))?;
 
     let p = gng_shared::PacketBuilder::default()
-        .try_source_name("manual")?
-        .license("unknown")
-        .try_name(args.packet_name.as_str())?
-        .try_version(args.packet_version.as_str())?
-        .description("Unknown")
+        .source_name(gng_shared::Name::try_from("manual")?)
+        .license("unknown".to_string())
+        .name(gng_shared::Name::try_from(args.packet_name.as_str())?)
+        .version(gng_shared::Version::try_from(args.packet_version.as_str())?)
+        .description("unknown".to_string())
         .build()
         .map_err(|e| gng_shared::Error::Runtime {
             message: format!("Failed to define a packet: {}", e),
