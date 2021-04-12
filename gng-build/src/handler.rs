@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! A object used to handle messages from `gng-build-agent`
+//! A object used to handle events from the `CaseOfficer` from `gng-build-agent`
 
 use eyre::Result;
 use sha3::{Digest, Sha3_256};
@@ -19,11 +19,11 @@ fn hash_str(input: &str) -> Vec<u8> {
 }
 
 // ----------------------------------------------------------------------
-// - Message Handler:
+// - Handler:
 // ----------------------------------------------------------------------
 
-/// An object used to handle messages from the `gng-build-agent`
-pub trait MessageHandler {
+/// An object used to handle events from the `gng-build-agent`
+pub trait Handler {
     /// Verify state before `gng-build-agent` is started
     ///
     /// # Errors
@@ -71,7 +71,7 @@ impl Default for ImmutableSourceDataHandler {
     }
 }
 
-impl MessageHandler for ImmutableSourceDataHandler {
+impl Handler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
         self.first_message = true;
@@ -141,7 +141,7 @@ impl Default for ValidatePacketsHandler {
     }
 }
 
-impl MessageHandler for ValidatePacketsHandler {
+impl Handler for ValidatePacketsHandler {
     #[tracing::instrument(level = "trace")]
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
         Ok(())

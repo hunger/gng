@@ -3,7 +3,7 @@
 
 //! A object used to handle `gng-build-agent`s
 
-use crate::message_handler::MessageHandler;
+use crate::handler::Handler;
 use crate::Mode;
 
 use gng_build_shared::constants::container as cc;
@@ -252,7 +252,7 @@ pub struct CaseOfficerBuilder {
     work_directory: Option<PathBuf>,
     install_directory: Option<PathBuf>,
 
-    message_handlers: Vec<Box<dyn MessageHandler>>,
+    handlers: Vec<Box<dyn Handler>>,
 }
 
 impl Default for CaseOfficerBuilder {
@@ -266,7 +266,7 @@ impl Default for CaseOfficerBuilder {
             work_directory: None,
             install_directory: None,
 
-            message_handlers: vec![],
+            handlers: vec![],
         }
     }
 }
@@ -308,9 +308,9 @@ impl CaseOfficerBuilder {
         self
     }
 
-    /// Add an `MessageHandler`
-    pub fn add_message_handler(&mut self, handler: Box<dyn MessageHandler>) -> &mut Self {
-        self.message_handlers.push(handler);
+    /// Add an `Handler`
+    pub fn add_handler(&mut self, handler: Box<dyn Handler>) -> &mut Self {
+        self.handlers.push(handler);
         self
     }
 
@@ -369,7 +369,7 @@ impl CaseOfficerBuilder {
             work_directory,
             install_directory,
 
-            message_handlers: std::mem::take(&mut self.message_handlers),
+            handlers: std::mem::take(&mut self.handlers),
             temporary_directories: temp_dirs,
         })
     }
@@ -390,7 +390,7 @@ pub struct CaseOfficer {
     work_directory: PathBuf,
     install_directory: PathBuf,
 
-    message_handlers: Vec<Box<dyn MessageHandler>>,
+    handlers: Vec<Box<dyn Handler>>,
     temporary_directories: Vec<tempfile::TempDir>,
 }
 
@@ -516,7 +516,7 @@ impl CaseOfficer {
     fn switch_mode(&mut self, new_mode: &Mode) -> Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
-        for h in &mut self.message_handlers {
+        for h in &mut self.handlers {
             h.prepare(new_mode)?;
         }
 
@@ -528,7 +528,7 @@ impl CaseOfficer {
 
         self.run_agent(&nspawn_args, new_mode, message_prefix)?;
 
-        for h in &mut self.message_handlers {
+        for h in &mut self.handlers {
             h.verify(new_mode)?;
         }
 
@@ -549,7 +549,7 @@ impl CaseOfficer {
 
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
                 .map_err(|e| eyre!(e))?;
-            for h in &mut self.message_handlers {
+            for h in &mut self.handlers {
                 if h.handle(mode, &message_type, line)? {
                     break;
                 }

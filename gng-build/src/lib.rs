@@ -62,7 +62,7 @@ impl Mode {
 // ----------------------------------------------------------------------
 
 mod case_officer;
-pub mod message_handler;
+pub mod handler;
 pub(crate) mod packager;
 
 // ----------------------------------------------------------------------
