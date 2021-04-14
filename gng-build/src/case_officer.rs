@@ -486,6 +486,7 @@ impl CaseOfficer {
     #[tracing::instrument(level = "debug")]
     fn run_agent(
         &mut self,
+        ctx: &crate::handler::Context,
         args: &[OsString],
         new_mode: &Mode,
         message_prefix: String,
@@ -499,7 +500,7 @@ impl CaseOfficer {
             .spawn()?;
 
         tracing::trace!("Processing output of gng-build-agent");
-        self.handle_agent_output(&mut child, new_mode, &message_prefix)?;
+        self.handle_agent_output(ctx, &mut child, new_mode, &message_prefix)?;
 
         tracing::trace!("Waiting for gng-build-agent to finish");
         let exit_status = child.wait()?;
@@ -511,13 +512,23 @@ impl CaseOfficer {
         }
     }
 
+    fn create_ctx(&self) -> crate::handler::Context {
+        crate::handler::Context {
+            lua_directory: self.lua_directory.clone(),
+            work_directory: self.work_directory.clone(),
+            install_directory: self.install_directory.clone(),
+            build_file: self.build_script.clone(),
+            build_agent: self.agent.clone(),
+        }
+    }
+
     /// Switch into a new `Mode` of operation
     #[tracing::instrument(level = "trace")]
-    fn switch_mode(&mut self, new_mode: &Mode) -> Result<()> {
+    fn switch_mode(&mut self, ctx: &crate::handler::Context, new_mode: &Mode) -> Result<()> {
         tracing::debug!("Switching mode to {:?}", new_mode);
 
         for h in &mut self.handlers {
-            h.prepare(new_mode)?;
+            h.prepare(ctx, new_mode)?;
         }
 
         let message_prefix = random_string(MESSAGE_PREFIX_LEN);
@@ -526,16 +537,22 @@ impl CaseOfficer {
         let nspawn_args = self.mode_arguments(new_mode, &message_prefix);
         assert!(!nspawn_args.is_empty());
 
-        self.run_agent(&nspawn_args, new_mode, message_prefix)?;
+        self.run_agent(ctx, &nspawn_args, new_mode, message_prefix)?;
 
         for h in &mut self.handlers {
-            h.verify(new_mode)?;
+            h.verify(ctx, new_mode)?;
         }
 
         Ok(())
     }
 
-    fn process_line(&mut self, mode: &Mode, message_prefix: &str, line: &str) -> Result<()> {
+    fn process_line(
+        &mut self,
+        ctx: &crate::handler::Context,
+        mode: &Mode,
+        message_prefix: &str,
+        line: &str,
+    ) -> Result<()> {
         lazy_static::lazy_static! {
             static ref PREFIX: String =
                 std::env::var(ce::GNG_AGENT_OUTPUT_PREFIX).unwrap_or_else(|_| String::from("AGENT> "));
@@ -550,7 +567,7 @@ impl CaseOfficer {
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
                 .map_err(|e| eyre!(e))?;
             for h in &mut self.handlers {
-                if h.handle(mode, &message_type, line)? {
+                if h.handle(ctx, mode, &message_type, line)? {
                     break;
                 }
             }
@@ -560,6 +577,7 @@ impl CaseOfficer {
 
     fn handle_agent_output(
         &mut self,
+        ctx: &crate::handler::Context,
         child: &mut std::process::Child,
         mode: &Mode,
         message_prefix: &str,
@@ -573,7 +591,7 @@ impl CaseOfficer {
 
         for line in reader.lines() {
             match line {
-                Ok(line) => self.process_line(mode, message_prefix, &line)?,
+                Ok(line) => self.process_line(ctx, mode, message_prefix, &line)?,
                 Err(e) => return Err(eyre!(e)),
             }
         }
@@ -594,10 +612,11 @@ impl CaseOfficer {
     #[tracing::instrument(level = "debug")]
     pub fn process(&mut self) -> Result<()> {
         let mut mode = Some(Mode::default());
+        let ctx = self.create_ctx();
 
         while mode.is_some() {
             let m = mode.expect("Mode was some!");
-            self.switch_mode(&m)?;
+            self.switch_mode(&ctx, &m)?;
             mode = m.next();
         }
 

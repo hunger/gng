@@ -19,6 +19,26 @@ fn hash_str(input: &str) -> Vec<u8> {
 }
 
 // ----------------------------------------------------------------------
+// - Context:
+// ----------------------------------------------------------------------
+
+/// A `Context` in which a `Handler` is run
+#[derive(Debug)]
+pub struct Context {
+    /// The Lua directory with additional Lua files.
+    pub lua_directory: std::path::PathBuf,
+    /// The directory the build script can work in
+    pub work_directory: std::path::PathBuf,
+    /// The directory the build script will install into
+    pub install_directory: std::path::PathBuf,
+
+    /// The actual build file that is being used
+    pub build_file: std::path::PathBuf,
+    /// The build agent that is being used
+    pub build_agent: std::path::PathBuf,
+}
+
+// ----------------------------------------------------------------------
 // - Handler:
 // ----------------------------------------------------------------------
 
@@ -28,7 +48,7 @@ pub trait Handler {
     ///
     /// # Errors
     /// Generic Error
-    fn prepare(&mut self, mode: &crate::Mode) -> Result<()>;
+    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()>;
 
     /// Handle one message from `gng-build-agent`
     ///
@@ -39,6 +59,7 @@ pub trait Handler {
     /// Generic Error
     fn handle(
         &mut self,
+        ctx: &Context,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
@@ -48,7 +69,7 @@ pub trait Handler {
     ///
     /// # Errors
     /// Generic Error
-    fn verify(&mut self, mode: &crate::Mode) -> Result<()>;
+    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()>;
 }
 
 // ----------------------------------------------------------------------
@@ -73,7 +94,7 @@ impl Default for ImmutableSourceDataHandler {
 
 impl Handler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
-    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
+    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         self.first_message = true;
         Ok(())
     }
@@ -81,6 +102,7 @@ impl Handler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
     fn handle(
         &mut self,
+        ctx: &Context,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
@@ -113,7 +135,7 @@ impl Handler for ImmutableSourceDataHandler {
     }
 
     #[tracing::instrument(level = "trace")]
-    fn verify(&mut self, mode: &crate::Mode) -> Result<()> {
+    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if self.first_message {
             tracing::error!("The build agent did not send any message!");
             panic!("gng-build-agent did not react as expected!");
@@ -143,13 +165,14 @@ impl Default for ValidatePacketsHandler {
 
 impl Handler for ValidatePacketsHandler {
     #[tracing::instrument(level = "trace")]
-    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
+    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 
     #[tracing::instrument(level = "trace")]
     fn handle(
         &mut self,
+        ctx: &Context,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
@@ -171,7 +194,7 @@ impl Handler for ValidatePacketsHandler {
     }
 
     #[tracing::instrument(level = "trace")]
-    fn verify(&mut self, mode: &crate::Mode) -> Result<()> {
+    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 }
@@ -183,17 +206,35 @@ impl Handler for ValidatePacketsHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn create_ctx() -> Context {
+        let tmp = std::path::PathBuf::from(".");
+        Context {
+            lua_directory: tmp.clone(),
+            work_directory: tmp.clone(),
+            install_directory: tmp.clone(),
+            build_file: tmp.clone(),
+            build_agent: tmp,
+        }
+    }
     #[test]
     fn test_immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
+        let ctx = create_ctx();
+
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
-            handler.prepare(&m).unwrap();
+            handler.prepare(&ctx, &m).unwrap();
             handler
-                .handle(&m, &gng_build_shared::MessageType::Data, "foobar 12345")
+                .handle(
+                    &ctx,
+                    &m,
+                    &gng_build_shared::MessageType::Data,
+                    "foobar 12345",
+                )
                 .unwrap();
-            handler.verify(&m).unwrap();
+            handler.verify(&ctx, &m).unwrap();
             mode = Some(m)
         }
     }
@@ -201,25 +242,29 @@ mod tests {
     fn test_immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::Prepare).unwrap();
+        let ctx = create_ctx();
+
+        handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Prepare,
                 &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Prepare).unwrap();
+        handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::Query).unwrap();
+        handler.prepare(&ctx, &crate::Mode::Query).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Query,
                 &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Query).unwrap();
+        handler.verify(&ctx, &crate::Mode::Query).unwrap();
     }
 
     #[test]
@@ -227,18 +272,22 @@ mod tests {
     fn test_immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        handler.prepare(&crate::Mode::Prepare).unwrap();
-        handler.verify(&crate::Mode::Prepare).unwrap();
+        let ctx = create_ctx();
+
+        handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
+        handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn test_immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
+        let ctx = create_ctx();
 
-        handler.prepare(&crate::Mode::Prepare).unwrap();
+        handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Prepare,
                 &gng_build_shared::MessageType::Data,
                 "foobar 12345",
@@ -246,81 +295,89 @@ mod tests {
             .unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Prepare,
                 &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Prepare).unwrap();
+        handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn test_immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
+        let ctx = create_ctx();
 
-        handler.prepare(&crate::Mode::Prepare).unwrap();
+        handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Prepare,
                 &gng_build_shared::MessageType::Test,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Prepare).unwrap();
+        handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
     }
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn test_immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
+        let ctx = create_ctx();
 
-        handler.prepare(&crate::Mode::Prepare).unwrap();
+        handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Prepare,
                 &gng_build_shared::MessageType::Data,
                 "foobar 12345",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Prepare).unwrap();
+        handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
 
-        handler.prepare(&crate::Mode::Query).unwrap();
+        handler.prepare(&ctx, &crate::Mode::Query).unwrap();
         handler
             .handle(
+                &ctx,
                 &crate::Mode::Query,
                 &gng_build_shared::MessageType::Data,
                 "foobar 123456",
             )
             .unwrap();
-        handler.verify(&crate::Mode::Query).unwrap();
+        handler.verify(&ctx, &crate::Mode::Query).unwrap();
     }
 
     #[test]
     fn test_validate_packet_handler_ok() {
         let mut handler = ValidatePacketsHandler::default();
+        let ctx = create_ctx();
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
-            handler.prepare(&m).unwrap();
+            handler.prepare(&ctx, &m).unwrap();
             handler
-                .handle(&m, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":[],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
+                .handle(&ctx, &m, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":[],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
                 .unwrap();
-            handler.verify(&m).unwrap();
+            handler.verify(&ctx, &m).unwrap();
             mode = Some(m)
         }
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
-            handler.prepare(&m).unwrap();
+            handler.prepare(&ctx, &m).unwrap();
             handler
                 .handle(
+                    &ctx,
                     &m,
                     &gng_build_shared::MessageType::Test,
                     r#"{"nXXX broken JSON"#,
                 )
                 .unwrap();
-            handler.verify(&m).unwrap();
+            handler.verify(&ctx, &m).unwrap();
             mode = Some(m)
         }
     }
@@ -328,9 +385,10 @@ mod tests {
     #[test]
     fn test_validate_packet_handler_err_wrong_dependencies() {
         let mut handler = ValidatePacketsHandler::default();
+        let ctx = create_ctx();
 
         assert!(handler
-            .handle(&crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
+            .handle(&ctx, &crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
             .is_err());
     }
 }
