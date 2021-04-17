@@ -18,14 +18,14 @@
 use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
 
+use clap::Clap;
 use eyre::{eyre, Result, WrapErr};
-use structopt::StructOpt;
 
 // - Helpers:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Debug, clap::Clap)]
+#[clap(
     name = "gng-build-agent",
     about = "A packet build agent for GnG.",
     rename_all = "kebab"
@@ -120,7 +120,7 @@ fn main() -> Result<()> {
         return Err(eyre!("This application needs to be run by root."));
     }
 
-    let args = Args::from_args();
+    let args = Args::parse();
     tracing::trace!("Command line arguments: {:#?}", args);
 
     let message_prefix = get_message_prefix();

@@ -7,6 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+clap = { version = "3.0.0-beta.2" }
 eyre = { version = "0.6.3" }
 glob = { version = "0.3.0" }
 gng_build_shared = { path = "../gng_build_shared" }
@@ -15,7 +16,7 @@ rlua = { version = "0.17.0" }
 rlua_serde = { version = "0.4.0" }
 serde = { version = "1.0.123" }
 serde_json = { version = "1.0.62" }
-structopt = { version = "0.3.21" }
+serde_path_to_error = { version = "0.1" }
 thiserror = { version = "1.0.22" }
 tracing = { version = "0.1.25" }
 tracing-subscriber = { version = "0.2.17" }

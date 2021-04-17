@@ -19,29 +19,29 @@
 
 use std::{convert::TryFrom, path::PathBuf, str::FromStr};
 
+use clap::Clap;
 use eyre::{eyre, Result, WrapErr};
-use structopt::StructOpt;
 
 // - Helper:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "gng-build", about = "A packet builder for GnG.")]
+#[derive(Debug, clap::Clap)]
+#[clap(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
-    #[structopt(long, value_name = "PACKET_NAME")]
+    #[clap(long, value_name = "PACKET_NAME")]
     packet_name: String,
 
     /// configuration file to read
-    #[structopt(long, value_name = "PACKET_VERSION")]
+    #[clap(long, value_name = "PACKET_VERSION")]
     packet_version: String,
 
     /// the directory to package up
-    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), value_name = "DIR")]
     package_dir: PathBuf,
 
     /// the directory to store temporary data
-    #[structopt(long, default_value = "", value_name = "GLOB PATTERNS")]
+    #[clap(long, default_value = "", value_name = "GLOB PATTERNS")]
     globs: String,
 }
 
@@ -61,7 +61,7 @@ fn main() -> Result<()> {
         // return Err(eyre!("This application needs to be run by root."));
     }
 
-    let args = Args::from_args();
+    let args = Args::parse();
 
     tracing::debug!("Command line arguments: {:#?}", args);
 

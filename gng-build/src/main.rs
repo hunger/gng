@@ -17,46 +17,46 @@
 
 use std::path::PathBuf;
 
+use clap::Clap;
 use eyre::{eyre, Result, WrapErr};
-use structopt::StructOpt;
 
 // - Helper:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, StructOpt)]
-#[structopt(name = "gng-build", about = "A packet builder for GnG.")]
+#[derive(Debug, Clap)]
+#[clap(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
-    #[structopt(long, parse(from_os_str), value_name = "FILE")]
+    #[clap(long, parse(from_os_str), value_name = "FILE")]
     config: Option<PathBuf>,
 
     /// the directory containing the Lua runtime environment
-    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), value_name = "DIR")]
     lua_dir: Option<PathBuf>,
 
     /// the directory to store temporary data
-    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), value_name = "DIR")]
     scratch_dir: Option<PathBuf>,
 
     /// the directory the build agent script will work in [DEBUG OPTION]
-    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), value_name = "DIR")]
     work_dir: Option<PathBuf>,
 
     /// the directory the build agent script will install into [DEBUG OPTION]
-    #[structopt(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), value_name = "DIR")]
     install_dir: Option<PathBuf>,
 
     // TODO: need to be cleverer about finding the agent!
     /// The build agent to use
-    #[structopt(long, parse(from_os_str), value_name = "EXECUTABLE")]
+    #[clap(long, parse(from_os_str), value_name = "EXECUTABLE")]
     agent: Option<PathBuf>,
 
     /// The directory with the build information
-    #[structopt(parse(from_os_str), value_name = "DIR")]
+    #[clap(parse(from_os_str), value_name = "DIR")]
     pkgsrc_dir: PathBuf,
 
     /// Keep temporary directories after build
-    #[structopt(long)]
+    #[clap(long)]
     keep_temporaries: bool,
 }
 
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         return Err(eyre!("This application needs to be run by root."));
     }
 
-    let args = Args::from_args();
+    let args = Args::parse();
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
