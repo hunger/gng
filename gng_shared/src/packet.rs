@@ -248,16 +248,14 @@ impl Path {
         user_id: u32,
         group_id: u32,
     ) -> Self {
-        let r = Self {
+        Self {
             directory: directory.to_path_buf(),
             name: name.clone(),
             mode,
             user_id,
             group_id,
             leaf_type: PathLeaf::Directory {},
-        };
-        println!("New dir: {:?}...", &r);
-        r
+        }
     }
 
     /// Get the full path (abs or relative) stored in `Path`
