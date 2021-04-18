@@ -60,7 +60,13 @@ fn package(
             })
             .collect::<Result<Vec<glob::Pattern>>>()?;
 
-        packager = packager.add_packet(&p, &patterns[..], true)?;
+        let contents_policy = if patterns.is_empty() {
+            crate::ContentsPolicy::Empty
+        } else {
+            crate::ContentsPolicy::NotEmpty
+        };
+
+        packager = packager.add_packet(&p, &patterns[..], contents_policy)?;
     }
 
     if !has_base_packet {
@@ -77,7 +83,7 @@ fn package(
         packager = packager.add_packet(
             &p,
             &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
-            false,
+            crate::ContentsPolicy::MaybeEmpty,
         )?;
     }
 

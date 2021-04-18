@@ -64,6 +64,21 @@ impl Mode {
 const DEFAULT_FACET_NAME: &str = "_MAIN_";
 
 // ----------------------------------------------------------------------
+// - ContentsPolicy:
+// ----------------------------------------------------------------------
+
+/// A policy defining whether a `Packet` needs to have contents or not.
+#[derive(Debug, PartialEq)]
+pub enum ContentsPolicy {
+    /// The `Packet` must not contain any files or directories.
+    Empty,
+    /// The `Packet` may or may not contain files or directories.
+    MaybeEmpty,
+    /// The `Packet` must contain some files or directories.
+    NotEmpty,
+}
+
+// ----------------------------------------------------------------------
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 

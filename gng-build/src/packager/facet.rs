@@ -88,7 +88,7 @@ pub struct Facet {
     pub patterns: Vec<glob::Pattern>,
     pub data: Option<gng_shared::Packet>,
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
-    pub must_have_contents: bool,
+    pub contents_policy: crate::ContentsPolicy,
 }
 
 impl std::fmt::Debug for Facet {
@@ -106,7 +106,7 @@ impl Facet {
     pub fn facets_from(
         definitions: &[super::NamedFacet],
         packet: &gng_shared::Packet,
-        must_have_contents: bool,
+        contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
         for d in definitions {
@@ -124,7 +124,7 @@ impl Facet {
                         .collect::<eyre::Result<Vec<_>>>()?,
                     data: Some(packet.clone()),
                     writer: None,
-                    must_have_contents: false,
+                    contents_policy: crate::ContentsPolicy::MaybeEmpty,
                 });
             }
         }
@@ -134,7 +134,7 @@ impl Facet {
             patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
             data: Some(packet.clone()),
             writer: None,
-            must_have_contents: true,
+            contents_policy,
         });
         Ok(result)
     }
@@ -172,6 +172,21 @@ impl Facet {
 
     #[tracing::instrument(level = "trace")]
     pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
+        let has_contents = self.writer.is_some();
+
+        if has_contents && self.contents_policy == crate::ContentsPolicy::Empty {
+            return Err(eyre::eyre!(
+                "Facet \"{}\" contains some data, but it was expected to be empty!",
+                self.full_debug_name()
+            ));
+        }
+        if !has_contents && self.contents_policy == crate::ContentsPolicy::NotEmpty {
+            return Err(eyre::eyre!(
+                "Facet \"{}\" contains no data, but it was expected to have contents!",
+                self.full_debug_name()
+            ));
+        }
+
         if self.writer.is_some() {
             self.write_packet_metadata()?;
 
@@ -179,11 +194,6 @@ impl Facet {
                 .get_writer()
                 .expect("Was just is_some()!")
                 .finish()?])
-        } else if self.must_have_contents {
-            Err(eyre::eyre!(
-                "Facet \"{}\" is empty, but it was expected to contain some data!",
-                self.full_debug_name()
-            ))
         } else {
             Ok(Vec::new())
         }

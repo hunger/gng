@@ -28,19 +28,19 @@ pub fn validate_packets(packet: &PacketBuilder, packets: &[PacketBuilder]) -> ey
 pub struct PacketBuilder {
     pub data: gng_shared::Packet,
     pub patterns: Vec<glob::Pattern>,
-    pub must_have_contents: bool,
+    pub contents_policy: crate::ContentsPolicy,
 }
 
 impl PacketBuilder {
     pub fn new(
         data: &gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
-        must_have_contents: bool,
+        contents_policy: crate::ContentsPolicy,
     ) -> Self {
         Self {
             data: data.clone(),
             patterns,
-            must_have_contents,
+            contents_policy,
         }
     }
 
@@ -49,7 +49,7 @@ impl PacketBuilder {
             self.data,
             self.patterns,
             facet_definitions,
-            self.must_have_contents,
+            self.contents_policy,
         )
     }
 }
@@ -91,9 +91,9 @@ impl Packet {
         data: gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
         facet_definitions: &[super::NamedFacet],
-        must_have_contents: bool,
+        contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Self> {
-        let facets = Facet::facets_from(facet_definitions, &data, must_have_contents)?;
+        let facets = Facet::facets_from(facet_definitions, &data, contents_policy)?;
 
         Ok(Self {
             data,

@@ -72,6 +72,7 @@ pub struct PacketDefinition {
     /// The `dependencies` of the `Packet`
     #[serde(default)]
     pub dependencies: Names,
+
     /// Glob-patterns for `files` to include in the `Packet`
     pub files: Vec<String>,
 
@@ -105,6 +106,7 @@ pub struct SourcePacket {
     /// Enable `bootstrap` support in the build container.
     #[serde(default = "always_false")]
     pub bootstrap: bool,
+
     /// `build_dependencies` of the source packet.
     pub build_dependencies: gng_shared::Names,
     /// `check_dependencies` of the source packet.
