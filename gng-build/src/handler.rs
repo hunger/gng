@@ -35,7 +35,13 @@ fn package(
 ) -> Result<Vec<std::path::PathBuf>> {
     let mut packager = crate::PackagerBuilder::default();
 
+    let mut has_base_packet = false;
+
     for pd in &source_package.packets {
+        if pd.name == source_package.name {
+            has_base_packet = true
+        }
+
         let p = packet_from(source_package)
             .name(pd.name.clone())
             .facet(pd.facet.clone())
@@ -57,20 +63,22 @@ fn package(
         packager = packager.add_packet(&p, &patterns[..])?;
     }
 
-    let p = packet_from(source_package)
-        .name(source_package.name.clone())
-        .description(source_package.description.clone())
-        .dependencies(gng_shared::Names::default())
-        .facet(None)
-        .build()
-        .map_err(|e| gng_shared::Error::Runtime {
-            message: format!("Failed to define a packet: {}", e),
-        })?;
+    if !has_base_packet {
+        let p = packet_from(source_package)
+            .name(source_package.name.clone())
+            .description(source_package.description.clone())
+            .dependencies(gng_shared::Names::default())
+            .facet(None)
+            .build()
+            .map_err(|e| gng_shared::Error::Runtime {
+                message: format!("Failed to define a packet: {}", e),
+            })?;
 
-    packager = packager.add_packet(
-        &p,
-        &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
-    )?;
+        packager = packager.add_packet(
+            &p,
+            &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
+        )?;
+    }
 
     packager
         .build()?
