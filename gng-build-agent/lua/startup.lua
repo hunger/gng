@@ -1,7 +1,6 @@
 local startup = {}
 
 function startup.init(pkg_definition)
-    print("Init called with \"" .. pkg_definition .. "\"...")
     pkg_defaults = {
         bootstrap = false,
 

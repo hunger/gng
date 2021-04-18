@@ -135,6 +135,7 @@ pub fn start_alnum_char(input: &str) -> bool {
 
 pub mod config;
 mod definitions;
+pub mod log;
 pub mod packet;
 
 pub use definitions::{

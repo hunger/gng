@@ -466,9 +466,15 @@ impl CaseOfficer {
             setenv(ce::GNG_AGENT_MESSAGE_PREFIX, message_prefix),
         ];
 
-        if let Ok(rust_log) = std::env::var("RUST_LOG") {
-            let mut env_var = OsString::from("--setenv=RUST_LOG=");
-            env_var.push(rust_log);
+        if let Ok(gng_log) = std::env::var("GNG_LOG") {
+            let mut env_var = OsString::from("--setenv=GNG_LOG=");
+            env_var.push(gng_log);
+            result.push(env_var)
+        }
+
+        if let Ok(gng_log_format) = std::env::var("GNG_LOG_FORMAT") {
+            let mut env_var = OsString::from("--setenv=GNG_LOG_FORMAT=");
+            env_var.push(gng_log_format);
             result.push(env_var)
         }
 

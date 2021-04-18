@@ -31,7 +31,7 @@ struct Args {
     config: Option<PathBuf>,
 
     /// the directory containing the Lua runtime environment
-    #[clap(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
     lua_dir: Option<PathBuf>,
 
     /// the directory to store temporary data
@@ -46,9 +46,13 @@ struct Args {
     #[clap(long, parse(from_os_str), value_name = "DIR")]
     install_dir: Option<PathBuf>,
 
-    // TODO: need to be cleverer about finding the agent!
     /// The build agent to use
-    #[clap(long, parse(from_os_str), value_name = "EXECUTABLE")]
+    #[clap(
+        long,
+        parse(from_os_str),
+        value_name = "EXECUTABLE",
+        env = "GNG_AGENT_EXECUTABLE"
+    )]
     agent: Option<PathBuf>,
 
     /// The directory with the build information
@@ -58,6 +62,9 @@ struct Args {
     /// Keep temporary directories after build
     #[clap(long)]
     keep_temporaries: bool,
+
+    #[clap(flatten)]
+    logging: gng_shared::log::LogArgs,
 }
 
 // ----------------------------------------------------------------------
@@ -66,16 +73,15 @@ struct Args {
 
 /// Entry point of the `gng-build` binary.
 fn main() -> Result<()> {
-    tracing_subscriber::fmt::try_init()
-        .map_err(|e| eyre!(e))
-        .wrap_err("Failed to set up tracing")?;
-    tracing::trace!("Tracing subscriber initialized.");
+    let args = Args::parse();
+
+    args.logging
+        .setup_logging()
+        .wrap_err("Failed to set up logging.")?;
 
     if !gng_shared::is_root() {
         return Err(eyre!("This application needs to be run by root."));
     }
-
-    let args = Args::parse();
 
     tracing::debug!("Command line arguments: {:#?}", args);
 

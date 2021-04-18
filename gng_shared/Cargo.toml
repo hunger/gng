@@ -10,6 +10,7 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "<PRIVATE_REPOSITORY>"
 
 [dependencies]
+clap = { version = "3.0.0-beta.2" }
 derive_builder = { version = "0.10.0" }
 itertools = { version = "0.10.0" }
 nix = { version = "0.20.0" }
@@ -18,4 +19,5 @@ tar = { version = "0.4.0" }
 thiserror = { version = "1.0.22" }
 toml = { version = "0.5.8" }
 tracing = { version = "0.1.22" }
+tracing-subscriber = { version = "0.2.15" }
 zstd = { version = "0.7.0" }

@@ -24,13 +24,8 @@ use eyre::{eyre, Result, WrapErr};
 // - Helpers:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, clap::Clap)]
-#[clap(
-    name = "gng-build-agent",
-    about = "A packet build agent for GnG.",
-    rename_all = "kebab"
-)]
-enum Args {
+#[derive(Debug, Clap)]
+enum SubCommand {
     /// query packet definition file
     Query,
     /// prepare the sources for the build
@@ -43,6 +38,35 @@ enum Args {
     Install,
     /// polish up the filesystem before putting all the files into a packet
     Polish,
+}
+
+impl std::str::FromStr for SubCommand {
+    type Err = eyre::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        match s.as_ref() {
+            "query" => Ok(Self::Query),
+            "prepare" => Ok(Self::Prepare),
+            "build" => Ok(Self::Build),
+            "check" => Ok(Self::Check),
+            "install" => Ok(Self::Install),
+            "polish" => Ok(Self::Polish),
+            _ => Err(eyre::eyre!("Invalid subcommand given")),
+        }
+    }
+}
+
+#[derive(Debug, Clap)]
+#[clap(
+    name = "gng-build-agent",
+    about = "A packet build agent for GnG.",
+    rename_all = "kebab"
+)]
+struct Args {
+    subcommand: SubCommand,
+    #[clap(flatten)]
+    logging: gng_shared::log::LogArgs,
 }
 
 fn get_env(key: &str, default: &str) -> String {
@@ -111,17 +135,15 @@ fn polish(ctx: &mut Context) -> Result<()> {
 // ----------------------------------------------------------------------
 
 fn main() -> Result<()> {
-    tracing_subscriber::fmt::try_init()
-        .map_err(|e| eyre!(e))
-        .wrap_err("Failed to set up tracing")?;
-    tracing::trace!("Tracing subscriber initialized.");
+    let args = Args::parse();
+
+    args.logging
+        .setup_logging()
+        .wrap_err("Failed to set up logging.")?;
 
     if !gng_shared::is_root() {
         return Err(eyre!("This application needs to be run by root."));
     }
-
-    let args = Args::parse();
-    tracing::trace!("Command line arguments: {:#?}", args);
 
     let message_prefix = get_message_prefix();
 
@@ -168,12 +190,12 @@ fn main() -> Result<()> {
 
     let mut ctx = Context { engine };
 
-    match args {
-        Args::Query => Ok(()),
-        Args::Prepare => prepare(&mut ctx),
-        Args::Build => build(&mut ctx),
-        Args::Check => check(&mut ctx),
-        Args::Install => install(&mut ctx),
-        Args::Polish => polish(&mut ctx),
+    match args.subcommand {
+        SubCommand::Query => Ok(()),
+        SubCommand::Prepare => prepare(&mut ctx),
+        SubCommand::Build => build(&mut ctx),
+        SubCommand::Check => check(&mut ctx),
+        SubCommand::Install => install(&mut ctx),
+        SubCommand::Polish => polish(&mut ctx),
     }
 }

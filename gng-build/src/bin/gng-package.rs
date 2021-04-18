@@ -43,6 +43,9 @@ struct Args {
     /// the directory to store temporary data
     #[clap(long, default_value = "", value_name = "GLOB PATTERNS")]
     globs: String,
+
+    #[clap(flatten)]
+    logging: gng_shared::log::LogArgs,
 }
 
 // ----------------------------------------------------------------------
@@ -51,17 +54,15 @@ struct Args {
 
 /// Entry point of the `gng-package` binary.
 fn main() -> Result<()> {
-    tracing_subscriber::fmt::try_init()
-        .map_err(|e| eyre!(e))
-        .wrap_err("Failed to set up tracing")?;
-    tracing::trace!("Tracing subscriber initialized.");
+    let args = Args::parse();
+
+    args.logging
+        .setup_logging()
+        .wrap_err("Failed to set up logging.")?;
 
     if !gng_shared::is_root() {
-        // TODO: Enable this!
-        // return Err(eyre!("This application needs to be run by root."));
+        return Err(eyre!("This application needs to be run by root."));
     }
-
-    let args = Args::parse();
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
