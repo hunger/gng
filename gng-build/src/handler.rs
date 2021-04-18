@@ -60,7 +60,7 @@ fn package(
             })
             .collect::<Result<Vec<glob::Pattern>>>()?;
 
-        packager = packager.add_packet(&p, &patterns[..])?;
+        packager = packager.add_packet(&p, &patterns[..], true)?;
     }
 
     if !has_base_packet {
@@ -77,6 +77,7 @@ fn package(
         packager = packager.add_packet(
             &p,
             &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
+            false,
         )?;
     }
 

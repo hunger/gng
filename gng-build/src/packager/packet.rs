@@ -28,18 +28,29 @@ pub fn validate_packets(packet: &PacketBuilder, packets: &[PacketBuilder]) -> ey
 pub struct PacketBuilder {
     pub data: gng_shared::Packet,
     pub patterns: Vec<glob::Pattern>,
+    pub must_have_contents: bool,
 }
 
 impl PacketBuilder {
-    pub fn new(data: &gng_shared::Packet, patterns: Vec<glob::Pattern>) -> Self {
+    pub fn new(
+        data: &gng_shared::Packet,
+        patterns: Vec<glob::Pattern>,
+        must_have_contents: bool,
+    ) -> Self {
         Self {
             data: data.clone(),
             patterns,
+            must_have_contents,
         }
     }
 
     pub fn build(self, facet_definitions: &[super::NamedFacet]) -> eyre::Result<Packet> {
-        Packet::new(self.data, self.patterns, facet_definitions)
+        Packet::new(
+            self.data,
+            self.patterns,
+            facet_definitions,
+            self.must_have_contents,
+        )
     }
 }
 
@@ -80,8 +91,9 @@ impl Packet {
         data: gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
         facet_definitions: &[super::NamedFacet],
+        must_have_contents: bool,
     ) -> eyre::Result<Self> {
-        let facets = Facet::facets_from(facet_definitions, &data)?;
+        let facets = Facet::facets_from(facet_definitions, &data, must_have_contents)?;
 
         Ok(Self {
             data,
@@ -114,6 +126,7 @@ impl Packet {
         facet.store_path(factory, package_path, mime_type)
     }
 
+    #[tracing::instrument(level = "trace")]
     pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
         let mut result = Vec::with_capacity(self.facets.len());
 

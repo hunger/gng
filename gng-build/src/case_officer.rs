@@ -498,10 +498,12 @@ impl CaseOfficer {
             .stdout(std::process::Stdio::piped())
             .spawn()?;
 
+        tracing::trace!("Container has started... processing input now.");
         self.handle_agent_output(ctx, &mut child, new_mode, &message_prefix)?;
 
         let exit_status = child.wait()?;
 
+        tracing::trace!("Container has finished.");
         match exit_status.code() {
             None => Err(eyre!("gng-build-agent was killed by a signal.")),
             Some(code) if code == 0 => Ok(()),

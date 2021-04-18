@@ -77,8 +77,13 @@ impl PackagerBuilder {
         mut self,
         data: &gng_shared::Packet,
         patterns: &[glob::Pattern],
+        must_have_contents: bool,
     ) -> eyre::Result<Self> {
-        let p = crate::packager::packet::PacketBuilder::new(data, patterns.to_vec());
+        let p = crate::packager::packet::PacketBuilder::new(
+            data,
+            patterns.to_vec(),
+            must_have_contents,
+        );
         packet::validate_packets(&p, &self.packets)?;
 
         self.packets.push(p);
@@ -383,6 +388,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
+                false,
             )
             .unwrap();
         let mut packager = builder.build().unwrap();
@@ -415,6 +421,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
+                false,
             )
             .unwrap();
         let mut packager = builder.build().unwrap();
@@ -511,6 +518,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
+                true,
             )
             .unwrap()
             .add_facet(
@@ -588,6 +596,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
+                true,
             )
             .unwrap();
         let mut packager = builder.build().unwrap();
