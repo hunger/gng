@@ -156,6 +156,7 @@ impl EngineBuilder {
     ///
     /// # Errors
     /// A generic error when the build script is not valid
+    #[tracing::instrument(level = "debug", skip(self))]
     pub fn eval_pkgsrc_directory(&mut self) -> eyre::Result<Engine> {
         let build_file = PathBuf::from(format!("/gng/{}", gng_build_shared::BUILD_SCRIPT));
 
@@ -166,7 +167,9 @@ impl EngineBuilder {
         engine.load_functions()?;
 
         let script = format!(
-            "package.path = \"/gng/lua/?.lua\"\nrequire(\"startup\").init(\"{}\")",
+            r#"
+package.path = "/gng/lua/?.lua"
+require("startup").init("{}")"#,
             build_file.to_string_lossy().as_ref()
         );
 
@@ -186,6 +189,7 @@ pub struct Engine {
 }
 
 impl Engine {
+    #[tracing::instrument(level = "trace", skip(self))]
     fn load_functions(&mut self) -> eyre::Result<()> {
         self.lua
             .context(|lua_context| -> std::result::Result<(), rlua::Error> {
@@ -255,12 +259,11 @@ impl Engine {
     ///
     /// # Errors
     /// A generic error if the evaluation fails
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn evaluate<T: serde::de::DeserializeOwned>(
         &mut self,
         expression: &str,
     ) -> eyre::Result<T> {
-        tracing::debug!("Evaluating '{}'.", expression);
-
         self.lua.context(|lua_context| -> eyre::Result<T> {
             let value = lua_context
                 .load(expression)

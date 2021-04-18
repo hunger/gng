@@ -98,4 +98,4 @@ pub const BUILD_SCRIPT: &str = "build.lua";
 
 mod source_packet;
 
-pub use source_packet::{Facet, PacketDefinition, Source, SourcePacket};
+pub use source_packet::{PacketDefinition, Source, SourcePacket};

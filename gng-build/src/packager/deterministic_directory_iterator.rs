@@ -124,8 +124,6 @@ impl DeterministicDirectoryIterator {
             self.stack
                 .push(populate_directory_stack(&entry.path(), &new_directory)?);
 
-            self.print_state("New directory");
-
             Ok(crate::packager::PacketPath {
                 in_packet: gng_shared::packet::Path::new_directory(
                     &directory, &name, mode, user_id, group_id,
@@ -153,31 +151,17 @@ impl DeterministicDirectoryIterator {
             break;
         }
     }
-
-    fn print_state(&self, message: &str) {
-        println!("{}", message);
-        for s in &self.stack {
-            println!(
-                "    {} => with {} elements.",
-                s.1.to_string_lossy(),
-                s.0.len()
-            );
-        }
-        println!("-----------------------");
-    }
 }
 
 impl Iterator for DeterministicDirectoryIterator {
     type Item = crate::packager::PackagingIteration;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.print_state("Before Cleanup");
         self.clean_up();
         if self.at_end() {
             return None;
         }
 
-        self.print_state("When finding");
         let result = self.find_iterator_value();
 
         Some(result)

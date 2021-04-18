@@ -3,7 +3,7 @@
 
 //! A object used to handle events from the `CaseOfficer` from `gng-build-agent`
 
-use eyre::Result;
+use eyre::{Result, WrapErr};
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -16,6 +16,69 @@ fn hash_str(input: &str) -> Vec<u8> {
     v.extend_from_slice(&hasher.finalize());
 
     v
+}
+
+fn packet_from(source_package: &gng_build_shared::SourcePacket) -> gng_shared::PacketBuilder {
+    let mut result = gng_shared::PacketBuilder::default();
+    result.source_name(source_package.name.clone());
+    result.license(source_package.license.clone());
+    result.version(source_package.version.clone());
+    result.url(source_package.url.clone());
+    result.bug_url(source_package.bug_url.clone());
+    result
+}
+
+#[tracing::instrument(level = "trace", skip(source_package))]
+fn package(
+    source_package: &gng_build_shared::SourcePacket,
+    ctx: &crate::handler::Context,
+) -> Result<Vec<std::path::PathBuf>> {
+    let mut packager = crate::PackagerBuilder::default();
+
+    for pd in &source_package.packets {
+        let p = packet_from(source_package)
+            .name(pd.name.clone())
+            .facet(pd.facet.clone())
+            .description(pd.description.clone())
+            .dependencies(pd.dependencies.clone())
+            .build()
+            .map_err(|e| gng_shared::Error::Runtime {
+                message: format!("Failed to define a packet: {}", e),
+            })?;
+        let patterns = pd
+            .files
+            .iter()
+            .map(|d| {
+                glob::Pattern::new(&d.to_string())
+                    .wrap_err("Failed to convert packet files to glob patterns.")
+            })
+            .collect::<Result<Vec<glob::Pattern>>>()?;
+
+        packager = packager.add_packet(&p, &patterns[..])?;
+    }
+
+    let p = packet_from(source_package)
+        .name(source_package.name.clone())
+        .description(source_package.description.clone())
+        .dependencies(gng_shared::Names::default())
+        .facet(None)
+        .build()
+        .map_err(|e| gng_shared::Error::Runtime {
+            message: format!("Failed to define a packet: {}", e),
+        })?;
+
+    packager = packager.add_packet(
+        &p,
+        &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
+    )?;
+
+    packager
+        .build()?
+        .package(&ctx.install_directory, &std::env::current_dir()?)
+        .wrap_err(format!(
+            "Failed to package \"{}\".",
+            ctx.install_directory.to_string_lossy()
+        ))
 }
 
 // ----------------------------------------------------------------------
@@ -113,7 +176,6 @@ impl Handler for ImmutableSourceDataHandler {
         }
 
         if !self.first_message {
-            tracing::error!("The build agent did not send a DATA message first!");
             panic!("gng-build-agent did not react as expected!");
         }
 
@@ -128,7 +190,6 @@ impl Handler for ImmutableSourceDataHandler {
             }
             Some(vg) if *vg == v => Ok(false),
             Some(_) => {
-                tracing::error!("Source data changed, aborting!");
                 panic!("gng-build-agent did not react as expected!");
             }
         }
@@ -137,12 +198,10 @@ impl Handler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace")]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if self.first_message {
-            tracing::error!("The build agent did not send any message!");
             panic!("gng-build-agent did not react as expected!");
         }
 
         if self.hash.is_none() {
-            tracing::error!("No source data received during Query mode.");
             panic!("gng-build-agent did not react as expected!");
         }
         Ok(())
@@ -196,6 +255,57 @@ impl Handler for ValidatePacketsHandler {
     #[tracing::instrument(level = "trace")]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
+    }
+}
+
+// ----------------------------------------------------------------------
+// - PackagingHandler:
+// ----------------------------------------------------------------------
+
+/// Make sure the source as seen by the `gng-build-agent` stays constant
+#[derive(Debug)]
+pub struct PackagingHandler {
+    source_packet: Option<gng_build_shared::SourcePacket>,
+}
+
+impl Default for PackagingHandler {
+    fn default() -> Self {
+        Self {
+            source_packet: None,
+        }
+    }
+}
+
+impl Handler for PackagingHandler {
+    #[tracing::instrument(level = "trace")]
+    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
+        Ok(())
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn handle(
+        &mut self,
+        ctx: &Context,
+        mode: &crate::Mode,
+        message_type: &gng_build_shared::MessageType,
+        message: &str,
+    ) -> Result<bool> {
+        if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
+            self.source_packet = serde_json::from_str(message)?;
+        }
+        Ok(false)
+    }
+
+    #[tracing::instrument(level = "trace")]
+    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
+        if *mode != crate::Mode::Package {
+            return Ok(());
+        }
+
+        match &self.source_packet {
+            Some(source_packet) => package(source_packet, ctx).map(|_| ()),
+            None => Err(eyre::eyre!("Can not package: No data found!")),
+        }
     }
 }
 

@@ -24,6 +24,7 @@ pub fn validate_packets(packet: &PacketBuilder, packets: &[PacketBuilder]) -> ey
 // - PacketBuilder:
 // ----------------------------------------------------------------------
 
+#[derive(Debug)]
 pub struct PacketBuilder {
     pub data: gng_shared::Packet,
     pub patterns: Vec<glob::Pattern>,
@@ -37,7 +38,7 @@ impl PacketBuilder {
         }
     }
 
-    pub fn build(self, facet_definitions: &[gng_shared::Facet]) -> eyre::Result<Packet> {
+    pub fn build(self, facet_definitions: &[super::NamedFacet]) -> eyre::Result<Packet> {
         Packet::new(self.data, self.patterns, facet_definitions)
     }
 }
@@ -53,11 +54,32 @@ pub struct Packet {
     pub facets: Vec<Facet>,
 }
 
+impl std::fmt::Debug for Packet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        let patterns: Vec<String> = self.patterns.iter().map(glob::Pattern::to_string).collect();
+        write!(
+            f,
+            "Packet {{ full_name: {:?}, patterns: {:?} }}",
+            &self.full_debug_name(),
+            &patterns
+        )
+    }
+}
+
 impl Packet {
+    fn full_debug_name(&self) -> String {
+        format!(
+            "{}-{}",
+            &self.data.name.to_string(),
+            &self.data.version.to_string(),
+        )
+    }
+
+    #[tracing::instrument(level = "trace")]
     fn new(
         data: gng_shared::Packet,
         patterns: Vec<glob::Pattern>,
-        facet_definitions: &[gng_shared::Facet],
+        facet_definitions: &[super::NamedFacet],
     ) -> eyre::Result<Self> {
         let facets = Facet::facets_from(facet_definitions, &data)?;
 
@@ -69,10 +91,14 @@ impl Packet {
         })
     }
 
-    pub fn contains(&self, path: &std::path::Path, _mime_type: &str) -> bool {
-        self.patterns.iter().any(|p| p.matches_path(path))
+    #[tracing::instrument(level = "trace")]
+    pub fn contains(&self, path: &std::path::Path, mime_type: &str) -> bool {
+        let result = self.patterns.iter().any(|p| p.matches_path(path));
+        tracing::debug!("{:?} contains {:?}? {}", self, path, result);
+        result
     }
 
+    #[tracing::instrument(level = "trace", skip(factory))]
     pub fn store_path(
         &mut self,
         factory: &super::InternalPacketWriterFactory,
@@ -84,9 +110,7 @@ impl Packet {
             .facets
             .iter_mut()
             .find(|f| f.contains(&path, mime_type))
-            .ok_or(gng_shared::Error::Runtime {
-                message: "No facet found!".to_string(),
-            })?;
+            .ok_or_else(|| eyre::eyre!("No facet found!"))?;
         facet.store_path(factory, package_path, mime_type)
     }
 

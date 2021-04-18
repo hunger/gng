@@ -56,7 +56,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    args.logging
+    let _app_span = args
+        .logging
         .setup_logging()
         .wrap_err("Failed to set up logging.")?;
 

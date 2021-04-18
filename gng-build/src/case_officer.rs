@@ -183,7 +183,7 @@ fn find_gng_build_agent() -> eyre::Result<PathBuf> {
         .to_owned();
 
     tracing::trace!(
-        "Looking for gng-build-agent relative to: \"{}\".",
+        "Looking for agent relative to: \"{}\".",
         exe_directory.to_string_lossy()
     );
 
@@ -192,7 +192,7 @@ fn find_gng_build_agent() -> eyre::Result<PathBuf> {
         find_development_agent(&exe_directory),
     ] {
         if validate_executable(i).is_ok() {
-            tracing::debug!("Found gng-build-agent: \"{}\".", i.to_string_lossy());
+            tracing::debug!("Using agent: \"{}\".", i.to_string_lossy());
             return Ok(i.clone());
         }
     }
@@ -394,12 +394,6 @@ pub struct CaseOfficer {
     temporary_directories: Vec<tempfile::TempDir>,
 }
 
-impl std::fmt::Debug for CaseOfficer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CaseOfficer")
-    }
-}
-
 impl CaseOfficer {
     fn mode_args(
         &self,
@@ -489,7 +483,7 @@ impl CaseOfficer {
         result
     }
 
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self, ctx))]
     fn run_agent(
         &mut self,
         ctx: &crate::handler::Context,
@@ -497,7 +491,6 @@ impl CaseOfficer {
         new_mode: &Mode,
         message_prefix: String,
     ) -> Result<()> {
-        tracing::debug!("Starting gng-build-agent in systemd-nspawn");
         let mut child = std::process::Command::new(&self.nspawn_binary)
             .args(args)
             .env_clear()
@@ -505,10 +498,8 @@ impl CaseOfficer {
             .stdout(std::process::Stdio::piped())
             .spawn()?;
 
-        tracing::trace!("Processing output of gng-build-agent");
         self.handle_agent_output(ctx, &mut child, new_mode, &message_prefix)?;
 
-        tracing::trace!("Waiting for gng-build-agent to finish");
         let exit_status = child.wait()?;
 
         match exit_status.code() {
@@ -529,10 +520,7 @@ impl CaseOfficer {
     }
 
     /// Switch into a new `Mode` of operation
-    #[tracing::instrument(level = "trace")]
     fn switch_mode(&mut self, ctx: &crate::handler::Context, new_mode: &Mode) -> Result<()> {
-        tracing::debug!("Switching mode to {:?}", new_mode);
-
         for h in &mut self.handlers {
             h.prepare(ctx, new_mode)?;
         }
@@ -568,8 +556,6 @@ impl CaseOfficer {
         if message_type.is_empty() {
             println!("{}{}", *PREFIX, line);
         } else {
-            tracing::trace!("{}MSG_{}: {}", *PREFIX, message_type, line);
-
             let message_type = gng_build_shared::MessageType::try_from(String::from(message_type))
                 .map_err(|e| eyre!(e))?;
             for h in &mut self.handlers {
@@ -615,7 +601,7 @@ impl CaseOfficer {
     }
 
     /// Process a build
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     pub fn process(&mut self) -> Result<()> {
         let mut mode = Some(Mode::default());
         let ctx = self.create_ctx();
@@ -630,7 +616,7 @@ impl CaseOfficer {
     }
 
     /// Clean up after a build
-    #[tracing::instrument(level = "debug")]
+    #[tracing::instrument(level = "debug", skip(self))]
     pub fn clean_up(&mut self) -> Result<()> {
         for td in self.temporary_directories.drain(..) {
             let p = td.path().to_owned();

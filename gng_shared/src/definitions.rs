@@ -13,10 +13,10 @@ use std::convert::From;
 // ----------------------------------------------------------------------
 
 /// A `Facet` that (part of) a `Packet` will be split into
-#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(
+    derive_builder::Builder, Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize,
+)]
 pub struct Facet {
-    /// The `name` of this `Facet`
-    pub name: Name,
     /// Mime-types that should be added to this `Facet`
     pub mime_types: Vec<String>,
     /// File Glob `patterns` to put into this `Facet`
@@ -414,11 +414,6 @@ pub struct Packet {
     pub url: Option<String>,
     /// The upstream bug tracker url
     pub bug_url: Option<String>,
-
-    /// The other packages this Package conflicts with
-    pub conflicts: Names,
-    /// Abstract interfaces provided by this package
-    pub provides: Names,
 
     /// `Packet`s this `Packet` depends on.
     pub dependencies: Names,

@@ -100,44 +100,63 @@ struct Context {
     engine: gng_build_agent::engine::Engine,
 }
 
+#[tracing::instrument(level = "debug", skip(ctx))]
 fn prepare(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .evaluate::<()>("prepare()")
         .wrap_err("Failed to prepare package")
 }
 
+#[tracing::instrument(level = "debug", skip(ctx))]
 fn build(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .evaluate::<()>("build()")
         .wrap_err("Failed to build package.")
 }
 
+#[tracing::instrument(level = "debug", skip(ctx))]
 fn check(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .evaluate::<()>("check()")
         .wrap_err("Failed to check package.")
 }
 
+#[tracing::instrument(level = "debug", skip(ctx))]
 fn install(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .evaluate::<()>("install()")
         .wrap_err("Failed to install package.")
 }
 
+#[tracing::instrument(level = "debug", skip(ctx))]
 fn polish(ctx: &mut Context) -> Result<()> {
     ctx.engine
         .evaluate::<()>("polish()")
         .wrap_err("Failed to polish package.")
 }
 
-// ----------------------------------------------------
+// ----------------------------------------------------------------------
 // - Entry Point:
 // ----------------------------------------------------------------------
+
+fn run_subcommand(engine: gng_build_agent::engine::Engine, subcommand: &SubCommand) -> Result<()> {
+    let mut ctx = Context { engine };
+
+    match subcommand {
+        SubCommand::Query => Ok(()),
+        SubCommand::Prepare => prepare(&mut ctx),
+        SubCommand::Build => build(&mut ctx),
+        SubCommand::Check => check(&mut ctx),
+        SubCommand::Install => install(&mut ctx),
+        SubCommand::Polish => polish(&mut ctx),
+    }
+}
 
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    args.logging
+    let _app_span = args
+        .logging
         .setup_logging()
         .wrap_err("Failed to set up logging.")?;
 
@@ -176,26 +195,11 @@ fn main() -> Result<()> {
 
     let source_packet = gng_build_agent::source_packet::from_engine(&mut engine)?;
 
-    tracing::trace!(
-        "Read {} file for {}",
-        gng_build_shared::BUILD_SCRIPT,
-        source_packet
-    );
-
     send_message(
         &message_prefix,
         &gng_build_shared::MessageType::Data,
         &serde_json::to_string(&source_packet)?,
     );
 
-    let mut ctx = Context { engine };
-
-    match args.subcommand {
-        SubCommand::Query => Ok(()),
-        SubCommand::Prepare => prepare(&mut ctx),
-        SubCommand::Build => build(&mut ctx),
-        SubCommand::Check => check(&mut ctx),
-        SubCommand::Install => install(&mut ctx),
-        SubCommand::Polish => polish(&mut ctx),
-    }
+    run_subcommand(engine, &args.subcommand)
 }

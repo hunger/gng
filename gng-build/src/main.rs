@@ -75,7 +75,8 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    args.logging
+    let _app_span = args
+        .logging
         .setup_logging()
         .wrap_err("Failed to set up logging.")?;
 
@@ -86,20 +87,20 @@ fn main() -> Result<()> {
     tracing::debug!("Command line arguments: {:#?}", args);
 
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
-    if args.lua_dir.is_some() {
-        case_officer.set_lua_directory(&args.lua_dir.unwrap());
+    if let Some(tmp) = &args.lua_dir {
+        case_officer.set_lua_directory(tmp);
     }
-    if args.scratch_dir.is_some() {
-        case_officer.set_scratch_directory(&args.scratch_dir.unwrap());
+    if let Some(tmp) = &args.scratch_dir {
+        case_officer.set_scratch_directory(tmp);
     }
-    if args.work_dir.is_some() {
-        case_officer.set_work_directory(&args.work_dir.unwrap());
+    if let Some(tmp) = &args.work_dir {
+        case_officer.set_work_directory(tmp);
     }
-    if args.install_dir.is_some() {
-        case_officer.set_install_directory(&args.install_dir.unwrap());
+    if let Some(tmp) = &args.install_dir {
+        case_officer.set_install_directory(tmp);
     }
-    if args.agent.is_some() {
-        case_officer.set_agent(&args.agent.unwrap());
+    if let Some(tmp) = &args.agent {
+        case_officer.set_agent(tmp);
     }
 
     let mut case_officer = case_officer
@@ -109,6 +110,7 @@ fn main() -> Result<()> {
         .add_handler(Box::new(
             gng_build::handler::ValidatePacketsHandler::default(),
         ))
+        .add_handler(Box::new(gng_build::handler::PackagingHandler::default()))
         .build(&args.pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 

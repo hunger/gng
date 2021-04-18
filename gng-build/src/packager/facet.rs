@@ -34,7 +34,7 @@ fn create_packet_meta_data_directory(
     let packet_meta_dir = meta_dir.join(packet_name);
     let facet_string = facet_name
         .clone()
-        .unwrap_or_else(|| std::ffi::OsString::from("_MAIN_"));
+        .unwrap_or_else(|| std::ffi::OsString::from(crate::DEFAULT_FACET_NAME));
 
     writer.add_path(&mut gng_shared::packet::Path::new_directory(
         &packet_meta_dir,
@@ -90,9 +90,20 @@ pub struct Facet {
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
 }
 
+impl std::fmt::Debug for Facet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "Facet {{ facet_name: {:?}, mime_types: {:?}, patterns: {:?}, data: {:?} }}",
+            &self.facet_name, &self.mime_types, &self.patterns, &self.data,
+        )
+    }
+}
+
 impl Facet {
+    #[tracing::instrument(level = "trace")]
     pub fn facets_from(
-        definitions: &[gng_shared::Facet],
+        definitions: &[super::NamedFacet],
         packet: &gng_shared::Packet,
     ) -> eyre::Result<Vec<Self>> {
         let mut result = Vec::with_capacity(definitions.len() + 1);
@@ -100,8 +111,9 @@ impl Facet {
             if !packet.dependencies.contains(&d.name) {
                 result.push(Self {
                     facet_name: Some(d.name.clone()),
-                    mime_types: d.mime_types.clone(),
+                    mime_types: d.facet.mime_types.clone(),
                     patterns: d
+                        .facet
                         .patterns
                         .iter()
                         .map(|s| {
@@ -123,6 +135,18 @@ impl Facet {
         Ok(result)
     }
 
+    fn full_debug_name(&self) -> String {
+        let data = self.data.as_ref();
+        let name = data.map_or("<unknown>".to_owned(), |p| p.name.to_string());
+        let facet = self.facet_name.as_ref().map_or(
+            crate::DEFAULT_FACET_NAME.to_string(),
+            gng_shared::Name::to_string,
+        );
+        let version = data.map_or("<unknown>".to_owned(), |p| p.version.to_string());
+        format!("{}-{}-{}", &name, &facet, &version,)
+    }
+
+    #[tracing::instrument(level = "trace")]
     pub fn contains(&self, path: &std::path::Path, mime_type: &str) -> bool {
         self.patterns.iter().any(|p| p.matches_path(path))
             || self.mime_types.iter().any(|mt| mt == mime_type)
@@ -134,7 +158,9 @@ impl Facet {
         package_path: &mut gng_shared::packet::Path,
         _mime_type: &str,
     ) -> eyre::Result<()> {
+        let full_name = self.full_debug_name();
         let writer = self.get_or_insert_writer(factory)?;
+        tracing::info!("Packet \"{}\": Storing {:?}.", &full_name, &package_path);
         writer
             .add_path(package_path)
             .wrap_err("Failed to store a path into packet.")
@@ -170,7 +196,8 @@ impl Facet {
                 .as_ref()
                 .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
 
-            self.writer = Some((factory)(&data.name, &self.facet_name, &data.version)?)
+            self.writer = Some((factory)(&data.name, &self.facet_name, &data.version)?);
+            tracing::info!("Packet file for \"{}\" created", &self.full_debug_name());
         }
 
         self.get_writer()

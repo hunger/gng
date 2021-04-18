@@ -26,7 +26,17 @@ type PackagingIteration = eyre::Result<PacketPath>;
 type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
 type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
 
-//  ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// - NamedFacet:
+// ----------------------------------------------------------------------
+
+#[derive(Debug)]
+pub struct NamedFacet {
+    name: gng_shared::Name,
+    facet: gng_shared::Facet,
+}
+
+// ----------------------------------------------------------------------
 // - PackagerBuilder:
 // ----------------------------------------------------------------------
 
@@ -34,7 +44,7 @@ type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<
 pub struct PackagerBuilder {
     packet_factory_fn: Box<PacketWriterFactory>,
     packets: Vec<crate::packager::packet::PacketBuilder>,
-    facet_definitions: Vec<gng_shared::Facet>,
+    facet_definitions: Vec<NamedFacet>,
     iterator_factory_fn: Box<PackagingIteratorFactory>,
 }
 
@@ -43,8 +53,17 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// `gng_shared::Error::Runtime` if this given `facet` is not valid
-    pub fn add_facet(mut self, facet: gng_shared::Facet) -> eyre::Result<Self> {
-        self.facet_definitions.push(facet);
+    #[tracing::instrument(level = "trace", skip(self))]
+    pub fn add_facet(
+        mut self,
+        name: &gng_shared::Name,
+        facet: &gng_shared::Facet,
+    ) -> eyre::Result<Self> {
+        let nf = NamedFacet {
+            name: name.clone(),
+            facet: facet.clone(),
+        };
+        self.facet_definitions.push(nf);
 
         Ok(self)
     }
@@ -53,6 +72,7 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// `gng_shared::Error::Runtime` if this given `path` is not a directory
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn add_packet(
         mut self,
         data: &gng_shared::Packet,
@@ -60,13 +80,13 @@ impl PackagerBuilder {
     ) -> eyre::Result<Self> {
         let p = crate::packager::packet::PacketBuilder::new(data, patterns.to_vec());
         packet::validate_packets(&p, &self.packets)?;
+
         self.packets.push(p);
 
         Ok(self)
     }
 
     /// Set up a factory for packet writers.
-    //     #[cfg(tests)]
     pub fn packet_factory(&mut self, factory: Box<PacketWriterFactory>) -> &mut Self {
         self.packet_factory_fn = factory;
         self
@@ -83,6 +103,7 @@ impl PackagerBuilder {
     ///
     /// # Errors
     /// A `gng_shared::Error::Runtime` may be returned when the facets are not valid somehow
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn build(mut self) -> eyre::Result<Packager> {
         let packets = std::mem::take(&mut self.packets);
         let packets = packets
@@ -150,6 +171,7 @@ impl Packager {
     ///
     /// # Errors
     /// none yet
+    #[tracing::instrument(level = "trace", skip(self))]
     pub fn package(
         &mut self,
         package_directory: &std::path::Path,
@@ -158,11 +180,8 @@ impl Packager {
         let package_directory = package_directory.canonicalize()?;
         let packet_directory = packet_directory.canonicalize()?;
 
-        println!("Packaging");
-        let factory =
-            std::mem::take(&mut self.packet_factory).ok_or(gng_shared::Error::Runtime {
-                message: "Packager has been used up already!".to_string(),
-            })?;
+        let factory = std::mem::take(&mut self.packet_factory)
+            .ok_or_else(|| eyre::eyre!("Packager has been used up already!"))?;
         let factory: InternalPacketWriterFactory = Box::new(
             move |name,
                   facet,
@@ -173,12 +192,12 @@ impl Packager {
             },
         );
 
-        tracing::debug!("Packaging \"{}\"...", package_directory.to_string_lossy());
-        let mut packets = self.packets.take().ok_or(gng_shared::Error::Runtime {
-            message: "Packages were already created!".to_string(),
-        })?;
+        let mut packets = self
+            .packets
+            .take()
+            .ok_or_else(|| eyre::eyre!("Packages were already created!"))?;
 
-        tracing::trace!("Building Packets: Setup done.");
+        tracing::debug!("Packaging into {:?}", &packets);
 
         for d in (self.iterator_factory)(&package_directory)? {
             let mut packet_info = d?;
@@ -198,19 +217,12 @@ impl Packager {
             let packet = packets
                 .iter_mut()
                 .find(|p| p.contains(&path, &packet_info.classification))
-                .ok_or(gng_shared::Error::Runtime {
-                    message: format!(
+                .ok_or_else(|| {
+                    eyre::eyre!(format!(
                         "\"{}\" not packaged: no glob pattern matched.",
                         packaged_path_str,
-                    ),
+                    ),)
                 })?;
-
-            tracing::trace!(
-                "    [{}] {:?} - {}",
-                packet.data.name,
-                packet_info.in_packet,
-                packet_info.classification,
-            );
 
             packet.store_path(
                 &factory,
@@ -367,8 +379,6 @@ mod tests {
                     description: "The foo packet".to_string(),
                     url: None,
                     bug_url: None,
-                    conflicts: gng_shared::Names::default(),
-                    provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
                     facet: None,
                 },
@@ -401,8 +411,6 @@ mod tests {
                     description: "The foo packet".to_string(),
                     url: None,
                     bug_url: None,
-                    conflicts: gng_shared::Names::default(),
-                    provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
                     facet: None,
                 },
@@ -462,7 +470,7 @@ mod tests {
             it.next().unwrap().1,
             gng_shared::packet::Path::new_directory(
                 std::path::Path::new(".gng/foo"),
-                &std::ffi::OsString::from("_MAIN_"),
+                &std::ffi::OsString::from(crate::DEFAULT_FACET_NAME),
                 0o755,
                 0,
                 0
@@ -499,31 +507,35 @@ mod tests {
                     description: "The foo packet".to_string(),
                     url: None,
                     bug_url: None,
-                    conflicts: gng_shared::Names::default(),
-                    provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
             )
             .unwrap()
-            .add_facet(gng_shared::Facet {
-                mime_types: vec![],
-                name: gng_shared::Name::try_from("f1").unwrap(),
-                patterns: vec!["f1".to_string(), "f1/**".to_string()],
-            })
+            .add_facet(
+                &gng_shared::Name::try_from("f1").unwrap(),
+                &gng_shared::Facet {
+                    mime_types: vec![],
+                    patterns: vec!["f1".to_string(), "f1/**".to_string()],
+                },
+            )
             .unwrap()
-            .add_facet(gng_shared::Facet {
-                mime_types: vec![],
-                name: gng_shared::Name::try_from("unused").unwrap(),
-                patterns: vec!["unused".to_string(), "unused/**".to_string()],
-            })
+            .add_facet(
+                &gng_shared::Name::try_from("unused").unwrap(),
+                &gng_shared::Facet {
+                    mime_types: vec![],
+                    patterns: vec!["unused".to_string(), "unused/**".to_string()],
+                },
+            )
             .unwrap()
-            .add_facet(gng_shared::Facet {
-                mime_types: vec![],
-                name: gng_shared::Name::try_from("f2").unwrap(),
-                patterns: vec!["f2".to_string(), "f2/**".to_string()],
-            })
+            .add_facet(
+                &gng_shared::Name::try_from("f2").unwrap(),
+                &gng_shared::Facet {
+                    mime_types: vec![],
+                    patterns: vec!["f2".to_string(), "f2/**".to_string()],
+                },
+            )
             .unwrap();
         let mut packager = builder.build().unwrap();
 
@@ -572,8 +584,6 @@ mod tests {
                     description: "The foo packet".to_string(),
                     url: None,
                     bug_url: None,
-                    conflicts: gng_shared::Names::default(),
-                    provides: gng_shared::Names::default(),
                     dependencies: gng_shared::Names::default(),
                     facet: None,
                 },

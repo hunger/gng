@@ -15,6 +15,10 @@ fn setup_pretty_logger() -> crate::Result<()> {
     tracing_subscriber::fmt()
         .pretty()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("GNG_LOG"))
+        // .with_span_events(
+        //     tracing_subscriber::fmt::format::FmtSpan::ENTER
+        //         | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+        // )
         .try_init()
         .map_err(|e| crate::Error::Runtime {
             message: e.to_string(),
@@ -24,6 +28,10 @@ fn setup_pretty_logger() -> crate::Result<()> {
 fn setup_full_logger() -> crate::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("GNG_LOG"))
+        // .with_span_events(
+        //     tracing_subscriber::fmt::format::FmtSpan::ENTER
+        //         | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+        // )
         .try_init()
         .map_err(|e| crate::Error::Runtime {
             message: e.to_string(),
@@ -34,6 +42,10 @@ fn setup_compact_logger() -> crate::Result<()> {
     tracing_subscriber::fmt()
         .compact()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("GNG_LOG"))
+        // .with_span_events(
+        //     tracing_subscriber::fmt::format::FmtSpan::ENTER
+        //         | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+        // )
         .try_init()
         .map_err(|e| crate::Error::Runtime {
             message: e.to_string(),
@@ -44,6 +56,12 @@ fn setup_json_logger() -> crate::Result<()> {
     tracing_subscriber::fmt()
         .json()
         .with_env_filter(tracing_subscriber::EnvFilter::from_env("GNG_LOG"))
+        // .with_span_events(
+        //     tracing_subscriber::fmt::format::FmtSpan::ENTER
+        //         | tracing_subscriber::fmt::format::FmtSpan::EXIT,
+        // )
+        // .with_span_list(true)
+        // .with_current_span(true)
         .try_init()
         .map_err(|e| crate::Error::Runtime {
             message: e.to_string(),
@@ -107,14 +125,13 @@ impl LogArgs {
     ///
     /// # Errors
     /// a `crate::Error::Runtime` is returned if the setup fails
-    pub fn setup_logging(&self) -> crate::Result<()> {
+    pub fn setup_logging(&self) -> crate::Result<tracing::Span> {
         match self.log_format {
             LogFormat::Pretty => setup_pretty_logger(),
             LogFormat::Full => setup_full_logger(),
             LogFormat::Compact => setup_compact_logger(),
             LogFormat::Json => setup_json_logger(),
         }?;
-        tracing::trace!("Tracing initialized.");
-        Ok(())
+        Ok(tracing::span!(tracing::Level::TRACE, "Application started"))
     }
 }
