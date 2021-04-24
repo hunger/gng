@@ -232,7 +232,8 @@ impl Facet {
         let mut description_suffix = String::new();
 
         if let Some(n) = &self.facet_name {
-            data.dependencies.insert(n.clone());
+            data.dependencies.insert(n.clone()); // Depend on base facet
+            data.dependencies.insert(data.name.clone()); // Depend on main facet
             description_suffix = n.to_string();
         }
 

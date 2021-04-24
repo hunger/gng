@@ -1,5 +1,5 @@
 [package]
-name = "gng-build"
+name = "gng-repo"
 version = "0.1.0"
 edition = "2018"
 authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
@@ -10,21 +10,10 @@ repository = "https://github.com/hunger/gng"
 
 [dependencies]
 clap = { version = "3.0.0-beta.2" }
-downloader = { version = "0.2", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
 eyre = { version = "0.6" }
-filemagic = { version = "0.12" }
-glob = { version = "0.3" }
-gng_build_shared = { path = "../gng_build_shared" }
+gng_repository = { path = "../gng_repository" }
 gng_shared = { path = "../gng_shared" }
-indicatif = { version = "0.15" }
-lazy_static = { version = "1.4" }
-rand = { version = "0.8" }
-serde = { version = "1.0" }
-serde_json = { version = "1.0" }
-sha3 = { version = "0.9" }
-tempfile = { version = "3.2" }
 tracing = { version = "0.1" }
-url = { version = "2.2" }
 
 [dev-dependencies]
 temp-dir = { version = "0.1" }

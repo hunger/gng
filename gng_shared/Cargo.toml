@@ -1,23 +1,22 @@
 [package]
 name = "gng_shared"
 version = "0.1.0"
-authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
 edition = "2018"
-readme = "README.md"
+authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
 license = "GPL-3.0-or-later"
 categories = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
-repository = "<PRIVATE_REPOSITORY>"
+repository = "https://github.com/hunger/gng"
 
 [dependencies]
 clap = { version = "3.0.0-beta.2" }
-derive_builder = { version = "0.10.0" }
-itertools = { version = "0.10.0" }
-nix = { version = "0.20.0" }
-serde = { version = "1.0.123", features = ["derive"] }
-tar = { version = "0.4.0" }
-thiserror = { version = "1.0.22" }
-toml = { version = "0.5.8" }
-tracing = { version = "0.1.22" }
-tracing-subscriber = { version = "0.2.15" }
-zstd = { version = "0.7.0" }
+derive_builder = { version = "0.10" }
+itertools = { version = "0.10" }
+nix = { version = "0.20" }
+serde = { version = "1.0", features = ["derive"] }
+tar = { version = "0.4" }
+thiserror = { version = "1.0" }
+toml = { version = "0.5" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.2" }
+zstd = { version = "0.7" }
