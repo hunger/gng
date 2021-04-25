@@ -15,6 +15,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
+use std::cmp::Ordering;
+
 // ----------------------------------------------------------------------
 // - ErrorHandling:
 // ----------------------------------------------------------------------
@@ -33,6 +35,31 @@ pub enum Error {
     /// A `Error` about invalid DB schema.
     #[error("Repository backend uses an unsupported schema. Please upgrade your gng tools!")]
     WrongSchema,
+
+    /// A `Error` about use of an unknown Repository.
+    #[error("Repository \"{}\" not found.", .0)]
+    UnknownRepository(gng_shared::Name),
+
+    /// A `Error` about use of an unknown Repository UUID.
+    #[error(
+        "Unknown repository \"{}\" found as a dependency of repository \"{}\".",
+        .0,
+        .1
+    )]
+    UnknownRepositoryDependency(String, gng_shared::Name),
+
+    /// A `Error` about use the Repository being in use.
+    #[error(
+        "Repository \"{}\" is used by \"{}\".",
+        used_repository,
+        using_repository
+    )]
+    RepositoryInUse {
+        /// The repository that is being used
+        used_repository: gng_shared::Name,
+        /// The repository depending on/using the `used_repository`
+        using_repository: gng_shared::Name,
+    },
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]
@@ -54,11 +81,65 @@ pub mod repository;
 
 pub use repository::Repository;
 
+pub use uuid::Uuid; // Reexport Uuid from uuid crate!
+
+// ----------------------------------------------------------------------
+// - Structures:
+// ----------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+/// Data on a repository of `Packet`s.
+pub struct RepositoryData {
+    /// The user-visible name of this repository
+    pub name: gng_shared::Name,
+    /// The repository UUID
+    pub uuid: crate::Uuid,
+    /// The priority of this `RepositoryData`
+    pub priority: u32,
+    /// The url to pull updates from
+    pub pull_url: Option<String>,
+    /// The base URL to download `Packet`s from
+    pub packet_base_url: String,
+    /// The base directory holding the source packages for this repository.
+    pub sources_base_directory: Option<std::path::PathBuf>,
+    /// `RepositoryData` this one depends on
+    pub dependencies: gng_shared::Names,
+}
+
+impl Eq for RepositoryData {}
+
+impl Ord for RepositoryData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.priority.cmp(&other.priority) {
+            Ordering::Equal => self.uuid.cmp(&other.uuid),
+            Ordering::Less => Ordering::Less,
+            Ordering::Greater => Ordering::Greater,
+        }
+    }
+}
+
+impl PartialEq for RepositoryData {
+    fn eq(&self, other: &Self) -> bool {
+        self.uuid == other.uuid
+    }
+}
+
+impl PartialOrd for RepositoryData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// ----------------------------------------------------------------------
+// - Functions:
+// ----------------------------------------------------------------------
+
 /// Open a `Repository`
 ///
 /// # Errors
 ///  * `Error::WrongSchema` if the repository does not use a supported schema version
 ///  *`Error::Backend` if the Backend has trouble reading the repository data
+#[tracing::instrument(level = "trace")]
 pub fn open(path: &std::path::Path) -> Result<impl Repository> {
     repository::RepositoryImpl::new(path)
 }

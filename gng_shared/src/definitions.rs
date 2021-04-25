@@ -334,6 +334,12 @@ impl Names {
         self.0.contains(name)
     }
 
+    /// Check whether there is at least one `Name`
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     fn fix(&mut self) -> &mut Self {
         self.0.sort();
         self.0.dedup();
@@ -350,6 +356,14 @@ impl std::convert::From<Names> for Vec<String> {
 impl std::convert::From<Name> for Names {
     fn from(name: Name) -> Self {
         Self(vec![name])
+    }
+}
+
+impl std::convert::From<Vec<Name>> for Names {
+    fn from(names: Vec<Name>) -> Self {
+        let mut result = Self(names);
+        result.fix();
+        result
     }
 }
 
