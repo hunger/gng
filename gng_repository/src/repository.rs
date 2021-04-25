@@ -19,12 +19,6 @@ pub trait Repository {
     /// Any of the crate's `Error`s can be returned from here.
     fn version(&self) -> crate::Result<u32>;
 
-    /// Get the repository UUID
-    ///
-    /// # Errors
-    /// Any of the crate's `Error`s can be returned from here.
-    fn uuid(&self) -> crate::Result<crate::Uuid>;
-
     /// Add a new repository
     ///
     /// # Errors
@@ -73,8 +67,6 @@ impl RepositoryImpl {
 
     const VERSION: u32 = 1;
     const VERSION_KEY: &'static str = "schema_version";
-
-    const REPOSITORY_UUID_KEY: &'static str = "repository_uuid";
 
     const REPOSITORIES_TREE: &'static str = "repositories";
     const PACKETS_TREE: &'static str = "packets";
@@ -211,10 +203,6 @@ impl RepositoryImpl {
     #[tracing::instrument(level = "trace", skip(self))]
     fn db_setup(&mut self) -> crate::Result<()> {
         self.db.insert(
-            Self::REPOSITORY_UUID_KEY,
-            &serde_json::to_vec(&crate::Uuid::new_v4()).expect("UUID should be valid!")[..],
-        )?;
-        self.db.insert(
             Self::VERSION_KEY,
             &serde_json::to_vec(&Self::VERSION).map_err(|_| crate::Error::WrongSchema)?[..],
         )?;
@@ -247,18 +235,6 @@ impl Repository for RepositoryImpl {
             .get(Self::VERSION_KEY)?
             .expect("Version must be set!");
         serde_json::from_slice(&version[..]).map_err(|_| crate::Error::WrongSchema)
-    }
-
-    // TODO: Is this necessary?
-    #[tracing::instrument(level = "trace", skip(self))]
-    fn uuid(&self) -> crate::Result<crate::Uuid> {
-        let uuid = self
-            .db
-            .get(Self::REPOSITORY_UUID_KEY)?
-            .expect("Repository UUID must be set!");
-        let uuid: crate::Uuid =
-            serde_json::from_slice(&uuid[..]).map_err(|_| crate::Error::WrongSchema)?;
-        Ok(uuid)
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
@@ -297,10 +273,7 @@ impl Repository for RepositoryImpl {
     fn remove_repository(&mut self, name: &gng_shared::Name) -> crate::Result<()> {
         let mut to_remove = self.repositories.len();
         for (idx, r) in self.repositories.iter().enumerate() {
-            tracing::trace!("XXXXXXXXXXXXXXXXXXXXXX Iterating ({:?})", r.name);
-
             if &r.name == name {
-                tracing::trace!("XXXXXXXXXXXXXXXXXXXXXX Iterating: to remove set to {}", idx);
                 to_remove = idx;
             } else if r.dependencies.contains(name) {
                 return Err(crate::Error::RepositoryInUse {
