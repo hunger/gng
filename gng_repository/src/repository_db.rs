@@ -145,16 +145,93 @@ impl RepositoryDb for RepositoryDbImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::convert::{From, TryFrom};
+
     use super::*;
 
-    fn create_repository() -> RepositoryDbImpl {
+    fn create_repository_db() -> RepositoryDbImpl {
         let config = sled::Config::default().temporary(true);
         RepositoryDbImpl::new(config.open().expect("Temporary DB should have been valid!"))
             .expect("DB should have been created!")
     }
 
+    fn populate_repository_db(db: &mut RepositoryDbImpl) {
+        db.add_repository(crate::Repository {
+            name: gng_shared::Name::try_from("base_repo").expect("Name was valid!"),
+            uuid: crate::Uuid::new_v4(),
+            priority: 100,
+            pull_url: None,
+            packet_base_url: String::from("/tmp/packets/base"),
+            sources_base_directory: None,
+            dependencies: gng_shared::Names::default(),
+            tags: gng_shared::Names::from(
+                gng_shared::Name::try_from("test1").expect("Name was valid!"),
+            ),
+        })
+        .unwrap();
+        db.add_repository(crate::Repository {
+            name: gng_shared::Name::try_from("ext_repo").expect("Name was valid!"),
+            uuid: crate::Uuid::new_v4(),
+            priority: 1500,
+            pull_url: None,
+            packet_base_url: String::from("/tmp/packets/ext"),
+            sources_base_directory: None,
+            dependencies: gng_shared::Names::from(
+                gng_shared::Name::try_from("base_repo").expect("Name was valid!"),
+            ),
+            tags: gng_shared::Names::default(),
+        })
+        .unwrap();
+        db.add_repository(crate::Repository {
+            name: gng_shared::Name::try_from("tagged_repo").expect("Name was valid!"),
+            uuid: crate::Uuid::new_v4(),
+            priority: 1200,
+            pull_url: None,
+            packet_base_url: String::from("/tmp/packets/tagged"),
+            sources_base_directory: None,
+            dependencies: gng_shared::Names::default(),
+            tags: gng_shared::Names::from(
+                gng_shared::Name::try_from("test1").expect("Name was valid!"),
+            ),
+        })
+        .unwrap();
+        db.add_repository(crate::Repository {
+            name: gng_shared::Name::try_from("unrelated_repo").expect("Name was valid!"),
+            uuid: crate::Uuid::new_v4(),
+            priority: 6000,
+            pull_url: None,
+            packet_base_url: String::from("/tmp/packets/unrelated"),
+            sources_base_directory: None,
+            dependencies: gng_shared::Names::default(),
+            tags: gng_shared::Names::default(),
+        })
+        .unwrap();
+    }
     #[test]
     fn test_repository_setup() {
-        let _repo = create_repository();
+        let mut repo_db = create_repository_db();
+        populate_repository_db(&mut repo_db);
+
+        let repositories = repo_db.list_repositories().unwrap();
+
+        let mut it = repositories.iter();
+
+        assert_eq!(
+            it.next().unwrap().name.to_string(),
+            String::from("unrelated_repo")
+        );
+        assert_eq!(
+            it.next().unwrap().name.to_string(),
+            String::from("ext_repo")
+        );
+        assert_eq!(
+            it.next().unwrap().name.to_string(),
+            String::from("tagged_repo")
+        );
+        assert_eq!(
+            it.next().unwrap().name.to_string(),
+            String::from("base_repo")
+        );
+        assert!(it.next().is_none());
     }
 }

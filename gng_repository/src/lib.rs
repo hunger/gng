@@ -115,8 +115,8 @@ impl Ord for Repository {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.priority.cmp(&other.priority) {
             Ordering::Equal => self.uuid.cmp(&other.uuid),
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
+            Ordering::Less => Ordering::Greater,
+            Ordering::Greater => Ordering::Less,
         }
     }
 }
