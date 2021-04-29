@@ -418,7 +418,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::Empty,
+                crate::ContentsPolicy::NotEmpty,
             )
             .unwrap();
         let mut packager = builder.build().unwrap();
@@ -515,7 +515,7 @@ mod tests {
                     facet: None,
                 },
                 &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::NotEmpty,
+                crate::ContentsPolicy::Empty,
             )
             .unwrap()
             .add_facet(
