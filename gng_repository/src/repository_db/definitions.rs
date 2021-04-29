@@ -4,7 +4,7 @@
 //! Definition of data types used by the `Repository`
 
 // ----------------------------------------------------------------------
-// - RepositoryData:
+// - RepositoryInternal:
 // ----------------------------------------------------------------------
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
