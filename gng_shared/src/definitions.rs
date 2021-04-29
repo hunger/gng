@@ -359,9 +359,9 @@ impl std::convert::From<Name> for Names {
     }
 }
 
-impl std::convert::From<Vec<Name>> for Names {
-    fn from(names: Vec<Name>) -> Self {
-        let mut result = Self(names);
+impl std::convert::From<&[Name]> for Names {
+    fn from(names: &[Name]) -> Self {
+        let mut result = Self(names.to_vec());
         result.fix();
         result
     }

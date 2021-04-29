@@ -73,13 +73,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 // - Modules:
 // ----------------------------------------------------------------------
 
-pub mod repository;
+pub mod repository_db;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
-pub use repository::Repository;
+pub use repository_db::RepositoryDb;
 
 pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 
@@ -89,7 +89,7 @@ pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 
 #[derive(Clone, Debug)]
 /// Data on a repository of `Packet`s.
-pub struct RepositoryData {
+pub struct Repository {
     /// The user-visible name of this repository
     pub name: gng_shared::Name,
     /// The repository UUID
@@ -102,13 +102,16 @@ pub struct RepositoryData {
     pub packet_base_url: String,
     /// The base directory holding the source packages for this repository.
     pub sources_base_directory: Option<std::path::PathBuf>,
-    /// `RepositoryData` this one depends on
+    /// `Repository` this one depends on
     pub dependencies: gng_shared::Names,
+    /// `A list of tags applied to this `Repository`.
+    /// `Packet` names must be unique across all repositories sharing a tag!
+    pub tags: gng_shared::Names,
 }
 
-impl Eq for RepositoryData {}
+impl Eq for Repository {}
 
-impl Ord for RepositoryData {
+impl Ord for Repository {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.priority.cmp(&other.priority) {
             Ordering::Equal => self.uuid.cmp(&other.uuid),
@@ -118,13 +121,13 @@ impl Ord for RepositoryData {
     }
 }
 
-impl PartialEq for RepositoryData {
+impl PartialEq for Repository {
     fn eq(&self, other: &Self) -> bool {
         self.uuid == other.uuid
     }
 }
 
-impl PartialOrd for RepositoryData {
+impl PartialOrd for Repository {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -140,6 +143,8 @@ impl PartialOrd for RepositoryData {
 ///  * `Error::WrongSchema` if the repository does not use a supported schema version
 ///  *`Error::Backend` if the Backend has trouble reading the repository data
 #[tracing::instrument(level = "trace")]
-pub fn open(path: &std::path::Path) -> Result<impl Repository> {
-    repository::RepositoryImpl::new(path)
+pub fn open(path: &std::path::Path) -> Result<impl RepositoryDb> {
+    let config = sled::Config::default().path(path.to_owned());
+
+    repository_db::RepositoryDbImpl::new(config.open().map_err(crate::Error::Backend)?)
 }

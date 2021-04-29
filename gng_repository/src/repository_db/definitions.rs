@@ -9,7 +9,7 @@
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 /// Data on a repository stored in a `Repository`.
-pub struct RepositoryInternalData {
+pub struct RepositoryInternal {
     /// The repository UUID
     pub uuid: crate::Uuid,
     /// The priority of this `RepositoryData`
@@ -22,4 +22,6 @@ pub struct RepositoryInternalData {
     pub sources_base_directory: Option<std::path::PathBuf>,
     /// `RepositoryData` this one depends on
     pub dependencies: Vec<crate::Uuid>,
+    /// Tags on a `Repository`.
+    pub tags: Vec<String>,
 }

@@ -7,11 +7,11 @@ mod backend;
 mod definitions;
 
 // ----------------------------------------------------------------------
-// - Repository:
+// - RepositoryDb:
 // ----------------------------------------------------------------------
 
 /// A `Repository` of gng `Packet`s and related information
-pub trait Repository {
+pub trait RepositoryDb {
     /// Get the Schema version
     ///
     /// # Errors
@@ -24,13 +24,13 @@ pub trait Repository {
     ///
     /// # Errors
     /// Any of the crate's `Error`s can be returned from here.
-    fn list_repositories(&self) -> crate::Result<Vec<crate::RepositoryData>>;
+    fn list_repositories(&self) -> crate::Result<Vec<crate::Repository>>;
 
     /// Add a new repository
     ///
     /// # Errors
     /// Any of the crate's `Error`s can be returned from here.
-    fn add_repository(&mut self, repository_data: crate::RepositoryData) -> crate::Result<()>;
+    fn add_repository(&mut self, repository_data: crate::Repository) -> crate::Result<()>;
 
     /// Remove a repository
     ///
@@ -54,23 +54,17 @@ pub trait Repository {
 }
 
 // ----------------------------------------------------------------------
-// - RepositoryImpl:
+// - RepositoryDbImpl:
 // ----------------------------------------------------------------------
 
-pub(crate) struct RepositoryImpl {
+pub(crate) struct RepositoryDbImpl {
     db: sled::Db,
-    repositories: Vec<crate::RepositoryData>,
+    repositories: Vec<crate::Repository>,
 }
 
-impl RepositoryImpl {
+impl RepositoryDbImpl {
     #[tracing::instrument(level = "trace")]
-    pub(crate) fn new(path: &std::path::Path) -> crate::Result<Self> {
-        let config = sled::Config::default().path(path.to_owned());
-
-        Self::new_from_db(config.open()?)
-    }
-
-    fn new_from_db(db: sled::Db) -> crate::Result<Self> {
+    pub(crate) fn new(db: sled::Db) -> crate::Result<Self> {
         backend::open_db(&db)?;
         let repositories = backend::read_repositories(&db)?;
 
@@ -78,17 +72,17 @@ impl RepositoryImpl {
     }
 }
 
-impl Repository for RepositoryImpl {
+impl RepositoryDb for RepositoryDbImpl {
     fn schema_version(&self) -> crate::Result<u32> {
         backend::schema_version(&self.db)
     }
 
-    fn list_repositories(&self) -> crate::Result<Vec<crate::RepositoryData>> {
+    fn list_repositories(&self) -> crate::Result<Vec<crate::Repository>> {
         Ok(self.repositories.clone())
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
-    fn add_repository(&mut self, repository_data: crate::RepositoryData) -> crate::Result<()> {
+    fn add_repository(&mut self, repository_data: crate::Repository) -> crate::Result<()> {
         // Are all dependencies known?
         let known_names: std::collections::HashSet<gng_shared::Name> =
             self.repositories.iter().map(|r| r.name.clone()).collect();
@@ -136,7 +130,7 @@ impl Repository for RepositoryImpl {
 
             backend::remove_repository(&self.db, &name.to_string(), &uuid)
         } else {
-            return Err(crate::Error::UnknownRepository(name.clone()));
+            Err(crate::Error::UnknownRepository(name.clone()))
         }
     }
 
@@ -153,9 +147,9 @@ impl Repository for RepositoryImpl {
 mod tests {
     use super::*;
 
-    fn create_repository() -> RepositoryImpl {
+    fn create_repository() -> RepositoryDbImpl {
         let config = sled::Config::default().temporary(true);
-        RepositoryImpl::new_from_db(config.open().expect("Temporary DB should have been valid!"))
+        RepositoryDbImpl::new(config.open().expect("Temporary DB should have been valid!"))
             .expect("DB should have been created!")
     }
 

@@ -3,24 +3,26 @@
 
 //! A backend database for a `Repository`
 
-use super::definitions::RepositoryInternalData;
-use crate::RepositoryData;
+use std::convert::TryFrom;
+
+use super::definitions::RepositoryInternal;
+use crate::Repository;
 
 // ----------------------------------------------------------------------
 // - Constants:
 // ----------------------------------------------------------------------
 
-const MAGIC: &'static str = "\"1e925d91-3294-4676-add6-917376d89d58\"";
-const MAGIC_KEY: &'static str = "magic";
+const MAGIC: &str = "\"1e925d91-3294-4676-add6-917376d89d58\"";
+const MAGIC_KEY: &str = "magic";
 
 const VERSION: u32 = 1;
-const VERSION_KEY: &'static str = "schema_version";
+const VERSION_KEY: &str = "schema_version";
 
-const REPOSITORIES_TREE: &'static str = "repositories";
-const PACKETS_TREE: &'static str = "packets";
-const CONTENTS_TREE: &'static str = "contents";
+const REPOSITORIES_TREE: &str = "repositories";
+const PACKETS_TREE: &str = "packets";
+const CONTENTS_TREE: &str = "contents";
 
-const PACKET_REPO_TREE_PREFIX: &'static str = "packets_";
+const PACKET_REPO_TREE_PREFIX: &str = "packets_";
 
 // ----------------------------------------------------------------------
 // - Helpers:
@@ -71,7 +73,7 @@ pub fn validate(db: &sled::Db) -> crate::Result<()> {
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryData>> {
+pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::Repository>> {
     let tree = db.open_tree(REPOSITORIES_TREE)?;
 
     let (data, id_map) = {
@@ -84,7 +86,7 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryDa
                 Ok((k, v)) => {
                     let name: gng_shared::Name =
                         serde_json::from_slice(&k[..]).map_err(|_| crate::Error::WrongSchema)?;
-                    let rid: RepositoryInternalData =
+                    let rid: RepositoryInternal =
                         serde_json::from_reader(&v[..]).map_err(|_| crate::Error::WrongSchema)?;
 
                     id_map.insert(rid.uuid, name.clone());
@@ -98,7 +100,7 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryDa
 
     let mut result = data
         .iter()
-        .map(|(n, d)| -> crate::Result<crate::RepositoryData> {
+        .map(|(n, d)| -> crate::Result<crate::Repository> {
             let dependencies = gng_shared::Names::from(
                 d.dependencies
                     .iter()
@@ -108,10 +110,11 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryDa
                         })?;
                         Ok(name.clone())
                     })
-                    .collect::<crate::Result<Vec<gng_shared::Name>>>()?,
+                    .collect::<crate::Result<Vec<gng_shared::Name>>>()?
+                    .as_ref(),
             );
 
-            Ok(crate::RepositoryData {
+            Ok(crate::Repository {
                 name: n.clone(),
                 uuid: d.uuid,
                 priority: d.priority,
@@ -119,9 +122,11 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryDa
                 packet_base_url: d.packet_base_url.clone(),
                 sources_base_directory: d.sources_base_directory.clone(),
                 dependencies,
+                tags: gng_shared::Names::try_from(&d.tags[..])
+                    .map_err(|_| crate::Error::WrongSchema)?,
             })
         })
-        .collect::<crate::Result<Vec<crate::RepositoryData>>>()?;
+        .collect::<crate::Result<Vec<crate::Repository>>>()?;
 
     result.sort();
 
@@ -129,7 +134,7 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::RepositoryDa
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-pub fn write_repositories(db: &sled::Db, repositories: &[RepositoryData]) -> crate::Result<()> {
+pub fn write_repositories(db: &sled::Db, repositories: &[Repository]) -> crate::Result<()> {
     let tree = db.open_tree(REPOSITORIES_TREE)?;
 
     let name_map: std::collections::HashMap<gng_shared::Name, crate::Uuid> = repositories
@@ -143,7 +148,7 @@ pub fn write_repositories(db: &sled::Db, repositories: &[RepositoryData]) -> cra
         for r in repositories {
             batch.insert(
                 serde_json::to_vec(&r.name).expect("names must be convertible to JSON"),
-                serde_json::to_vec(&RepositoryInternalData {
+                serde_json::to_vec(&RepositoryInternal {
                     uuid: r.uuid,
                     priority: r.priority,
                     pull_url: r.pull_url.clone(),
@@ -153,7 +158,7 @@ pub fn write_repositories(db: &sled::Db, repositories: &[RepositoryData]) -> cra
                         .dependencies
                         .into_iter()
                         .map(|n| {
-                            name_map.get(n).cloned().ok_or_else(|| {
+                            name_map.get(n).copied().ok_or_else(|| {
                                 crate::Error::UnknownRepositoryDependency(
                                     n.to_string(),
                                     r.name.clone(),
@@ -161,6 +166,11 @@ pub fn write_repositories(db: &sled::Db, repositories: &[RepositoryData]) -> cra
                             })
                         })
                         .collect::<crate::Result<Vec<crate::Uuid>>>()?,
+                    tags: r
+                        .tags
+                        .into_iter()
+                        .map(gng_shared::Name::to_string)
+                        .collect(),
                 })
                 .expect("Data structure must be convertible to JSON"),
             )
@@ -185,7 +195,7 @@ pub fn remove_repository(db: &sled::Db, name: &str, uuid: &crate::Uuid) -> crate
     let repository_packets_tree = format!("{}{}", PACKET_REPO_TREE_PREFIX, uuid);
     db.drop_tree(&repository_packets_tree[..])
         .map(|_| ())
-        .map_err(|e| crate::Error::Backend(e))
+        .map_err(crate::Error::Backend)
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
