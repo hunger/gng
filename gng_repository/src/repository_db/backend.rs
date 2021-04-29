@@ -106,7 +106,10 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::Repository>>
                     .iter()
                     .map(|u| {
                         let name = id_map.get(u).ok_or_else(|| {
-                            crate::Error::UnknownRepositoryDependency(u.to_string(), n.clone())
+                            crate::Error::Repository(format!(
+                                "Unknown repository with Uuid \"{}\".",
+                                &u
+                            ))
                         })?;
                         Ok(name.clone())
                     })
@@ -159,10 +162,10 @@ pub fn write_repositories(db: &sled::Db, repositories: &[Repository]) -> crate::
                         .into_iter()
                         .map(|n| {
                             name_map.get(n).copied().ok_or_else(|| {
-                                crate::Error::UnknownRepositoryDependency(
-                                    n.to_string(),
-                                    r.name.clone(),
-                                )
+                                crate::Error::Repository(format!(
+                                    "Unknown repository with Uuid \"{}\".",
+                                    &n
+                                ))
                             })
                         })
                         .collect::<crate::Result<Vec<crate::Uuid>>>()?,

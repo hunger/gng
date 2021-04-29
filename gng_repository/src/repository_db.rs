@@ -94,11 +94,11 @@ impl RepositoryDb for RepositoryDbImpl {
             .find(|d| !known_names.contains(d))
             .map_or_else(
                 || Ok(()),
-                |n| {
-                    Err(crate::Error::UnknownRepositoryDependency(
-                        n.to_string(),
-                        repository_name,
-                    ))
+                |_| {
+                    Err(crate::Error::Repository(format!(
+                        "Repository name \"{}\" already in use.",
+                        &repository_name
+                    )))
                 },
             )?;
 
@@ -117,10 +117,10 @@ impl RepositoryDb for RepositoryDbImpl {
                 to_remove = idx;
                 uuid = Some(r.uuid);
             } else if r.dependencies.contains(name) {
-                return Err(crate::Error::RepositoryInUse {
-                    used_repository: name.clone(),
-                    using_repository: r.name.clone(),
-                });
+                return Err(crate::Error::Repository(format!(
+                    "Repository \"{}\" still in use by \"{}\".",
+                    &name, &r.name
+                )));
             }
         }
 
@@ -130,7 +130,10 @@ impl RepositoryDb for RepositoryDbImpl {
 
             backend::remove_repository(&self.db, &name.to_string(), &uuid)
         } else {
-            Err(crate::Error::UnknownRepository(name.clone()))
+            Err(crate::Error::Repository(format!(
+                "Unknown repository \"{}\".",
+                &name
+            )))
         }
     }
 

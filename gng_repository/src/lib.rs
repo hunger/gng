@@ -36,30 +36,9 @@ pub enum Error {
     #[error("Repository backend uses an unsupported schema. Please upgrade your gng tools!")]
     WrongSchema,
 
-    /// A `Error` about use of an unknown Repository.
-    #[error("Repository \"{}\" not found.", .0)]
-    UnknownRepository(gng_shared::Name),
-
-    /// A `Error` about use of an unknown Repository UUID.
-    #[error(
-        "Unknown repository \"{}\" found as a dependency of repository \"{}\".",
-        .0,
-        .1
-    )]
-    UnknownRepositoryDependency(String, gng_shared::Name),
-
-    /// A `Error` about use the Repository being in use.
-    #[error(
-        "Repository \"{}\" is used by \"{}\".",
-        used_repository,
-        using_repository
-    )]
-    RepositoryInUse {
-        /// The repository that is being used
-        used_repository: gng_shared::Name,
-        /// The repository depending on/using the `used_repository`
-        using_repository: gng_shared::Name,
-    },
+    /// A `Error` related to a `Repository`
+    #[error("Repository Error: {}", .0)]
+    Repository(String),
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]
