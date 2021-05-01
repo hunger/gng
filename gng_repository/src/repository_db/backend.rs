@@ -1,77 +1,162 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! A backend database for a `Repository`
+//! A backend database for a `RepositoryDb`
 
-use std::convert::TryFrom;
-
-use super::definitions::RepositoryInternal;
 use crate::Repository;
+
+use super::definitions::{HashedPackets, RepositoryIntern};
 
 // ----------------------------------------------------------------------
 // - Constants:
 // ----------------------------------------------------------------------
 
-const MAGIC: &str = "\"1e925d91-3294-4676-add6-917376d89d58\"";
-const MAGIC_KEY: &str = "magic";
+const META_FILE: &str = "meta.json";
+const REPOSITORY_FILE: &str = "repositories.json";
+const PACKETS_FILE: &str = "packets.json";
 
-const VERSION: u32 = 1;
-const VERSION_KEY: &str = "schema_version";
+const MAGIC: &str = "1e925d91-3294-4676-add6-917376d89d58";
+const SCHEMA_VERSION: u32 = 1;
 
-const REPOSITORIES_TREE: &str = "repositories";
-const PACKETS_TREE: &str = "packets";
-const CONTENTS_TREE: &str = "contents";
+// ----------------------------------------------------------------------
+// - MetaData:
+// ----------------------------------------------------------------------
 
-const PACKET_REPO_TREE_PREFIX: &str = "packets_";
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct MetaData {
+    magic: crate::Uuid,
+    schema: u32,
+}
+
+impl MetaData {
+    pub fn has_valid_magic(&self) -> bool {
+        self.magic == crate::Uuid::parse_str(MAGIC).expect("UUID constant needs to be valid!")
+    }
+
+    pub const fn latest_schema() -> u32 {
+        SCHEMA_VERSION
+    }
+
+    pub const fn current_schema(&self) -> u32 {
+        self.schema
+    }
+}
+
+impl Default for MetaData {
+    fn default() -> Self {
+        Self {
+            magic: crate::Uuid::parse_str(MAGIC).expect("UUID constant needs to be valid!"),
+            schema: SCHEMA_VERSION,
+        }
+    }
+} // Default for MetaData
 
 // ----------------------------------------------------------------------
 // - Helpers:
 // ----------------------------------------------------------------------
 
-#[tracing::instrument(level = "trace", skip(db))]
-pub fn open_db(db: &sled::Db) -> crate::Result<()> {
-    if db.is_empty() {
-        setup(db)?
+fn get_db_schema_version(db_directory: &std::path::Path) -> crate::Result<u32> {
+    if !db_directory.exists() {
+        return Err(crate::Error::Db(format!(
+            "\"{}\" does not exist.",
+            db_directory.to_string_lossy()
+        )));
+    }
+    if !db_directory.is_dir() {
+        return Err(crate::Error::Db(format!(
+            "\"{}\" is not a directory.",
+            db_directory.to_string_lossy()
+        )));
+    }
+
+    let meta_file = db_directory.join(META_FILE);
+    if !meta_file.exists() && std::fs::read_dir(db_directory)?.count() != 0 {
+        return Err(crate::Error::Db(format!(
+            "\"{}\" is not empty and has no meta.json file.",
+            db_directory.to_string_lossy()
+        )));
+    }
+    if meta_file.exists() && !meta_file.is_file() {
+        return Err(crate::Error::Db(format!(
+            "\"{}\" is not a file.",
+            meta_file.to_string_lossy()
+        )));
+    }
+    if meta_file.exists() && meta_file.metadata()?.len() > 1024 {
+        return Err(crate::Error::Db(format!(
+            "\"{}\" is too big.",
+            meta_file.to_string_lossy()
+        )));
+    }
+
+    let meta_data = if meta_file.exists() {
+        let mf = std::fs::OpenOptions::new().read(true).open(&meta_file)?;
+        serde_json::from_reader(&mf)
+            .map_err(|_| crate::Error::Db("Failed to parse meta file.".to_string()))?
+    } else {
+        MetaData::default()
     };
 
-    match db.get(MAGIC_KEY)? {
-        Some(v) if v == MAGIC => validate(db),
-        _ => Err(crate::Error::WrongMagic),
+    if !meta_data.has_valid_magic() {
+        return Err(crate::Error::Db("Magic was not valid.".to_string()));
     }
+
+    Ok(meta_data.current_schema())
 }
 
-#[tracing::instrument(level = "trace", skip(db))]
-pub fn schema_version(db: &sled::Db) -> crate::Result<u32> {
-    let version = db.get(VERSION_KEY)?.expect("Version must be set!");
-    serde_json::from_slice(&version[..]).map_err(|_| crate::Error::WrongSchema)
+fn read_repositories(db_directory: &std::path::Path) -> crate::Result<Vec<Repository>> {
+    let repositories_file = db_directory.join(REPOSITORY_FILE);
+    let rf = std::fs::OpenOptions::new()
+        .read(true)
+        .open(&repositories_file);
+    let mut repositories: Vec<Repository> = if let Ok(rf) = rf {
+        serde_json::from_reader(rf).map_err(|_| {
+            crate::Error::Db("Failed to read repositories from storage.".to_string())
+        })?
+    } else {
+        Vec::new()
+    };
+
+    repositories.sort();
+
+    Ok(repositories)
 }
 
-#[tracing::instrument(level = "trace", skip(db))]
-pub fn setup(db: &sled::Db) -> crate::Result<()> {
-    db.insert(
-        VERSION_KEY,
-        &serde_json::to_vec(&VERSION).map_err(|_| crate::Error::WrongSchema)?[..],
-    )?;
-
-    let _repository_tree = db.open_tree(REPOSITORIES_TREE)?;
-    let _packages_tree = db.open_tree(PACKETS_TREE)?;
-    let _contents_tree = db.open_tree(CONTENTS_TREE)?;
-
-    db.insert(MAGIC_KEY, MAGIC)?;
-
-    db.flush()?;
-    Ok(())
-}
-
-#[tracing::instrument(level = "trace", skip(db))]
-pub fn validate(db: &sled::Db) -> crate::Result<()> {
-    match schema_version(db)? {
-        v if v < VERSION => Err(crate::Error::WrongSchema),
-        v if v == VERSION => Ok(()),
-        _ => Err(crate::Error::WrongSchema),
+#[tracing::instrument(level = "trace")]
+pub fn read_db(
+    db_directory: &std::path::Path,
+) -> crate::Result<(Vec<RepositoryIntern>, HashedPackets)> {
+    if get_db_schema_version(db_directory)? != MetaData::latest_schema() {
+        return Err(crate::Error::Db("Unsupported schema version.".to_string()));
     }
+
+    let repositories = read_repositories(db_directory)?;
+
+    Ok((
+        repositories
+            .into_iter()
+            .map(RepositoryIntern::new)
+            .collect(),
+        HashedPackets::new(),
+    ))
 }
 
+#[tracing::instrument(level = "trace")]
+pub fn persist_repositories(
+    db_directory: &std::path::Path,
+    repositories: &[RepositoryIntern],
+) -> crate::Result<()> {
+    let repositories_file = db_directory.join(REPOSITORY_FILE);
+    let rf = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&repositories_file)?;
+
+    serde_json::to_writer(&rf, repositories)
+        .map_err(|_| crate::Error::Db("Failed to read repositories from storage.".to_string()))
+}
+
+/*
 #[tracing::instrument(level = "trace", skip(db))]
 pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::Repository>> {
     let tree = db.open_tree(REPOSITORIES_TREE)?;
@@ -138,8 +223,6 @@ pub fn read_repositories(db: &sled::Db) -> crate::Result<Vec<crate::Repository>>
 
 #[tracing::instrument(level = "trace", skip(db))]
 pub fn write_repositories(db: &sled::Db, repositories: &[Repository]) -> crate::Result<()> {
-    let tree = db.open_tree(REPOSITORIES_TREE)?;
-
     let name_map: std::collections::HashMap<gng_shared::Name, crate::Uuid> = repositories
         .iter()
         .map(|r| (r.name.clone(), r.uuid))
@@ -182,23 +265,36 @@ pub fn write_repositories(db: &sled::Db, repositories: &[Repository]) -> crate::
         batch
     };
 
+    let tree = db.open_tree(REPOSITORIES_TREE)?;
     tree.apply_batch(batch)?;
-    tree.flush()?;
 
     Ok(())
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
 pub fn remove_repository(db: &sled::Db, name: &str, uuid: &crate::Uuid) -> crate::Result<()> {
-    let tree = db.open_tree(REPOSITORIES_TREE)?;
+    let repo_tree = db.open_tree(REPOSITORIES_TREE)?;
+    let repo_packets_tree =  db.open_tree(REPOSITORY_PACKETS_TREE)?;
 
-    tree.remove(&serde_json::to_vec(&name).expect("Names can be serialized!")[..])?;
-    tree.flush()?;
+    let prefix = format!("{}/", uuid);
 
-    let repository_packets_tree = format!("{}{}", PACKET_REPO_TREE_PREFIX, uuid);
-    db.drop_tree(&repository_packets_tree[..])
-        .map(|_| ())
-        .map_err(crate::Error::Backend)
+    let batch = {
+        let mut tmp = sled::Batch::default();
+
+        for e in repo_packets_tree.scan_prefix(prefix.as_bytes()) {
+            tmp.remove(e?.0);
+        }
+        tmp
+    };
+
+    (&repo_tree, &repo_packets_tree).transaction(|(tx_repo, tx_packets)| {
+        tx_repo.remove(&serde_json::to_vec(&name).expect("Names can be serialized!")[..])?;
+        tx_packets.apply_batch(&batch)?;
+        Ok(())
+    }).map_err(|e| match e {
+        sled::transaction::TransactionError::Abort(c) => c,
+        sled::transaction::TransactionError::Storage(s) => crate::Error::Backend(s),
+    })
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
@@ -231,3 +327,63 @@ pub fn dump_metadata(db: &sled::Db) -> crate::Result<()> {
     }
     Ok(())
 }
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn store_hashed_packet(db: &sled::Db, hash: &str, data: &[u8]) -> crate::Result<()> {
+    let tree = db.open_tree(PACKET_TREE)?;
+
+    if let Some(old_data) = tree.insert(hash, data)? {
+        if old_data.as_ref() == data {
+            tracing::trace!("Packet with hash \"{}\" stored, replacing same data.", hash);
+        } else {
+            return Err(crate::Error::Packet(format!(
+                "Changed contents of packet with hash \"{}\".",
+                hash
+            )));
+        }
+    } else {
+        tracing::trace!("Packet with hash \"{}\" stored in empty slot.", hash);
+    }
+
+    Ok(())
+}
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn flush(db: &sled::Db) -> crate::Result<()> {
+    db.flush().map_err(crate::Error::Backend)?;
+
+    Ok(())
+}
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn repository_contains_name(
+    db: &sled::Db,
+    repository: &crate::Uuid,
+    name: &gng_shared::Name,
+) -> Option<crate::Uuid> {
+    let repo_tree = format!("{}{}", PACKET_REPO_TREE_PREFIX, repository);
+
+    match db.open_tree(repo_tree) {
+        Ok(t) => t
+            .contains_key(name.as_bytes())
+            .unwrap_or(false)
+            .then(|| *repository),
+        Err(_) => None,
+    }
+}
+
+#[tracing::instrument(level = "trace", skip(db))]
+pub fn repository_group_contains_name(
+    db: &sled::Db,
+    group: &[crate::Uuid],
+    name: &gng_shared::Name,
+) -> Option<crate::Uuid> {
+    for r in group {
+        let result = repository_contains_name(db, r, name);
+        if result.is_some() {
+            return result;
+        }
+    }
+    None
+}
+*/

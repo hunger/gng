@@ -24,21 +24,21 @@ use std::cmp::Ordering;
 /// Repository related Errors
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    /// A `Error` triggered by the storage backend.
-    #[error("Repository backend error.")]
-    Backend(#[from] sled::Error),
+    /// A generic `Error` about the `RepositoryDb`.
+    #[error("General Repository DB error: {}", .0)]
+    Db(String),
 
-    /// A `Error` about trying to work with a DB not set up by gng.
-    #[error("Backend DB does not look like a GnG repository!")]
-    WrongMagic,
-
-    /// A `Error` about invalid DB schema.
-    #[error("Repository backend uses an unsupported schema. Please upgrade your gng tools!")]
-    WrongSchema,
+    /// An Io `Error`.
+    #[error("IO error: {}", .0)]
+    Io(#[from] std::io::Error),
 
     /// A `Error` related to a `Repository`
     #[error("Repository Error: {}", .0)]
     Repository(String),
+
+    /// A `Error` related to a `Repository`
+    #[error("Packet Error: {}", .0)]
+    Packet(String),
 
     /// Not sure what actually went wrong...
     #[error("unknown error")]
@@ -66,7 +66,10 @@ pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 // - Structures:
 // ----------------------------------------------------------------------
 
-#[derive(Clone, Debug)]
+// - Repository:
+// ----------------------------------------------------------------------
+
+#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
 /// Data on a repository of `Packet`s.
 pub struct Repository {
     /// The user-visible name of this repository
@@ -87,8 +90,6 @@ pub struct Repository {
     /// `Packet` names must be unique across all repositories sharing a tag!
     pub tags: gng_shared::Names,
 }
-
-impl Eq for Repository {}
 
 impl Ord for Repository {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -112,6 +113,20 @@ impl PartialOrd for Repository {
     }
 }
 
+// - Packet:
+// ----------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+/// All the data on `Packet` needed to store it in a `Repository`.
+pub struct PacketData {
+    /// The `Facet`s defined for this `Packet`
+    facets: Vec<(gng_shared::Name, gng_shared::Hash)>,
+    /// The `Packet` data itself
+    data: gng_shared::Packet,
+    /// The `Hash` of the `Packet` itself
+    hash: gng_shared::Hash,
+}
+
 // ----------------------------------------------------------------------
 // - Functions:
 // ----------------------------------------------------------------------
@@ -123,7 +138,5 @@ impl PartialOrd for Repository {
 ///  *`Error::Backend` if the Backend has trouble reading the repository data
 #[tracing::instrument(level = "trace")]
 pub fn open(path: &std::path::Path) -> Result<impl RepositoryDb> {
-    let config = sled::Config::default().path(path.to_owned());
-
-    repository_db::RepositoryDbImpl::new(config.open().map_err(crate::Error::Backend)?)
+    repository_db::RepositoryDbImpl::new(path)
 }

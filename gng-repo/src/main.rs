@@ -116,7 +116,7 @@ struct RepositoryRemoveCommand {
 
 fn handle_repository_command(db: &mut impl RepositoryDb, cmd: &RepositoryCommands) -> Result<()> {
     match &cmd.sub_command {
-        RepositorySubCommands::List(cmd) => handle_repository_list_command(db, cmd),
+        RepositorySubCommands::List(cmd) => Ok(handle_repository_list_command(db, cmd)),
         RepositorySubCommands::Add(cmd) => handle_repository_add_command(db, cmd),
         RepositorySubCommands::Remove(cmd) => handle_repository_remove_command(db, cmd),
     }
@@ -196,13 +196,8 @@ fn print_human(repository: &gng_repository::Repository) {
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_repository_list_command(
-    db: &mut impl RepositoryDb,
-    cmd: &RepositoryListCommand,
-) -> Result<()> {
-    let repositories = db
-        .list_repositories()
-        .wrap_err("Failed to retrieve list of repositories")?;
+fn handle_repository_list_command(db: &mut impl RepositoryDb, cmd: &RepositoryListCommand) {
+    let repositories = db.list_repositories();
 
     if !repositories.is_empty() {
         for r in &repositories {
@@ -213,8 +208,6 @@ fn handle_repository_list_command(
             }
         }
     }
-
-    Ok(())
 }
 
 #[tracing::instrument(level = "trace", skip(db))]

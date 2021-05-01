@@ -185,6 +185,16 @@ impl Hash {
             Self::Sha512(v) => to_hex(&v[..]),
         }
     }
+
+    /// The hash value
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::None() => &[],
+            Self::Sha256(v) => &v[..],
+            Self::Sha512(v) => &v[..],
+        }
+    }
 }
 
 impl std::convert::From<Hash> for String {
@@ -238,6 +248,32 @@ impl std::fmt::Display for Hash {
     }
 }
 
+impl std::cmp::PartialOrd for Hash {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl std::cmp::Ord for Hash {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self {
+            Self::None() => match other {
+                Self::None() => std::cmp::Ordering::Equal,
+                _ => std::cmp::Ordering::Greater,
+            },
+            Self::Sha256(sv) => match other {
+                Self::None() => std::cmp::Ordering::Greater,
+                Self::Sha256(ov) => sv.cmp(ov),
+                Self::Sha512(_) => std::cmp::Ordering::Less,
+            },
+            Self::Sha512(sv) => match other {
+                Self::Sha512(ov) => sv.cmp(ov),
+                _ => std::cmp::Ordering::Greater,
+            },
+        }
+    }
+}
+
 // ----------------------------------------------------------------------
 // - Name:
 // ----------------------------------------------------------------------
@@ -280,6 +316,12 @@ impl Name {
         }
         Ok(Self(value.to_string()))
     }
+
+    /// Get a list of bytes from a `Name`
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
 }
 
 impl std::convert::From<Name> for String {
@@ -311,7 +353,7 @@ impl std::fmt::Display for Name {
 }
 
 /// An implicitly sorted and de-duplicated vector of `Name`s
-#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(try_from = "Vec<String>", into = "Vec<String>")]
 pub struct Names(Vec<Name>);
 
@@ -338,6 +380,12 @@ impl Names {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Get the number of entries in the list of `Name`s
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     fn fix(&mut self) -> &mut Self {
