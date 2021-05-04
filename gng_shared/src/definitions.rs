@@ -415,6 +415,19 @@ impl std::convert::From<&[Name]> for Names {
     }
 }
 
+impl std::convert::TryFrom<Vec<&str>> for Names {
+    type Error = crate::Error;
+
+    fn try_from(values: Vec<&str>) -> Result<Self, Self::Error> {
+        let mut result = Self(Vec::with_capacity(values.len()));
+        for n in values {
+            result.0.push(Name::try_from(n)?);
+        }
+        result.fix();
+        Ok(result)
+    }
+}
+
 impl std::convert::TryFrom<&[String]> for Names {
     type Error = crate::Error;
 

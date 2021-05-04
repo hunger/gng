@@ -109,15 +109,13 @@ fn read_repositories(db_directory: &std::path::Path) -> crate::Result<Vec<Reposi
     let rf = std::fs::OpenOptions::new()
         .read(true)
         .open(&repositories_file);
-    let mut repositories: Vec<Repository> = if let Ok(rf) = rf {
+    let repositories: Vec<Repository> = if let Ok(rf) = rf {
         serde_json::from_reader(rf).map_err(|_| {
             crate::Error::Db("Failed to read repositories from storage.".to_string())
         })?
     } else {
         Vec::new()
     };
-
-    repositories.sort();
 
     Ok(repositories)
 }

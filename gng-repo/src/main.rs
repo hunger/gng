@@ -15,7 +15,6 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use std::convert::TryFrom;
 use std::{path::PathBuf, str::FromStr};
 
 use clap::Clap;
@@ -116,98 +115,39 @@ struct RepositoryRemoveCommand {
 
 fn handle_repository_command(db: &mut impl RepositoryDb, cmd: &RepositoryCommands) -> Result<()> {
     match &cmd.sub_command {
-        RepositorySubCommands::List(cmd) => Ok(handle_repository_list_command(db, cmd)),
+        RepositorySubCommands::List(cmd) => handle_repository_list_command(db, cmd),
         RepositorySubCommands::Add(cmd) => handle_repository_add_command(db, cmd),
         RepositorySubCommands::Remove(cmd) => handle_repository_remove_command(db, cmd),
     }
 }
 
-fn print_json(repository: &gng_repository::Repository) {
-    let mut dependency_str = String::new();
-    let mut is_first = true;
-    for d in &repository.dependencies {
-        if !is_first {
-            dependency_str.push(',');
-        }
-        is_first = false;
-        dependency_str.push('"');
-        dependency_str.push_str(&d.to_string());
-        dependency_str.push('"');
-    }
-
-    let pull_url = repository.pull_url.as_ref().cloned().unwrap_or_default();
-    let pull_url = if pull_url.is_empty() {
-        String::new()
-    } else {
-        format!(r#""pull_url"="{}","#, pull_url)
-    };
-
-    let sources_base = repository
-        .sources_base_directory
-        .as_ref()
-        .cloned()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
-    let sources_base = if pull_url.is_empty() {
-        String::new()
-    } else {
-        format!(r#""sources_base_directory"="{}","#, sources_base)
-    };
-
-    println!(
-        r#"{{"name"="{}","uuid"="{}","priority"={},{}"packet_base_url"="{}",{}"dependencies"=[{}]}}"#,
-        repository.name,
-        repository.uuid,
-        repository.priority,
-        &pull_url,
-        repository.packet_base_url,
-        &sources_base,
-        dependency_str
-    );
+fn print_json(repository: &gng_repository::Repository) -> Result<()> {
+    println!("{}", repository.to_json()?);
+    Ok(())
 }
 
 fn print_human(repository: &gng_repository::Repository) {
-    println!(
-        "{}: {} ({})",
-        &repository.priority, &repository.name, &repository.uuid
-    );
-    if let Some(url) = &repository.pull_url {
-        println!("    Pull from      : \"{}\"", &url);
-    } else {
-        println!("    No remote packet data.");
-    }
-    println!("    Packet base URL: \"{}\"", &repository.packet_base_url);
-    if let Some(sources) = &repository.sources_base_directory {
-        println!("    Sources at     : \"{}\"", &sources.to_string_lossy());
-    } else {
-        println!("    No sources to build packets.");
-    }
-    if repository.dependencies.is_empty() {
-        println!("    No repository dependencies.");
-    } else {
-        println!("    Dependencies   : {}", &repository.dependencies);
-    }
-    if repository.tags.is_empty() {
-        println!("    No repository tags.");
-    } else {
-        println!("    Tags           : {}", &repository.tags);
-    }
+    println!("{}", repository.to_pretty_string())
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_repository_list_command(db: &mut impl RepositoryDb, cmd: &RepositoryListCommand) {
+fn handle_repository_list_command(
+    db: &mut impl RepositoryDb,
+    cmd: &RepositoryListCommand,
+) -> Result<()> {
     let repositories = db.list_repositories();
 
     if !repositories.is_empty() {
         for r in &repositories {
             if cmd.json {
-                print_json(r);
+                print_json(r)?;
             } else {
                 print_human(r);
             }
         }
     }
+
+    Ok(())
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
@@ -222,19 +162,20 @@ fn handle_repository_add_command(
         None => Ok(gng_repository::Uuid::new_v4()),
     }?;
 
-    let data = gng_repository::Repository {
-        name: gng_shared::Name::try_from(&cmd.name[..])?,
-        uuid,
-        priority: cmd.priority,
-        pull_url: cmd.pull_url.clone(),
-        packet_base_url: cmd.packet_base_url.clone(),
-        sources_base_directory: cmd.source_base_directory.clone(),
-        dependencies: gng_shared::Names::try_from(cmd.dependencies.clone())?,
-        tags: gng_shared::Names::try_from(cmd.dependencies.clone())?,
-    };
+    // let data = gng_repository::Repository {
+    //     name: gng_shared::Name::try_from(&cmd.name[..])?,
+    //     uuid,
+    //     priority: cmd.priority,
+    //     pull_url: cmd.pull_url.clone(),
+    //     packet_base_url: cmd.packet_base_url.clone(),
+    //     sources_base_directory: cmd.source_base_directory.clone(),
+    //     dependencies: gng_shared::Names::try_from(cmd.dependencies.clone())?,
+    //     tags: gng_shared::Names::try_from(cmd.dependencies.clone())?,
+    // };
 
-    db.add_repository(data)
-        .wrap_err("Failed to add new repository")
+    // db.add_repository(data)
+    //     .wrap_err("Failed to add new repository")
+    Ok(())
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
@@ -243,8 +184,9 @@ fn handle_repository_remove_command(
     cmd: &RepositoryRemoveCommand,
 ) -> Result<()> {
     db.remove_repository(
-        &gng_shared::Name::try_from(&cmd.name[..])
-            .wrap_err("Invalid repository name was provided on command line")?,
+        &db.resolve_repository(&cmd.name).ok_or_else(|| {
+            eyre::eyre!("Could not resolve \"{}\" to a known repository.", cmd.name)
+        })?,
     )
     .wrap_err("Failed to remove repository")
 }
@@ -331,9 +273,7 @@ enum InternalSubCommands {
 #[tracing::instrument(level = "trace", skip(db))]
 fn handle_internal_command(db: &mut impl RepositoryDb, cmd: &InternalCommands) -> Result<()> {
     match cmd.sub_command {
-        InternalSubCommands::Metadata => db
-            .dump_metadata()
-            .wrap_err("Repository storage backend failed to dump meta data."),
+        InternalSubCommands::Metadata => Ok(db.dump_metadata()),
     }
 }
 

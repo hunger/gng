@@ -15,8 +15,6 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use std::cmp::Ordering;
-
 // ----------------------------------------------------------------------
 // - ErrorHandling:
 // ----------------------------------------------------------------------
@@ -69,47 +67,95 @@ pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 // - Repository:
 // ----------------------------------------------------------------------
 
-#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
+/// Data on a `LocalRepository`
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct LocalRepository {
+    /// The base directory holding the source packages for this repository.
+    /// `gng` expects a folder below this directory with the name of a
+    /// `Packet` to be built and will look for a `build.lua` in that folder.
+    pub sources_base_directory: std::path::PathBuf,
+    /// The directory to export this `Repository` into for use as a
+    /// `Remote` repository.
+    pub export_directory: Option<std::path::PathBuf>,
+}
+
+/// Data on a `RemoteRepository`
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct RemoteRepository {
+    /// The url to pull updates from
+    pub remote_url: String,
+    /// The base URL to download the packaging sources from.
+    /// This is for information only and will not be used by the
+    /// `Repository` this `RepositoryKind` is part of!
+    pub packet_sources_url: Option<String>,
+}
+/// The source of all data in a `Repository`
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub enum RepositorySource {
+    /// A `Local` repository that users can add packets to
+    Local(LocalRepository),
+    /// A `Remote` repository hosted elsewhere
+    Remote(RemoteRepository),
+}
+
+/// The relations between a `Repository` and other `Repository`s.
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub enum RepositoryRelation {
+    /// Override another `Repository`
+    Override(Uuid),
+    /// Depend on zero or more other `Repository`s.
+    Dependency(Vec<Uuid>),
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 /// Data on a repository of `Packet`s.
 pub struct Repository {
     /// The user-visible name of this repository
     pub name: gng_shared::Name,
     /// The repository UUID
-    pub uuid: crate::Uuid,
+    pub uuid: Uuid,
     /// The priority of this `RepositoryData`
     pub priority: u32,
-    /// The url to pull updates from
-    pub pull_url: Option<String>,
-    /// The base URL to download `Packet`s from
-    pub packet_base_url: String,
-    /// The base directory holding the source packages for this repository.
-    pub sources_base_directory: Option<std::path::PathBuf>,
-    /// `Repository` this one depends on
-    pub dependencies: gng_shared::Names,
     /// `A list of tags applied to this `Repository`.
     /// `Packet` names must be unique across all repositories sharing a tag!
     pub tags: gng_shared::Names,
+
+    /// `Repository`(s) this one relates to
+    pub relation: RepositoryRelation,
+
+    /// The `RepositoryConnectivity` we are dealing with plus all
+    /// the kind-specific data.
+    /// Basically: Where does all the data in this `Repository` come from?
+    pub source: RepositorySource,
 }
 
-impl Ord for Repository {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.priority.cmp(&other.priority) {
-            Ordering::Equal => self.uuid.cmp(&other.uuid),
-            Ordering::Less => Ordering::Greater,
-            Ordering::Greater => Ordering::Less,
-        }
+impl Repository {
+    /// Return a single-line JSON representation of the value
+    ///
+    /// # Errors
+    /// A `gng_shared::Error::Conversion` might be returned.
+    pub fn to_json(&self) -> gng_shared::Result<String> {
+        serde_json::to_string(&self).map_err(|e| gng_shared::Error::Conversion {
+            expression: "Repository".to_string(),
+            typename: "JSON".to_string(),
+            message: e.to_string(),
+        })
+    }
+
+    /// Return a multi-line pretty representation of the value for human consumption
+    ///
+    /// # Errors
+    /// A `gng_shared::Error::Conversion` might be returned.
+    #[must_use]
+    pub fn to_pretty_string(&self) -> String {
+        // TODO: Print more data
+        format!("{}: {} [{}]\n", self.priority, &self.name, &self.uuid)
     }
 }
 
 impl PartialEq for Repository {
     fn eq(&self, other: &Self) -> bool {
         self.uuid == other.uuid
-    }
-}
-
-impl PartialOrd for Repository {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

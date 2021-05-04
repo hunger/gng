@@ -12,45 +12,44 @@ use gng_shared::{Hash, Name, Names, Packet};
 // ----------------------------------------------------------------------
 
 fn resolve_dependency(
-    packet_hash: &Hash,
     dependency_name: &Name,
     repository_group: &[&RepositoryIntern],
 ) -> Option<Hash> {
-    todo!()
+    for r in repository_group {
+        if let Some(p) = r.packets().get(dependency_name).cloned() {
+            return Some(p);
+        }
+    }
+    None
 }
 
 fn resolve_dependencies(
-    packet_hash: &Hash,
     dependency_names: &Names,
     repository_group: &[&RepositoryIntern],
 ) -> Result<Vec<Hash>> {
     dependency_names
         .into_iter()
         .map(|n| {
-            resolve_dependency(packet_hash, n, repository_group)
+            resolve_dependency(n, repository_group)
                 .ok_or_else(|| Error::Packet(format!("Failed to resolve dependency \"{}\".", n)))
         })
         .collect()
-}
-
-fn check_dependencies(dependencies: &[Hash], base_repository: &RepositoryIntern) -> Result<()> {
-    todo!()
 }
 
 // ----------------------------------------------------------------------
 // - Types:
 // ----------------------------------------------------------------------
 
-pub type HashedPackets = std::collections::BTreeMap<Hash, Packet>;
-pub type RepositoryPackets = std::collections::BTreeMap<Name, PacketIntern>;
+pub type HashedPackets = std::collections::BTreeMap<Hash, PacketIntern>;
+pub type RepositoryPackets = std::collections::BTreeMap<Name, Hash>;
 
 // ----------------------------------------------------------------------
 // - PacketIntern:
 // ----------------------------------------------------------------------
 
-#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct PacketIntern {
-    hash: Hash,
+    data: Packet,
     facets: Vec<(Name, Hash)>,
     resolved_dependencies: Vec<Hash>,
     reverse_resolved_dependencies: Vec<Hash>,
@@ -58,23 +57,10 @@ pub struct PacketIntern {
 
 impl PacketIntern {
     pub fn new(
-        hash: Hash,
-        data: &Packet,
+        data: Packet,
         facets: Vec<(Name, Hash)>,
         repository_group: &[&RepositoryIntern],
     ) -> Result<Self> {
-        let base_repository = if let Some(br) = repository_group.first() {
-            *br
-        } else {
-            return Err(Error::Packet(
-                "Repository dependencies are broken.".to_string(),
-            ));
-        };
-
-        if hash.algorithm() == "none" {
-            return Err(Error::Packet("No packet hash was provided.".to_string()));
-        }
-
         for (facet_name, facet_hash) in &facets {
             if facet_hash.algorithm() == "none" {
                 return Err(Error::Packet(format!(
@@ -86,39 +72,47 @@ impl PacketIntern {
             // TODO: Check facet name based on repository group!
         }
 
-        let resolved_dependencies =
-            resolve_dependencies(&hash, &data.dependencies, repository_group)?;
-
-        check_dependencies(&resolved_dependencies, base_repository)?;
+        let resolved_dependencies = resolve_dependencies(&data.dependencies, repository_group)?;
 
         Ok(Self {
-            hash,
+            data,
             facets,
             resolved_dependencies,
             reverse_resolved_dependencies: Vec::new(),
         })
     }
 
-    pub fn hash(&self) -> Hash {
-        self.hash.clone()
+    pub const fn data(&self) -> &Packet {
+        &self.data
     }
-}
 
-impl std::cmp::Ord for PacketIntern {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.hash.cmp(&other.hash)
+    pub fn dependencies(&self) -> &[Hash] {
+        &self.resolved_dependencies
     }
-}
 
-impl std::cmp::PartialEq for PacketIntern {
-    fn eq(&self, other: &Self) -> bool {
-        self.hash == other.hash
-    }
-}
+    pub fn replace_reverse_resolved_dependency(
+        &mut self,
+        old: &Option<Hash>,
+        new: &Option<Hash>,
+    ) -> Result<()> {
+        let rev = &mut self.reverse_resolved_dependencies;
+        if let Some(old) = old {
+            if let Some(idx) = rev.iter().position(|e| e == old) {
+                rev.remove(idx);
+            } else {
+                return Err(Error::Packet(format!(
+                    "Failed to remove reverse dependency from \"{}\".",
+                    old
+                )));
+            }
+        }
+        if let Some(new) = new {
+            rev.push(new.clone());
+        }
 
-impl std::cmp::PartialOrd for PacketIntern {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+        rev.sort();
+
+        Ok(())
     }
 }
 
@@ -126,11 +120,13 @@ impl std::cmp::PartialOrd for PacketIntern {
 // - RepositoryIntern:
 // ----------------------------------------------------------------------
 
-#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct RepositoryIntern {
     repository: Repository,
     packets: RepositoryPackets,
     facets: Names,
+
+    pub search_paths: Vec<crate::Uuid>,
 }
 
 impl RepositoryIntern {
@@ -139,6 +135,7 @@ impl RepositoryIntern {
             repository,
             packets: RepositoryPackets::new(),
             facets: Names::default(),
+            search_paths: Vec::new(),
         }
     }
 
@@ -158,46 +155,28 @@ impl RepositoryIntern {
         self.facets.insert(name);
     }
 
-    pub fn add_packet(&mut self, name: &Name, packet: PacketIntern) {
-        self.packets.insert(name.clone(), packet);
-    }
-}
-
-impl std::cmp::Ord for RepositoryIntern {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.repository.cmp(&other.repository)
-    }
-}
-
-impl std::cmp::PartialEq for RepositoryIntern {
-    fn eq(&self, other: &Self) -> bool {
-        self.repository == other.repository
-    }
-}
-
-impl std::cmp::PartialOrd for RepositoryIntern {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+    pub fn add_packet(&mut self, name: &Name, hash: &Hash) {
+        self.packets.insert(name.clone(), hash.clone());
     }
 }
 
 // - Helper for RepositoryIntern:
 // ----------------------------------------------------------------------
 
-pub fn find_repository_by_name_mut<'a>(
+pub fn find_repository_by_uuid_mut<'a, 'b>(
     repositories: &'a mut [RepositoryIntern],
-    name: &'a Name,
+    uuid: &'b crate::Uuid,
 ) -> Option<&'a mut RepositoryIntern> {
     repositories
         .iter_mut()
-        .find(|r| r.repository().name == *name)
+        .find(|r| r.repository().uuid == *uuid)
 }
 
-pub fn find_repository_by_name<'a>(
+pub fn find_repository_by_uuid<'a, 'b>(
     repositories: &'a [RepositoryIntern],
-    name: &'a Name,
+    uuid: &'b crate::Uuid,
 ) -> Option<&'a RepositoryIntern> {
-    repositories.iter().find(|r| r.repository().name == *name)
+    repositories.iter().find(|r| r.repository().uuid == *uuid)
 }
 
 pub fn recursive_repository_dependencies<'a>(
@@ -205,16 +184,19 @@ pub fn recursive_repository_dependencies<'a>(
     base_repository: &'a RepositoryIntern,
 ) -> Vec<&'a RepositoryIntern> {
     let br = base_repository.repository();
-    let mut result = Vec::with_capacity(br.dependencies.len() + 1);
-    result.push(base_repository);
+    if let crate::RepositoryRelation::Dependency(dependencies) = &br.relation {
+        let mut result = Vec::with_capacity(dependencies.len() + 1);
+        result.push(base_repository);
 
-    result.extend(br.dependencies.into_iter().flat_map(|n| {
-        find_repository_by_name(all_repositories, n).map_or(Vec::new(), |r| {
-            recursive_repository_dependencies(all_repositories, r)
-        })
-    }));
-
-    result
+        result.extend(dependencies.iter().flat_map(|u| {
+            find_repository_by_uuid(all_repositories, u).map_or(Vec::new(), |r| {
+                recursive_repository_dependencies(all_repositories, r)
+            })
+        }));
+        result
+    } else {
+        Vec::new()
+    }
 }
 
 // Return all *other* repositories that match at least one tag of the base_repository.
