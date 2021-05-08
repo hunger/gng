@@ -23,7 +23,7 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// A generic `Error` about the `RepositoryDb`.
-    #[error("General Repository DB error: {}", .0)]
+    #[error("General repository DB error: {}", .0)]
     Db(String),
 
     /// An Io `Error`.
@@ -87,8 +87,9 @@ pub struct RemoteRepository {
     /// The base URL to download the packaging sources from.
     /// This is for information only and will not be used by the
     /// `Repository` this `RepositoryKind` is part of!
-    pub packet_sources_url: Option<String>,
+    pub packets_url: Option<String>,
 }
+
 /// The source of all data in a `Repository`
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub enum RepositorySource {

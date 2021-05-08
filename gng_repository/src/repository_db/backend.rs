@@ -3,16 +3,19 @@
 
 //! A backend database for a `RepositoryDb`
 
-use crate::Repository;
-
 use super::definitions::{HashedPackets, RepositoryIntern};
+use crate::{Error, Repository, Result};
+
+use gng_shared::Name;
+
+use std::convert::TryFrom;
 
 // ----------------------------------------------------------------------
 // - Constants:
 // ----------------------------------------------------------------------
 
 const META_FILE: &str = "meta.json";
-const REPOSITORY_FILE: &str = "repositories.json";
+const REPOSITORY_DIR: &str = "repos";
 const PACKETS_FILE: &str = "packets.json";
 
 const MAGIC: &str = "1e925d91-3294-4676-add6-917376d89d58";
@@ -104,20 +107,107 @@ fn get_db_schema_version(db_directory: &std::path::Path) -> crate::Result<u32> {
     Ok(meta_data.current_schema())
 }
 
-fn read_repositories(db_directory: &std::path::Path) -> crate::Result<Vec<Repository>> {
-    let repositories_file = db_directory.join(REPOSITORY_FILE);
-    let rf = std::fs::OpenOptions::new()
-        .read(true)
-        .open(&repositories_file);
-    let repositories: Vec<Repository> = if let Ok(rf) = rf {
-        serde_json::from_reader(rf).map_err(|_| {
-            crate::Error::Db("Failed to read repositories from storage.".to_string())
-        })?
-    } else {
-        Vec::new()
-    };
+fn read_repositories(db_directory: &std::path::Path) -> Result<Vec<Repository>> {
+    let repos_directories = db_directory.join(REPOSITORY_DIR);
+    let mut result = Vec::new();
 
-    Ok(repositories)
+    if let Ok(repository_files) = std::fs::read_dir(repos_directories) {
+        for entry in repository_files {
+            match entry {
+                Ok(entry) => {
+                    let file_name = entry.file_name().to_string_lossy().to_string();
+                    if file_name
+                        .rsplit('.')
+                        .next()
+                        .map(|ext| ext.eq_ignore_ascii_case("json"))
+                        != Some(true)
+                    {
+                        tracing::warn!("\"{}\" si not a .json file, skipping.", file_name);
+                        continue; // ignore non-json files!
+                    }
+                    let end = file_name.len() - 5;
+                    Name::try_from(&file_name[..end]).map_err(|_| {
+                        Error::Repository(format!("Invalid repository name in \"{}\".", &file_name))
+                    })?;
+
+                    let fd = std::fs::OpenOptions::new()
+                        .read(true)
+                        .open(entry.path())
+                        .map_err(|e| {
+                            Error::Repository(format!(
+                                "Failed to open repository data \"{}\": {}.",
+                                file_name, e
+                            ))
+                        })?;
+                    result.push(serde_json::from_reader(fd).map_err(|e| {
+                        Error::Repository(format!("Failed to parse \"{}\": {}.", file_name, e))
+                    })?);
+                }
+                Err(e) => tracing::warn!("Could not retrieve directory data: {}", e),
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+#[tracing::instrument(level = "trace")]
+pub fn init_db(db_directory: &std::path::Path) -> crate::Result<()> {
+    tracing::debug!("Initializing DB.");
+    std::fs::create_dir_all(db_directory).map_err(|e| {
+        Error::Db(format!(
+            "Can not initialize DB at \"{}\": {}.",
+            db_directory.to_string_lossy(),
+            e
+        ))
+    })?;
+
+    let meta_file = db_directory.join(META_FILE);
+    if meta_file.exists() && !meta_file.is_file() {
+        return Err(Error::Db(format!(
+            "Metadata exists, but is not a file in \"{}\".",
+            db_directory.to_string_lossy(),
+        )));
+    }
+
+    if !meta_file.exists() {
+        tracing::debug!("Creating Meta data file.");
+
+        let meta_fd = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(meta_file)
+            .map_err(|e| {
+                Error::Db(format!(
+                    "Can not open meta info of DB at \"{}\": {}.",
+                    db_directory.to_string_lossy(),
+                    e
+                ))
+            })?;
+
+        serde_json::to_writer(meta_fd, &MetaData::default()).map_err(|e| {
+            Error::Db(format!(
+                "Can not write meta info of DB at \"{}\": {}.",
+                db_directory.to_string_lossy(),
+                e
+            ))
+        })?;
+    }
+
+    tracing::trace!("Creating DB sub folders");
+    let repos_directory = db_directory.join(REPOSITORY_DIR);
+    if !repos_directory.is_dir() {
+        tracing::debug!("Creating DB sub folder for repository information.");
+        std::fs::create_dir(&repos_directory).map_err(|e| {
+            Error::Db(format!(
+                "Can not repository directory for DB at \"{}\": {}.",
+                db_directory.to_string_lossy(),
+                e
+            ))
+        })?;
+    }
+
+    Ok(())
 }
 
 #[tracing::instrument(level = "trace")]
@@ -128,6 +218,7 @@ pub fn read_db(
         return Err(crate::Error::Db("Unsupported schema version.".to_string()));
     }
 
+    tracing::debug!("Reading repositories from DB.");
     let repositories = read_repositories(db_directory)?;
 
     Ok((
@@ -139,19 +230,51 @@ pub fn read_db(
     ))
 }
 
-#[tracing::instrument(level = "trace")]
-pub fn persist_repositories(
+fn repository_file_name(
     db_directory: &std::path::Path,
-    repositories: &[RepositoryIntern],
+    repository_name: &Name,
+) -> std::path::PathBuf {
+    db_directory
+        .join(REPOSITORY_DIR)
+        .join(format!("{}.json", repository_name))
+}
+
+#[tracing::instrument(level = "trace")]
+pub fn persist_repository(
+    db_directory: &std::path::Path,
+    repository: &Repository,
 ) -> crate::Result<()> {
-    let repositories_file = db_directory.join(REPOSITORY_FILE);
+    let repository_name = &repository.name;
+    tracing::debug!("Persisting repository \"{}\".", &repository_name);
+
+    let repository_file = repository_file_name(db_directory, repository_name);
     let rf = std::fs::OpenOptions::new()
         .write(true)
         .truncate(true)
-        .open(&repositories_file)?;
+        .create(true)
+        .open(&repository_file)
+        .map_err(|e| {
+            Error::Db(format!(
+                "Failed to persist repository \"{}\": {}.",
+                repository_name, e,
+            ))
+        })?;
 
-    serde_json::to_writer(&rf, repositories)
-        .map_err(|_| crate::Error::Db("Failed to read repositories from storage.".to_string()))
+    serde_json::to_writer_pretty(&rf, repository).map_err(|e| {
+        Error::Db(format!(
+            "Failed to persist repository \"{}\": {}",
+            repository_name, e
+        ))
+    })
+}
+
+#[tracing::instrument(level = "trace")]
+pub fn remove_repository(
+    db_directory: &std::path::Path,
+    repository_name: &gng_shared::Name,
+) -> Result<()> {
+    tracing::debug!("Removing repository \"{}\".", &repository_name);
+    todo!()
 }
 
 /*

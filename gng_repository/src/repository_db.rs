@@ -5,7 +5,7 @@
 
 use crate::{Error, PacketData, Repository, Result, Uuid};
 
-use self::definitions::{HashedPackets, PacketIntern, RepositoryIntern};
+use self::definitions::{find_repository_by_uuid, HashedPackets, PacketIntern, RepositoryIntern};
 use gng_shared::{Hash, Name};
 
 use std::convert::TryFrom;
@@ -96,47 +96,10 @@ fn validate_repositories_dependencies(repositories: &[RepositoryIntern]) -> Resu
     Ok(())
 }
 
-fn validate_repository_no_dependencies_cycles(
-    all_repositories: &[RepositoryIntern],
-    base: &RepositoryIntern,
-    seen_uuids: &std::collections::HashSet<Uuid>,
-) -> Result<()> {
-    let mut seen_uuids = seen_uuids.clone();
-    if seen_uuids.insert(base.repository().uuid) {
-        if let crate::RepositoryRelation::Dependency(dependencies) = &base.repository().relation {
-            for u in dependencies {
-                let next_base = definitions::find_repository_by_uuid(all_repositories, u)
-                    .ok_or_else(|| {
-                        Error::Repository(format!("Unknown repository dependency \"{}\".", u))
-                    })?;
-                validate_repository_no_dependencies_cycles(
-                    all_repositories,
-                    next_base,
-                    &seen_uuids,
-                )?;
-            }
-        }
-        Ok(())
-    } else {
-        Err(Error::Repository(
-            "Dependency cycle in Repository list detected!".to_string(),
-        ))
-    }
-}
-
-fn validate_repositories_no_dependencies_cycles(repositories: &[RepositoryIntern]) -> Result<()> {
-    for r in repositories.iter() {
-        let seen_uuids = std::collections::HashSet::new();
-        validate_repository_no_dependencies_cycles(repositories, r, &seen_uuids)?;
-    }
-    Ok(())
-}
-
 fn validate_repositories(repositories: &[RepositoryIntern]) -> Result<()> {
     validate_repositories_uniqueness(repositories)?;
     validate_repositories_urls_and_sources(repositories)?;
     validate_repositories_dependencies(repositories)?;
-    validate_repositories_no_dependencies_cycles(repositories)?;
 
     Ok(())
 }
@@ -294,16 +257,15 @@ fn generate_repository_tree(repositories: &[RepositoryIntern]) -> Result<Vec<Rep
     Ok(tree_nodes)
 }
 
+#[allow(clippy::needless_collect)]
 fn deduplicate_uuids_in_search_path(input: Vec<Uuid>) -> Vec<Uuid> {
-    assert!(!input.is_empty());
-
     let mut seen_uuids = std::collections::HashSet::new();
 
     let filtered: Vec<_> = input
         .into_iter()
         .rev()
         .filter(|u| seen_uuids.insert(*u))
-        .collect();
+        .collect(); // This collect is necessary, otherwise the `rev` calls will cancel out
 
     filtered.into_iter().rev().collect()
 }
@@ -385,15 +347,22 @@ fn calculate_repository_search_paths(
 }
 
 fn update_repository_search_paths(repositories: &mut [RepositoryIntern]) -> Result<Vec<Uuid>> {
+    if repositories.is_empty() {
+        return Ok(vec![]);
+    }
+
     repositories.sort_by(|a, b| b.repository().priority.cmp(&a.repository().priority));
 
     let (search_paths, global_repository_search_path) =
         calculate_repository_search_paths(repositories)?;
 
     for (idx, r) in repositories.iter_mut().enumerate() {
-        r.search_paths = search_paths[idx].clone();
+        let sp = search_paths[idx].clone();
+        assert!(!sp.is_empty());
+        r.search_paths = sp;
     }
 
+    assert!(!global_repository_search_path.is_empty());
     Ok(global_repository_search_path)
 }
 
@@ -403,12 +372,6 @@ fn update_repository_search_paths(repositories: &mut [RepositoryIntern]) -> Resu
 
 /// A `Repository` of gng `Packet`s and related information
 pub trait RepositoryDb {
-    /// Persist all data to storage
-    ///
-    /// # Errors
-    /// Any of the crate's `Error`s can be returned from here.
-    fn persist(&self) -> Result<()>;
-
     // Repository management:
 
     /// Resolve a user provided repository to a `Uuid`
@@ -471,6 +434,8 @@ pub(crate) struct RepositoryDbImpl {
 impl RepositoryDbImpl {
     #[tracing::instrument(level = "trace")]
     pub(crate) fn new(db_directory: &std::path::Path) -> Result<Self> {
+        self::backend::init_db(db_directory)?;
+
         let (mut repositories, hashed_packets) = backend::read_db(db_directory)?;
         validate_repositories(&repositories)?;
         let global_repository_search_path = update_repository_search_paths(&mut repositories)?;
@@ -567,19 +532,6 @@ impl Default for RepositoryDbImpl {
 } // Default for RepositoryDbImpl
 
 impl RepositoryDb for RepositoryDbImpl {
-    #[tracing::instrument(level = "trace")]
-    fn persist(&self) -> Result<()> {
-        if let Some(db_directory) = &self.db_directory {
-            backend::persist_repositories(db_directory, &self.repositories)?;
-            tracing::debug!(
-                "Repository DB was persisted to \"{}\".",
-                db_directory.to_string_lossy()
-            );
-        }
-
-        Ok(())
-    }
-
     fn resolve_repository(&self, input: &str) -> Option<Uuid> {
         if let Ok(uuid) = Uuid::parse_str(input) {
             definitions::find_repository_by_uuid(&self.repositories, &uuid).map(|_| uuid)
@@ -604,6 +556,8 @@ impl RepositoryDb for RepositoryDbImpl {
     fn add_repository(&mut self, repository_data: Repository) -> Result<()> {
         let mut repositories = self.repositories.clone();
 
+        let uuid = repository_data.uuid;
+
         repositories.push(definitions::RepositoryIntern::new(repository_data));
         validate_repositories(&repositories)?;
         let global_repository_search_path = update_repository_search_paths(&mut repositories)?;
@@ -611,15 +565,32 @@ impl RepositoryDb for RepositoryDbImpl {
         self.repositories = repositories;
         self.global_repository_search_path = global_repository_search_path;
 
+        if let Some(db_directory) = &self.db_directory {
+            self::backend::persist_repository(
+                db_directory,
+                find_repository_by_uuid(&self.repositories, &uuid)
+                    .expect("Just added this, where did it go?")
+                    .repository(),
+            )?;
+        }
+
         Ok(())
     }
 
     #[tracing::instrument(level = "trace", skip(self))]
     fn remove_repository(&mut self, uuid: &Uuid) -> Result<()> {
+        let mut to_remove = Vec::new();
         let mut repositories: Vec<_> = self
             .repositories
             .iter()
-            .filter(|r| r.repository().uuid != *uuid)
+            .filter(|r| {
+                if r.repository().uuid == *uuid {
+                    false
+                } else {
+                    to_remove.push(r.repository().name.clone());
+                    true
+                }
+            })
             .cloned()
             .collect();
         if repositories.len() == self.repositories.len() {
@@ -634,6 +605,12 @@ impl RepositoryDb for RepositoryDbImpl {
 
         self.repositories = repositories;
         self.global_repository_search_path = global_repository_search_path;
+
+        if let Some(db_directory) = &self.db_directory {
+            for n in &to_remove {
+                self::backend::remove_repository(db_directory, n)?;
+            }
+        }
 
         Ok(())
     }

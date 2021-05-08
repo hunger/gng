@@ -15,12 +15,16 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use std::{path::PathBuf, str::FromStr};
+use gng_repository::{
+    repository_db::RepositoryDb, LocalRepository, RemoteRepository, Repository, RepositoryRelation,
+    RepositorySource, Uuid,
+};
 
 use clap::Clap;
 use eyre::{Result, WrapErr};
 
-use gng_repository::repository_db::RepositoryDb;
+use std::convert::TryFrom;
+use std::{path::PathBuf, str::FromStr};
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -84,27 +88,38 @@ struct RepositoryListCommand {
 struct RepositoryAddCommand {
     /// Name of the repository
     name: String,
-    /// The URL to pull repository data from
-    #[clap(long, value_name = "URL")]
-    pull_url: Option<String>,
-    /// The base URL for packet downloads
-    #[clap(long = "packet-url", value_name = "URL")]
-    packet_base_url: String,
-    /// Declare repository dependencies separated by comma
-    #[clap(long, value_name = "NAME", value_delimiter = ",")]
-    dependencies: Vec<String>,
-    /// Declare repository tags separated by comma
-    #[clap(long, value_name = "TAG", value_delimiter = ",")]
-    tags: Vec<String>,
-    /// Repository priority (higher values are used first, default is 1000)
-    #[clap(long, value_name = "PRIORITY", default_value("1000"))]
-    priority: u32,
-    /// Directory containing source packages used to build the packets of this repository
-    #[clap(long = "sources", parse(from_os_str), value_name = "DIR")]
-    source_base_directory: Option<std::path::PathBuf>,
     /// The repository UUID to use (generated if unset)
     #[clap(long = "uuid", value_name = "UUID")]
     uuid: Option<String>,
+    /// Repository priority (higher values are used first, default is 1000)
+    #[clap(long, value_name = "PRIORITY", default_value("1000"))]
+    priority: u32,
+    /// Declare repository tags separated by comma
+    #[clap(long, value_name = "TAG", value_delimiter = ",")]
+    tags: Vec<String>,
+
+    // Source:
+    /// The URL to pull repository data from
+    #[clap(long, value_name = "URL", group = "source")]
+    remote_url: Option<String>,
+    /// The base URL for packet downloads
+    #[clap(long, value_name = "URL", requires = "remote-url")]
+    packets_url: Option<String>,
+
+    /// The place to check for sources to build locally
+    #[clap(long, value_name = "DIR", group = "source")]
+    sources_base_directory: Option<std::path::PathBuf>,
+    /// The base URL for packet downloads
+    #[clap(long, value_name = "DIR", requires = "sources-base-directory")]
+    export_directory: Option<std::path::PathBuf>,
+
+    // Relation:
+    /// The place to check for sources to build locally
+    #[clap(long = "override", value_name = "REPO", group = "relation")]
+    override_repository: Option<String>,
+    /// The base URL for packet downloads
+    #[clap(long, value_name = "REPO", value_delimiter = ",", group = "relation")]
+    dependencies: Vec<String>,
 }
 
 #[derive(Debug, Clap)]
@@ -121,12 +136,12 @@ fn handle_repository_command(db: &mut impl RepositoryDb, cmd: &RepositoryCommand
     }
 }
 
-fn print_json(repository: &gng_repository::Repository) -> Result<()> {
+fn print_json(repository: &Repository) -> Result<()> {
     println!("{}", repository.to_json()?);
     Ok(())
 }
 
-fn print_human(repository: &gng_repository::Repository) {
+fn print_human(repository: &Repository) {
     println!("{}", repository.to_pretty_string())
 }
 
@@ -156,26 +171,51 @@ fn handle_repository_add_command(
     cmd: &RepositoryAddCommand,
 ) -> Result<()> {
     let uuid = match &cmd.uuid {
-        Some(u) => {
-            gng_repository::Uuid::from_str(u).wrap_err("Invalid UUID provided on command line")
-        }
-        None => Ok(gng_repository::Uuid::new_v4()),
+        Some(u) => Uuid::from_str(u).wrap_err("Invalid UUID provided on command line"),
+        None => Ok(Uuid::new_v4()),
     }?;
 
-    // let data = gng_repository::Repository {
-    //     name: gng_shared::Name::try_from(&cmd.name[..])?,
-    //     uuid,
-    //     priority: cmd.priority,
-    //     pull_url: cmd.pull_url.clone(),
-    //     packet_base_url: cmd.packet_base_url.clone(),
-    //     sources_base_directory: cmd.source_base_directory.clone(),
-    //     dependencies: gng_shared::Names::try_from(cmd.dependencies.clone())?,
-    //     tags: gng_shared::Names::try_from(cmd.dependencies.clone())?,
-    // };
+    let source = match &cmd.remote_url {
+        Some(remote_url) => RepositorySource::Remote(RemoteRepository {
+            remote_url: remote_url.clone(),
+            packets_url: cmd.packets_url.clone(),
+        }),
+        None => RepositorySource::Local(LocalRepository {
+            sources_base_directory: cmd
+                .sources_base_directory
+                .as_ref()
+                .expect("Clap should have made sure this is Some!")
+                .clone(),
+            export_directory: cmd.export_directory.clone(),
+        }),
+    };
 
-    // db.add_repository(data)
-    //     .wrap_err("Failed to add new repository")
-    Ok(())
+    let relation = if let Some(override_repository) = &cmd.override_repository {
+        RepositoryRelation::Override(
+            db.resolve_repository(override_repository)
+                .ok_or_else(|| eyre::eyre!("Override repository not found."))?,
+        )
+    } else {
+        let dependencies = cmd
+            .dependencies
+            .iter()
+            .map(|s| db.resolve_repository(s))
+            .collect::<Option<Vec<Uuid>>>()
+            .ok_or_else(|| eyre::eyre!("Failed to resolve dependency repository."))?;
+        RepositoryRelation::Dependency(dependencies)
+    };
+
+    let data = Repository {
+        name: gng_shared::Name::try_from(&cmd.name[..])?,
+        uuid,
+        priority: cmd.priority,
+        tags: gng_shared::Names::try_from(cmd.dependencies.clone())?,
+        relation,
+        source,
+    };
+
+    db.add_repository(data)
+        .wrap_err("Failed to add new repository")
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
