@@ -79,15 +79,25 @@ fn validate_repositories_urls_and_sources(repositories: &[RepositoryIntern]) -> 
     Ok(())
 }
 
-fn validate_repositories_dependencies(repositories: &[RepositoryIntern]) -> Result<()> {
+fn validate_repositories_relations(repositories: &[RepositoryIntern]) -> Result<()> {
     for r in repositories {
         let r = r.repository();
-        if let crate::RepositoryRelation::Dependency(dependencies) = &r.relation {
-            for d in dependencies {
-                if definitions::find_repository_by_uuid(repositories, d).is_none() {
+        match &r.relation {
+            crate::RepositoryRelation::Dependency(dependencies) => {
+                for d in dependencies {
+                    if definitions::find_repository_by_uuid(repositories, d).is_none() {
+                        return Err(Error::Repository(format!(
+                            "Repository \"{}\" has unknown dependency \"{}\".",
+                            &r.name, &d
+                        )));
+                    }
+                }
+            }
+            crate::RepositoryRelation::Override(u) => {
+                if definitions::find_repository_by_uuid(repositories, u).is_none() {
                     return Err(Error::Repository(format!(
-                        "Repository \"{}\" has unknown dependency \"{}\".",
-                        &r.name, &d
+                        "Repository \"{}\" overrides unknown repository \"{}\".",
+                        &r.name, &u
                     )));
                 }
             }
@@ -99,7 +109,7 @@ fn validate_repositories_dependencies(repositories: &[RepositoryIntern]) -> Resu
 fn validate_repositories(repositories: &[RepositoryIntern]) -> Result<()> {
     validate_repositories_uniqueness(repositories)?;
     validate_repositories_urls_and_sources(repositories)?;
-    validate_repositories_dependencies(repositories)?;
+    validate_repositories_relations(repositories)?;
 
     Ok(())
 }
@@ -270,19 +280,39 @@ fn deduplicate_uuids_in_search_path(input: Vec<Uuid>) -> Vec<Uuid> {
     filtered.into_iter().rev().collect()
 }
 
+fn report_loop(inputs: &[Uuid], node_path: &mut std::collections::HashSet<Uuid>) -> Result<()> {
+    if inputs.iter().any(|i| !node_path.insert(*i)) {
+        Err(Error::Repository("Relation loop detected.".to_string()))
+    } else {
+        Ok(())
+    }
+}
+
 fn calculate_repository_search_path_for_node(
     nodes: &[RepositoryTreeNode],
     current_index: usize,
+    parent_node_path: &mut std::collections::HashSet<Uuid>,
     mut result: Vec<Vec<Uuid>>,
-) -> Vec<Vec<Uuid>> {
+) -> Result<Vec<Vec<Uuid>>> {
     assert!(result[current_index].is_empty());
 
     let mut node_result = Vec::new();
 
     // Handle overrides:
-    let mut overridden_by = Some(current_index);
+    let mut overridden_by = Some(current_index); // Add self first!
+    let mut override_node_path = std::collections::HashSet::new();
     while let Some(idx) = overridden_by {
-        node_result.push(nodes[idx].repository.repository().uuid);
+        let dest_repo = nodes[idx].repository.repository();
+        let uuid = dest_repo.uuid;
+
+        report_loop(&[uuid], &mut override_node_path).map_err(|_| {
+            Error::Repository(format!(
+                "Repository \"{}\" has override loop.",
+                &dest_repo.name,
+            ))
+        })?;
+
+        node_result.push(uuid);
         overridden_by = nodes[idx].overridden_by;
     }
     node_result = node_result.into_iter().rev().collect(); // Last override comes first!
@@ -290,9 +320,25 @@ fn calculate_repository_search_path_for_node(
     // Handle Dependencies:
     for dependency_index in &nodes[current_index].depends_on {
         let dependency_index = *dependency_index;
+        let dest_repo = nodes[dependency_index].repository.repository();
+        let mut dependency_node_path = parent_node_path.clone();
+
         if result[dependency_index].is_empty() {
-            result = calculate_repository_search_path_for_node(nodes, dependency_index, result);
+            report_loop(&result[dependency_index], &mut dependency_node_path).map_err(|_| {
+                Error::Repository(format!(
+                    "Repository \"{}\" has override loop.",
+                    &dest_repo.name,
+                ))
+            })?;
+
+            result = calculate_repository_search_path_for_node(
+                nodes,
+                dependency_index,
+                &mut dependency_node_path,
+                result,
+            )?;
         }
+
         node_result.extend_from_slice(&result[dependency_index][..]);
     }
 
@@ -307,7 +353,7 @@ fn calculate_repository_search_path_for_node(
     // ... and the main node!
     result[current_index] = node_result;
 
-    result
+    Ok(result)
 }
 
 fn calculate_repository_search_paths(
@@ -319,20 +365,36 @@ fn calculate_repository_search_paths(
     let mut global_search_path = Vec::new();
 
     // Find leaf nodes:
-    let leaf_indices: Vec<_> = nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, n)| {
-            if n.depended_on.is_empty() && n.overrides.is_none() {
-                Some(idx)
-            } else {
-                None
-            }
-        })
-        .collect();
+    let leaf_indices = {
+        let mut tmp: Vec<_> = nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, n)| {
+                if n.depended_on.is_empty() && n.overrides.is_none() {
+                    Some(idx)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        tmp.sort_by(|a, b| {
+            let a = repositories[*a].repository();
+            let b = repositories[*b].repository();
+
+            b.priority.cmp(&a.priority)
+        });
+
+        tmp
+    };
 
     for l in leaf_indices {
-        result = calculate_repository_search_path_for_node(&nodes, l, result);
+        result = calculate_repository_search_path_for_node(
+            &nodes,
+            l,
+            &mut std::collections::HashSet::new(),
+            result,
+        )?;
         global_search_path.extend_from_slice(&result[l][..]);
     }
 
@@ -346,15 +408,12 @@ fn calculate_repository_search_paths(
     Ok((result, deduplicate_uuids_in_search_path(global_search_path)))
 }
 
-fn update_repository_search_paths(repositories: &mut [RepositoryIntern]) -> Result<Vec<Uuid>> {
-    if repositories.is_empty() {
-        return Ok(vec![]);
-    }
+fn update_repository_search_paths(repositories: &[RepositoryIntern]) -> Result<Vec<Uuid>> {
+    validate_repositories(repositories)?;
 
-    repositories.sort_by(|a, b| b.repository().priority.cmp(&a.repository().priority));
-
+    let mut repositories = Vec::from(repositories);
     let (search_paths, global_repository_search_path) =
-        calculate_repository_search_paths(repositories)?;
+        calculate_repository_search_paths(&repositories[..])?;
 
     for (idx, r) in repositories.iter_mut().enumerate() {
         let sp = search_paths[idx].clone();
@@ -436,9 +495,8 @@ impl RepositoryDbImpl {
     pub(crate) fn new(db_directory: &std::path::Path) -> Result<Self> {
         self::backend::init_db(db_directory)?;
 
-        let (mut repositories, hashed_packets) = backend::read_db(db_directory)?;
-        validate_repositories(&repositories)?;
-        let global_repository_search_path = update_repository_search_paths(&mut repositories)?;
+        let (repositories, hashed_packets) = backend::read_db(db_directory)?;
+        let global_repository_search_path = update_repository_search_paths(&repositories)?;
 
         Ok(Self {
             db_directory: Some(db_directory.to_owned()),
@@ -546,9 +604,14 @@ impl RepositoryDb for RepositoryDbImpl {
     }
 
     fn list_repositories(&self) -> Vec<Repository> {
-        self.repositories
+        self.global_repository_search_path
             .iter()
-            .map(|r| r.repository().clone())
+            .map(|u| {
+                find_repository_by_uuid(&self.repositories, u)
+                    .expect("Must exists!")
+                    .repository()
+                    .clone()
+            })
             .collect()
     }
 
@@ -559,8 +622,7 @@ impl RepositoryDb for RepositoryDbImpl {
         let uuid = repository_data.uuid;
 
         repositories.push(definitions::RepositoryIntern::new(repository_data));
-        validate_repositories(&repositories)?;
-        let global_repository_search_path = update_repository_search_paths(&mut repositories)?;
+        let global_repository_search_path = update_repository_search_paths(&repositories)?;
 
         self.repositories = repositories;
         self.global_repository_search_path = global_repository_search_path;
@@ -580,7 +642,7 @@ impl RepositoryDb for RepositoryDbImpl {
     #[tracing::instrument(level = "trace", skip(self))]
     fn remove_repository(&mut self, uuid: &Uuid) -> Result<()> {
         let mut to_remove = Vec::new();
-        let mut repositories: Vec<_> = self
+        let repositories: Vec<_> = self
             .repositories
             .iter()
             .filter(|r| {
@@ -600,8 +662,7 @@ impl RepositoryDb for RepositoryDbImpl {
             )));
         }
 
-        validate_repositories(&repositories)?;
-        let global_repository_search_path = update_repository_search_paths(&mut repositories)?;
+        let global_repository_search_path = update_repository_search_paths(&repositories)?;
 
         self.repositories = repositories;
         self.global_repository_search_path = global_repository_search_path;
@@ -645,8 +706,7 @@ impl RepositoryDb for RepositoryDbImpl {
     }
 
     fn fsck(&self) -> Result<bool> {
-        validate_repositories(&self.repositories)?;
-        calculate_repository_search_paths(&self.repositories)?;
+        update_repository_search_paths(&self.repositories)?;
 
         Ok(true)
     }
@@ -761,7 +821,7 @@ mod tests {
             }),
         ];
 
-        validate_repositories(&repositories).unwrap();
+        update_repository_search_paths(&repositories).unwrap();
     }
 
     #[test]
@@ -791,7 +851,7 @@ mod tests {
             }),
         ];
 
-        assert!(validate_repositories(&repositories).is_err());
+        assert!(update_repository_search_paths(&repositories).is_err());
     }
 
     #[test]
@@ -822,7 +882,7 @@ mod tests {
             }),
         ];
 
-        assert!(validate_repositories(&repositories).is_err());
+        assert!(update_repository_search_paths(&repositories).is_err());
     }
 
     #[test]
@@ -839,7 +899,7 @@ mod tests {
                     sources_base_directory: std::path::PathBuf::from("file:///tmp/sources/base"),
                     export_directory: None,
                 }),
-                relation: crate::RepositoryRelation::Dependency(vec![]),
+                relation: crate::RepositoryRelation::Dependency(vec![uuid1]),
                 tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
@@ -850,12 +910,45 @@ mod tests {
                     sources_base_directory: std::path::PathBuf::from("file:///tmp/sources/ext"),
                     export_directory: None,
                 }),
-                relation: crate::RepositoryRelation::Dependency(vec![]),
+                relation: crate::RepositoryRelation::Dependency(vec![uuid2]),
                 tags: Names::default(),
             }),
         ];
 
-        assert!(validate_repositories(&repositories).is_err());
+        assert!(update_repository_search_paths(&repositories).is_err());
+    }
+
+    #[test]
+    fn test_repository_validation_override_loop() {
+        let uuid1 = Uuid::new_v4();
+        let uuid2 = Uuid::new_v4();
+
+        let repositories = [
+            RepositoryIntern::new(Repository {
+                name: Name::try_from("base_repo").expect("Name was valid!"),
+                uuid: uuid2,
+                priority: 100,
+                source: crate::RepositorySource::Local(crate::LocalRepository {
+                    sources_base_directory: std::path::PathBuf::from("file:///tmp/sources/base"),
+                    export_directory: None,
+                }),
+                relation: crate::RepositoryRelation::Override(uuid1),
+                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
+            }),
+            RepositoryIntern::new(Repository {
+                name: Name::try_from("ext_repo").expect("Name was valid!"),
+                uuid: uuid1,
+                priority: 1500,
+                source: crate::RepositorySource::Local(crate::LocalRepository {
+                    sources_base_directory: std::path::PathBuf::from("file:///tmp/sources/ext"),
+                    export_directory: None,
+                }),
+                relation: crate::RepositoryRelation::Override(uuid2),
+                tags: Names::default(),
+            }),
+        ];
+
+        assert!(update_repository_search_paths(&repositories).is_err());
     }
 
     #[test]
@@ -875,7 +968,7 @@ mod tests {
             tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
         })];
 
-        assert!(validate_repositories(&repositories).is_err());
+        assert!(update_repository_search_paths(&repositories).is_err());
     }
 
     fn create_dependent_repo(name: &str, uuid: &Uuid, dependencies: Vec<Uuid>) -> RepositoryIntern {
@@ -922,7 +1015,7 @@ mod tests {
         let uuid_2o1 = Uuid::new_v4();
         let uuid_3 = Uuid::new_v4();
 
-        let mut repositories = [
+        let repositories = [
             create_dependent_repo("r3", &uuid_3, vec![uuid_2]),
             create_override_repo("r1o0", &uuid_1o0, uuid_1),
             create_override_repo("r2o1", &uuid_2o1, uuid_2o0),
@@ -932,11 +1025,7 @@ mod tests {
             create_dependent_repo("r2", &uuid_2, vec![uuid_1]),
         ];
 
-        for r in &repositories {
-            println!("{}", r.repository().to_pretty_string());
-        }
-
-        let global_search_path = update_repository_search_paths(&mut repositories)
+        let global_search_path = update_repository_search_paths(&repositories)
             .expect("Input was supposed to be correct");
 
         assert_eq!(
@@ -949,32 +1038,36 @@ mod tests {
     fn test_update_search_paths_diamond() {
         let uuid_0 = Uuid::new_v4();
         let uuid_1 = Uuid::new_v4();
-        let uuid_2l0 = Uuid::new_v4();
-        let uuid_2l1 = Uuid::new_v4();
-        let uuid_2r0 = Uuid::new_v4();
-        let uuid_2r0o0 = Uuid::new_v4();
+        let uuid_2left0 = Uuid::new_v4();
+        let uuid_2left1 = Uuid::new_v4();
+        let uuid_2right0 = Uuid::new_v4();
+        let uuid_2right0o0 = Uuid::new_v4();
         let uuid_3 = Uuid::new_v4();
 
-        let mut repositories = [
+        let repositories = [
             create_dependent_repo("r0", &uuid_0, vec![]),
             create_dependent_repo("r1", &uuid_1, vec![uuid_0]),
-            create_dependent_repo("r2l0", &uuid_2l0, vec![uuid_1]),
-            create_dependent_repo("r2l1", &uuid_2l1, vec![uuid_2l0]),
-            create_dependent_repo("r2r0", &uuid_2r0, vec![uuid_1]),
-            create_override_repo("r2r0o0", &uuid_2r0o0, uuid_2r0),
-            create_dependent_repo("r3", &uuid_3, vec![uuid_2l1, uuid_2r0]),
+            create_dependent_repo("r2l0", &uuid_2left0, vec![uuid_1]),
+            create_dependent_repo("r2l1", &uuid_2left1, vec![uuid_2left0]),
+            create_dependent_repo("r2r0", &uuid_2right0, vec![uuid_1]),
+            create_override_repo("r2r0o0", &uuid_2right0o0, uuid_2right0),
+            create_dependent_repo("r3", &uuid_3, vec![uuid_2left1, uuid_2right0]),
         ];
 
-        for r in &repositories {
-            println!("{}", r.repository().to_pretty_string());
-        }
-
-        let global_search_path = update_repository_search_paths(&mut repositories)
+        let global_search_path = update_repository_search_paths(&repositories)
             .expect("Input was supposed to be correct");
 
         assert_eq!(
             global_search_path,
-            vec![uuid_3, uuid_2l1, uuid_2l0, uuid_2r0o0, uuid_2r0, uuid_1, uuid_0,]
+            vec![
+                uuid_3,
+                uuid_2left1,
+                uuid_2left0,
+                uuid_2right0o0,
+                uuid_2right0,
+                uuid_1,
+                uuid_0,
+            ]
         )
     }
 
@@ -997,11 +1090,11 @@ mod tests {
         );
         assert_eq!(
             it.next().unwrap().name.to_string(),
-            String::from("tagged_repo")
+            String::from("base_repo")
         );
         assert_eq!(
             it.next().unwrap().name.to_string(),
-            String::from("base_repo")
+            String::from("tagged_repo")
         );
         assert!(it.next().is_none());
     }
