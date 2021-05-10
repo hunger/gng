@@ -149,8 +149,25 @@ impl Repository {
     /// A `gng_shared::Error::Conversion` might be returned.
     #[must_use]
     pub fn to_pretty_string(&self) -> String {
-        // TODO: Print more data
-        format!("{}: {} [{}]\n", self.priority, &self.name, &self.uuid)
+        let tags_str = self
+            .tags
+            .into_iter()
+            .map(gng_shared::Name::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let relation_str = match &self.relation {
+            RepositoryRelation::Override(o) => {
+                format!("\n    Override {}", o)
+            }
+            RepositoryRelation::Dependency(d) => {
+                format!("\n    Depends on: {:?}", d)
+            }
+        };
+        let sources_str = "";
+        format!(
+            "{}: {} [{}] -- tags: {}{}{}",
+            &self.priority, &self.name, &self.uuid, tags_str, relation_str, sources_str,
+        )
     }
 }
 
