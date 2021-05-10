@@ -61,14 +61,6 @@ fn validate_remote_repository(name: &Name, repository: &crate::RemoteRepository)
     }
 }
 
-#[must_use]
-const fn is_local_repository(repository: &RepositoryIntern) -> bool {
-    matches!(
-        repository.repository().source,
-        crate::RepositorySource::Local(_)
-    )
-}
-
 fn validate_repositories_urls_and_sources(repositories: &[RepositoryIntern]) -> Result<()> {
     for r in repositories {
         let r = r.repository();
@@ -522,21 +514,13 @@ impl RepositoryDbImpl {
             })?;
 
         // Are we adopting into a local repository?
-        if !is_local_repository(repository) {
+        if !repository.is_local() {
             return Err(Error::Packet(
                 "Can not adopt a Packet into a remote repository.".to_string(),
             ));
         }
 
-        // Check for duplicate packet names in tag group:
-        let tag_group = definitions::repository_tags_group(&self.repositories, repository);
-        if let Some(ri) = repository_group_contains_packet(&tag_group, packet_name) {
-            return Err(Error::Packet(format!(
-                "Packet \"{}\" is already defined in repository \"{}\".",
-                packet_name,
-                &ri.repository().name
-            )));
-        }
+        // Check for duplicate packet names:
 
         let dependency_group =
             definitions::recursive_repository_dependencies(&self.repositories, repository);
@@ -714,19 +698,9 @@ impl RepositoryDb for RepositoryDbImpl {
     fn dump_metadata(&mut self) {
         println!("Repositories:");
         for r in &self.repositories {
-            let locality_str = if is_local_repository(r) {
-                "LOCAL"
-            } else {
-                "REMOTE"
-            };
+            let locality_str = if r.is_local() { "LOCAL" } else { "REMOTE" };
             let r = r.repository();
-            let tags_str = if r.tags.is_empty() {
-                "[]".to_string()
-            } else {
-                format!("[{}]", r.tags)
-            };
             println!("{}: {} - {} ({})", r.priority, r.name, r.uuid, locality_str);
-            println!("    Tags: {}", tags_str)
         }
     }
 }
@@ -751,7 +725,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Dependency(vec![]),
-            tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
         })
         .unwrap();
         db.add_repository(Repository {
@@ -765,7 +738,6 @@ mod tests {
             relation: crate::RepositoryRelation::Dependency(vec![db
                 .resolve_repository("base_repo")
                 .expect("Repo was valid!")]),
-            tags: Names::default(),
         })
         .unwrap();
         db.add_repository(Repository {
@@ -777,7 +749,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Dependency(vec![]),
-            tags: Names::try_from(vec!["test1", "other_tag"]).expect("Names were valid!"),
         })
         .unwrap();
         db.add_repository(Repository {
@@ -789,7 +760,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Dependency(vec![]),
-            tags: Names::default(),
         })
         .unwrap();
     }
@@ -806,7 +776,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
                 name: Name::try_from("ext_repo").expect("Name was valid!"),
@@ -817,7 +786,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::default(),
             }),
         ];
 
@@ -836,7 +804,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
                 name: Name::try_from("base_repo").expect("Name was valid!"),
@@ -847,7 +814,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::default(),
             }),
         ];
 
@@ -867,7 +833,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
                 name: Name::try_from("ext_repo").expect("Name was valid!"),
@@ -878,7 +843,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![]),
-                tags: Names::default(),
             }),
         ];
 
@@ -900,7 +864,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![uuid1]),
-                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
                 name: Name::try_from("ext_repo").expect("Name was valid!"),
@@ -911,7 +874,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Dependency(vec![uuid2]),
-                tags: Names::default(),
             }),
         ];
 
@@ -933,7 +895,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Override(uuid1),
-                tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
             }),
             RepositoryIntern::new(Repository {
                 name: Name::try_from("ext_repo").expect("Name was valid!"),
@@ -944,7 +905,6 @@ mod tests {
                     export_directory: None,
                 }),
                 relation: crate::RepositoryRelation::Override(uuid2),
-                tags: Names::default(),
             }),
         ];
 
@@ -965,7 +925,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Dependency(vec![uuid2]),
-            tags: Names::from(Name::try_from("test1").expect("Name was valid!")),
         })];
 
         assert!(update_repository_search_paths(&repositories).is_err());
@@ -984,7 +943,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Dependency(dependencies),
-            tags: Names::default(),
         })
     }
 
@@ -1001,7 +959,6 @@ mod tests {
                 export_directory: None,
             }),
             relation: crate::RepositoryRelation::Override(overrides),
-            tags: Names::default(),
         })
     }
 

@@ -124,9 +124,10 @@ impl PacketIntern {
 pub struct RepositoryIntern {
     repository: Repository,
     packets: RepositoryPackets,
-    facets: Names,
+    pub facets: Names,
 
     pub search_paths: Vec<crate::Uuid>,
+    pub all_tags: Names,
 }
 
 impl RepositoryIntern {
@@ -136,6 +137,7 @@ impl RepositoryIntern {
             packets: RepositoryPackets::new(),
             facets: Names::default(),
             search_paths: Vec::new(),
+            all_tags: Names::default(),
         }
     }
 
@@ -157,6 +159,20 @@ impl RepositoryIntern {
 
     pub fn add_packet(&mut self, name: &Name, hash: &Hash) {
         self.packets.insert(name.clone(), hash.clone());
+    }
+
+    pub fn all_tags(&self) -> &Names {
+        &self.all_tags
+    }
+
+    #[must_use]
+    pub fn is_local(&self) -> bool {
+        self.repository().is_local()
+    }
+
+    #[must_use]
+    pub fn is_override(&self) -> bool {
+        self.repository().is_override()
     }
 }
 
@@ -197,28 +213,6 @@ pub fn recursive_repository_dependencies<'a>(
     } else {
         Vec::new()
     }
-}
-
-// Return all *other* repositories that match at least one tag of the base_repository.
-// The base_repository will not be in the result set!
-pub fn repository_tags_group<'a>(
-    all_repositories: &'a [RepositoryIntern],
-    base_repository: &'a RepositoryIntern,
-) -> Vec<&'a RepositoryIntern> {
-    let br = base_repository.repository();
-    let base_tags: std::collections::HashSet<Name> = br.tags.into_iter().cloned().collect();
-    let base_uuid = base_repository.repository().uuid;
-
-    all_repositories
-        .iter()
-        .filter(|r| {
-            r.repository().uuid != base_uuid
-                && r.repository()
-                    .tags
-                    .into_iter()
-                    .any(|t| base_tags.contains(t))
-        })
-        .collect()
 }
 
 pub fn find_facet_implementation_repository<'a, 'b>(

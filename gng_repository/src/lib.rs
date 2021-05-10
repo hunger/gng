@@ -117,9 +117,6 @@ pub struct Repository {
     pub uuid: Uuid,
     /// The priority of this `RepositoryData`
     pub priority: u32,
-    /// `A list of tags applied to this `Repository`.
-    /// `Packet` names must be unique across all repositories sharing a tag!
-    pub tags: gng_shared::Names,
 
     /// `Repository`(s) this one relates to
     pub relation: RepositoryRelation,
@@ -149,12 +146,6 @@ impl Repository {
     /// A `gng_shared::Error::Conversion` might be returned.
     #[must_use]
     pub fn to_pretty_string(&self) -> String {
-        let tags_str = self
-            .tags
-            .into_iter()
-            .map(gng_shared::Name::to_string)
-            .collect::<Vec<_>>()
-            .join(", ");
         let relation_str = match &self.relation {
             RepositoryRelation::Override(o) => {
                 format!("\n    Override {}", o)
@@ -163,11 +154,43 @@ impl Repository {
                 format!("\n    Depends on: {:?}", d)
             }
         };
-        let sources_str = "";
+
+        let sources_str = match &self.source {
+            RepositorySource::Local(lr) => {
+                let export = match &lr.export_directory {
+                    Some(ed) => format!(" => {}", ed.to_string_lossy()),
+                    _ => String::new(),
+                };
+                format!(
+                    "\n    LOCAL  -- sources: {}{}",
+                    &lr.sources_base_directory.to_string_lossy(),
+                    export
+                )
+            }
+            RepositorySource::Remote(rr) => {
+                let packets = match &rr.packets_url {
+                    Some(pu) => format!(" [packets at {}]", &pu),
+                    _ => String::new(),
+                };
+                format!("\n    REMOTE -- {}{}", &rr.remote_url, &packets)
+            }
+        };
         format!(
-            "{}: {} [{}] -- tags: {}{}{}",
-            &self.priority, &self.name, &self.uuid, tags_str, relation_str, sources_str,
+            "{}: {} [{}]{}{}",
+            &self.priority, &self.name, &self.uuid, relation_str, sources_str,
         )
+    }
+
+    /// Is this a local repository?
+    #[must_use]
+    pub const fn is_local(&self) -> bool {
+        matches!(self.source, crate::RepositorySource::Local(_))
+    }
+
+    /// Does this repository override some other repository?
+    #[must_use]
+    pub const fn is_override(&self) -> bool {
+        matches!(self.relation, crate::RepositoryRelation::Override(_))
     }
 }
 

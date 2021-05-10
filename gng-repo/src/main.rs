@@ -94,9 +94,6 @@ struct RepositoryAddCommand {
     /// Repository priority (higher values are used first, default is 1000)
     #[clap(long, value_name = "PRIORITY", default_value("1000"))]
     priority: u32,
-    /// Declare repository tags separated by comma
-    #[clap(long, value_name = "TAG", value_delimiter = ",")]
-    tags: Vec<String>,
 
     // Source:
     /// The URL to pull repository data from
@@ -209,7 +206,6 @@ fn handle_repository_add_command(
         name: gng_shared::Name::try_from(&cmd.name[..])?,
         uuid,
         priority: cmd.priority,
-        tags: gng_shared::Names::try_from(cmd.dependencies.clone())?,
         relation,
         source,
     };
