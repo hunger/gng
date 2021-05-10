@@ -127,7 +127,6 @@ pub struct RepositoryIntern {
     pub facets: Names,
 
     pub search_paths: Vec<crate::Uuid>,
-    pub all_tags: Names,
 }
 
 impl RepositoryIntern {
@@ -137,7 +136,6 @@ impl RepositoryIntern {
             packets: RepositoryPackets::new(),
             facets: Names::default(),
             search_paths: Vec::new(),
-            all_tags: Names::default(),
         }
     }
 
@@ -159,10 +157,6 @@ impl RepositoryIntern {
 
     pub fn add_packet(&mut self, name: &Name, hash: &Hash) {
         self.packets.insert(name.clone(), hash.clone());
-    }
-
-    pub fn all_tags(&self) -> &Names {
-        &self.all_tags
     }
 
     #[must_use]
