@@ -266,7 +266,10 @@ pub fn remove_repository(
     repository_name: &gng_shared::Name,
 ) -> Result<()> {
     tracing::debug!("Removing repository \"{}\".", &repository_name);
-    todo!()
+
+    let repository_file = repository_file_name(db_directory, repository_name);
+    std::fs::remove_file(&repository_file)
+        .map_err(|e| Error::Repository(format!("Failed to remove repository file: {}", e)))
 }
 
 /*

@@ -6,109 +6,14 @@
 mod backend;
 mod definitions;
 mod repository_db;
+mod repository_packet_db;
 
-use crate::{Error, Repository, Result, Uuid};
+use crate::{Repository, Result, Uuid};
 
 use self::{
-    definitions::HashedPackets, repository_db::find_repository_by_uuid,
-    repository_db::RepositoryDb, repository_db::RepositoryIntern,
+    definitions::HashedPackets, repository_db::RepositoryDb,
+    repository_packet_db::RepositoryPacketDb,
 };
-use gng_shared::Name;
-
-use std::convert::TryFrom;
-
-// ----------------------------------------------------------------------
-// - Helper:
-// ----------------------------------------------------------------------
-
-fn validate_repositories_uniqueness(repositories: &[RepositoryIntern]) -> Result<()> {
-    let mut known_names = std::collections::HashSet::new();
-    let mut known_uuids = std::collections::HashSet::new();
-
-    for r in repositories {
-        let r = r.repository();
-        if !known_names.insert(r.name.clone()) {
-            return Err(Error::Repository(format!(
-                "Repository name \"{}\" is not unique.",
-                &r.name
-            )));
-        }
-        if !known_uuids.insert(r.uuid) {
-            return Err(Error::Repository(format!(
-                "Repository UUID \"{}\" is not unique.",
-                &r.name
-            )));
-        }
-    }
-
-    Ok(())
-}
-
-fn validate_url(url: &str) -> Result<bool> {
-    if url.starts_with("https://") || url.starts_with("http://") {
-        Ok(false)
-    } else if url.starts_with("file://") {
-        Ok(true)
-    } else {
-        Err(Error::Repository(format!("URL \"{}\" is not valid.", url)))
-    }
-}
-
-fn validate_remote_repository(name: &Name, repository: &crate::RemoteRepository) -> Result<()> {
-    if validate_url(&repository.remote_url)? {
-        Err(Error::Repository(format!(
-            "The remote repository \"{}\" must have a http(s):-url as remote_url.",
-            &name
-        )))
-    } else {
-        Ok(())
-    }
-}
-
-fn validate_repositories_urls_and_sources(repositories: &[RepositoryIntern]) -> Result<()> {
-    for r in repositories {
-        let r = r.repository();
-        if let crate::RepositorySource::Remote(rr) = &r.source {
-            validate_remote_repository(&r.name, rr)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_repositories_relations(repositories: &[RepositoryIntern]) -> Result<()> {
-    for r in repositories {
-        let r = r.repository();
-        match &r.relation {
-            crate::RepositoryRelation::Dependency(dependencies) => {
-                for d in dependencies {
-                    if find_repository_by_uuid(repositories, d).is_none() {
-                        return Err(Error::Repository(format!(
-                            "Repository \"{}\" has unknown dependency \"{}\".",
-                            &r.name, &d
-                        )));
-                    }
-                }
-            }
-            crate::RepositoryRelation::Override(u) => {
-                if find_repository_by_uuid(repositories, u).is_none() {
-                    return Err(Error::Repository(format!(
-                        "Repository \"{}\" overrides unknown repository \"{}\".",
-                        &r.name, &u
-                    )));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_repositories(repositories: &[RepositoryIntern]) -> Result<()> {
-    validate_repositories_uniqueness(repositories)?;
-    validate_repositories_urls_and_sources(repositories)?;
-    validate_repositories_relations(repositories)?;
-
-    Ok(())
-}
 
 // ----------------------------------------------------------------------
 // - Db:
@@ -164,7 +69,8 @@ pub trait Db {
 pub(crate) struct DbImpl {
     db_directory: Option<std::path::PathBuf>,
 
-    repository_db: self::repository_db::RepositoryDb,
+    repository_db: RepositoryDb,
+    repository_packet_db: RepositoryPacketDb,
     hashed_packets: HashedPackets,
 }
 
@@ -179,55 +85,10 @@ impl DbImpl {
             db_directory: Some(db_directory.to_owned()),
 
             repository_db: RepositoryDb::new(&repositories[..])?,
+            repository_packet_db: RepositoryPacketDb::new()?,
             hashed_packets,
         })
     }
-
-    //     // Return a tuple with the PacketIntern and an Optional facet name to register!
-    //     #[tracing::instrument(level = "trace")]
-    //     fn validate_packet_to_adopt(
-    //         &mut self,
-    //         packet: &PacketData,
-    //         repository: &Uuid,
-    //     ) -> Result<(PacketIntern, Option<Name>, Option<Hash>)> {
-    //         // TODO: Check for cyclic dependencies in packets or facets
-
-    //         let packet_name = &packet.data.name;
-    //         let repository = definitions::find_repository_by_uuid(&self.repositories, repository)
-    //             .ok_or_else(|| {
-    //                 Error::Repository(format!("Repository \"{}\" not found.", repository))
-    //             })?;
-
-    //         // Are we adopting into a local repository?
-    //         if !repository.is_local() {
-    //             return Err(Error::Packet(
-    //                 "Can not adopt a Packet into a remote repository.".to_string(),
-    //             ));
-    //         }
-
-    //         // TODO: Check for duplicate packet names (using search path!)
-    //         // It is OK to have a dupe in a override directory of the current repo!
-
-    //         // Check facet name.
-    //         // let facet_name = valid_facet_name(packet, repository, &dependency_group)?;
-
-    //         // let packet_intern = PacketIntern::new(
-    //         //     packet.data.clone(),
-    //         //     packet.facets.clone(),
-    //         //     &dependency_group,
-    //         // )?;
-
-    //         let old_hash = repository.packets().get(packet_name).cloned();
-
-    //         // Ok((packet_intern, facet_name, old_hash))
-    //         todo!()
-    //     }
-
-    //     fn add_hashed_packet(&mut self, hash: &Hash, data: PacketIntern) -> Result<()> {
-    //         // if let Some(old_hash) = data.replaces {}
-    //         self.hashed_packets.insert(hash.clone(), data);
-    //         todo!()
-    //     }
 }
 
 impl Default for DbImpl {
@@ -236,6 +97,7 @@ impl Default for DbImpl {
         Self {
             db_directory: None,
             repository_db: RepositoryDb::default(),
+            repository_packet_db: RepositoryPacketDb::default(),
             hashed_packets: HashedPackets::new(),
         }
     }
@@ -247,45 +109,24 @@ impl Db for DbImpl {
     }
 
     fn list_repositories(&self) -> Vec<Repository> {
-        self.repository_db.list_repositories()
+        self.repository_db.all_repositories()
     }
 
     fn add_repository(&mut self, repository_data: Repository) -> Result<()> {
+        if let Some(db_directory) = &self.db_directory {
+            backend::persist_repository(db_directory, &repository_data)?;
+        }
+
         self.repository_db.add_repository(repository_data)
     }
 
     fn remove_repository(&mut self, uuid: &Uuid) -> Result<()> {
-        self.repository_db.remove_repository(uuid)
+        let repository_name = self.repository_db.repository(uuid)?.name;
+        self.repository_db.remove_repository(uuid)?;
+        self.db_directory.as_ref().map_or(Ok(()), |dd| {
+            backend::remove_repository(dd, &repository_name)
+        })
     }
-
-    // #[tracing::instrument(level = "trace", skip(self))]
-    // fn adopt_packet(&mut self, packet: PacketData, repository: &Uuid) -> Result<()> {
-    //     let (packet_intern, facet_name, old_packet_hash) =
-    //         self.validate_packet_to_adopt(&packet, repository)?;
-
-    //     // self.fix_reverse_dependencies(
-    //     //     &old_packet_hash,
-    //     //     &Some(packet.hash.clone()),
-    //     //     packet_intern.dependencies(),
-    //     // )?;
-    //     self.add_hashed_packet(&packet.hash, packet_intern);
-
-    //     let repository =
-    //         definitions::find_repository_by_uuid_mut(&mut self.repositories, repository)
-    //             .ok_or_else(|| {
-    //                 Error::Repository(format!(
-    //                     "Could not open repository \"{}\" for writing.",
-    //                     repository
-    //                 ))
-    //             })?;
-    //     if let Some(facet_name) = facet_name {
-    //         repository.add_facet(facet_name);
-    //     }
-
-    //     repository.add_packet(&packet.data.name, &packet.hash);
-
-    //     Ok(())
-    // }
 
     fn fsck(&self) -> Result<bool> {
         self.repository_db.fsck()?;

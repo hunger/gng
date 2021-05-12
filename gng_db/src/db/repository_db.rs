@@ -463,7 +463,19 @@ impl RepositoryDb {
         }
     }
 
-    pub fn list_repositories(&self) -> Vec<Repository> {
+    /// Get a `Repository`.
+    pub fn repository(&self, uuid: &Uuid) -> Result<Repository> {
+        if let Some(repository) = find_repository_by_uuid(&self.repositories, uuid) {
+            Ok(repository.repository().clone())
+        } else {
+            Err(Error::Repository(format!(
+                "Could not find repository with UUID {}.",
+                uuid
+            )))
+        }
+    }
+
+    pub fn all_repositories(&self) -> Vec<Repository> {
         self.global_repository_search_path
             .iter()
             .map(|u| {
@@ -862,7 +874,7 @@ mod tests {
         let mut repo_db = RepositoryDb::default();
         populate_repository_db(&mut repo_db);
 
-        let repositories = repo_db.list_repositories();
+        let repositories = repo_db.all_repositories();
 
         let mut it = repositories.iter();
 
