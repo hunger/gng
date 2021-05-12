@@ -300,7 +300,7 @@ enum InternalSubCommands {
 #[tracing::instrument(level = "trace", skip(db))]
 fn handle_internal_command(db: &mut impl Db, cmd: &InternalCommands) -> Result<()> {
     match cmd.sub_command {
-        InternalSubCommands::Metadata => Ok(db.dump_metadata()),
+        InternalSubCommands::Metadata => Ok(()),
     }
 }
 

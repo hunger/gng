@@ -3,7 +3,7 @@
 
 //! A backend database for a `RepositoryDb`
 
-use super::definitions::{HashedPackets, RepositoryIntern};
+use super::definitions::HashedPackets;
 use crate::{Error, Repository, Result};
 
 use gng_shared::Name;
@@ -211,9 +211,7 @@ pub fn init_db(db_directory: &std::path::Path) -> crate::Result<()> {
 }
 
 #[tracing::instrument(level = "trace")]
-pub fn read_db(
-    db_directory: &std::path::Path,
-) -> crate::Result<(Vec<RepositoryIntern>, HashedPackets)> {
+pub fn read_db(db_directory: &std::path::Path) -> crate::Result<(Vec<Repository>, HashedPackets)> {
     if get_db_schema_version(db_directory)? != MetaData::latest_schema() {
         return Err(crate::Error::Db("Unsupported schema version.".to_string()));
     }
@@ -221,13 +219,7 @@ pub fn read_db(
     tracing::debug!("Reading repositories from DB.");
     let repositories = read_repositories(db_directory)?;
 
-    Ok((
-        repositories
-            .into_iter()
-            .map(RepositoryIntern::new)
-            .collect(),
-        HashedPackets::new(),
-    ))
+    Ok((repositories, HashedPackets::new()))
 }
 
 fn repository_file_name(
