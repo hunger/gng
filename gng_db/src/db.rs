@@ -3,7 +3,7 @@
 
 //! A object representing a `Repository`
 
-use crate::{Error, PacketData, Repository, Result, Uuid};
+use crate::{Error, Repository, Result, Uuid};
 
 use self::definitions::{find_repository_by_uuid, HashedPackets, PacketIntern, RepositoryIntern};
 use gng_shared::{Hash, Name};
@@ -127,26 +127,26 @@ fn repository_group_contains_packet<'a, 'b>(
         .unwrap_or_default()
 }
 
-fn valid_facet_name(
-    packet: &PacketData,
-    base_repository: &RepositoryIntern,
-    group: &[&RepositoryIntern],
-) -> Result<Option<Name>> {
-    if packet.data.facet.is_some() {
-        let facet_name = &packet.data.name;
-        if let Some(r) = definitions::find_facet_implementation_repository(group, facet_name) {
-            if r.repository().uuid != base_repository.repository().uuid {
-                return Err(Error::Packet(format!(
-                    "Facet \"{}\" is already implemented in repository \"{}\".",
-                    facet_name,
-                    &r.repository().name
-                )));
-            }
-        }
-        return Ok(Some(facet_name.clone()));
-    }
-    Ok(None)
-}
+// fn valid_facet_name(
+//     packet: &PacketData,
+//     base_repository: &RepositoryIntern,
+//     group: &[&RepositoryIntern],
+// ) -> Result<Option<Name>> {
+//     if packet.data.facet.is_some() {
+//         let facet_name = &packet.data.name;
+//         if let Some(r) = definitions::find_facet_implementation_repository(group, facet_name) {
+//             if r.repository().uuid != base_repository.repository().uuid {
+//                 return Err(Error::Packet(format!(
+//                     "Facet \"{}\" is already implemented in repository \"{}\".",
+//                     facet_name,
+//                     &r.repository().name
+//                 )));
+//             }
+//         }
+//         return Ok(Some(facet_name.clone()));
+//     }
+//     Ok(None)
+// }
 
 struct RepositoryTreeNode<'a> {
     repository: &'a RepositoryIntern,
@@ -417,12 +417,45 @@ fn update_repository_search_paths(repositories: &[RepositoryIntern]) -> Result<V
     Ok(global_repository_search_path)
 }
 
+fn add_hashed_packet(db: &mut HashedPackets, hash: &Hash, data: PacketIntern) -> Result<Vec<Hash>> {
+    if hash.algorithm() == "none" {
+        return Err(Error::Db(
+            "Trying to add a packet without a hash to the packet database.".to_string(),
+        ));
+    }
+
+    let breakage = if let Some(old_hash) = data.replaces() {
+        let mut old_packet = db.get_mut(&old_hash).ok_or_else(|| {
+            Error::Db(format!(
+                "Failed to find packet with UUID \"{}\".",
+                &old_hash
+            ))
+        })?;
+        old_packet.replace_by(&hash)?
+    } else {
+        Vec::new()
+    };
+
+    if db.insert(hash.clone(), data).is_some() {
+        return Err(Error::Db(format!(
+            "Just overwrote a packet with hash {}.",
+            &hash
+        )));
+    }
+
+    Ok(breakage)
+}
+
+fn remove_hashed_packet(db: &mut HashedPackets, hash: &Hash) -> Result<()> {
+    todo!()
+}
+
 // ----------------------------------------------------------------------
-// - RepositoryDb:
+// - Db:
 // ----------------------------------------------------------------------
 
-/// A `Repository` of gng `Packet`s and related information
-pub trait RepositoryDb {
+/// A `Db` of gng `Packet`s and related information
+pub trait Db {
     // Repository management:
 
     /// Resolve a user provided repository to a `Uuid`
@@ -452,7 +485,7 @@ pub trait RepositoryDb {
     ///
     /// # Errors
     /// Any of the crate's `Error`s can be returned from here.
-    fn adopt_packet(&mut self, packet: PacketData, repository: &Uuid) -> Result<()>;
+    // fn adopt_packet(&mut self, packet: PacketData, repository: &Uuid) -> Result<()>;
 
     // Debug things:
 
@@ -470,11 +503,11 @@ pub trait RepositoryDb {
 }
 
 // ----------------------------------------------------------------------
-// - RepositoryDbImpl:
+// - DbImpl:
 // ----------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
-pub(crate) struct RepositoryDbImpl {
+pub(crate) struct DbImpl {
     db_directory: Option<std::path::PathBuf>,
 
     repositories: Vec<RepositoryIntern>,
@@ -482,7 +515,7 @@ pub(crate) struct RepositoryDbImpl {
     hashed_packets: HashedPackets,
 }
 
-impl RepositoryDbImpl {
+impl DbImpl {
     #[tracing::instrument(level = "trace")]
     pub(crate) fn new(db_directory: &std::path::Path) -> Result<Self> {
         self::backend::init_db(db_directory)?;
@@ -498,70 +531,54 @@ impl RepositoryDbImpl {
         })
     }
 
-    // Return a tuple with the PacketIntern and an Optional facet name to register!
-    #[tracing::instrument(level = "trace")]
-    fn validate_packet_to_adopt(
-        &mut self,
-        packet: &PacketData,
-        repository: &Uuid,
-    ) -> Result<(PacketIntern, Option<Name>, Option<Hash>)> {
-        // TODO: Check for cyclic dependencies in packets or facets
+    //     // Return a tuple with the PacketIntern and an Optional facet name to register!
+    //     #[tracing::instrument(level = "trace")]
+    //     fn validate_packet_to_adopt(
+    //         &mut self,
+    //         packet: &PacketData,
+    //         repository: &Uuid,
+    //     ) -> Result<(PacketIntern, Option<Name>, Option<Hash>)> {
+    //         // TODO: Check for cyclic dependencies in packets or facets
 
-        let packet_name = &packet.data.name;
-        let repository = definitions::find_repository_by_uuid(&self.repositories, repository)
-            .ok_or_else(|| {
-                Error::Repository(format!("Repository \"{}\" not found.", repository))
-            })?;
+    //         let packet_name = &packet.data.name;
+    //         let repository = definitions::find_repository_by_uuid(&self.repositories, repository)
+    //             .ok_or_else(|| {
+    //                 Error::Repository(format!("Repository \"{}\" not found.", repository))
+    //             })?;
 
-        // Are we adopting into a local repository?
-        if !repository.is_local() {
-            return Err(Error::Packet(
-                "Can not adopt a Packet into a remote repository.".to_string(),
-            ));
-        }
+    //         // Are we adopting into a local repository?
+    //         if !repository.is_local() {
+    //             return Err(Error::Packet(
+    //                 "Can not adopt a Packet into a remote repository.".to_string(),
+    //             ));
+    //         }
 
-        // Check for duplicate packet names:
+    //         // TODO: Check for duplicate packet names (using search path!)
+    //         // It is OK to have a dupe in a override directory of the current repo!
 
-        let dependency_group =
-            definitions::recursive_repository_dependencies(&self.repositories, repository);
-        let facet_name = valid_facet_name(packet, repository, &dependency_group)?;
+    //         // Check facet name.
+    //         // let facet_name = valid_facet_name(packet, repository, &dependency_group)?;
 
-        let packet_intern = PacketIntern::new(
-            packet.data.clone(),
-            packet.facets.clone(),
-            &dependency_group,
-        )?;
+    //         // let packet_intern = PacketIntern::new(
+    //         //     packet.data.clone(),
+    //         //     packet.facets.clone(),
+    //         //     &dependency_group,
+    //         // )?;
 
-        let old_hash = repository.packets().get(packet_name).cloned();
+    //         let old_hash = repository.packets().get(packet_name).cloned();
 
-        Ok((packet_intern, facet_name, old_hash))
-    }
+    //         // Ok((packet_intern, facet_name, old_hash))
+    //         todo!()
+    //     }
 
-    fn add_hashed_packet(&mut self, hash: &Hash, data: PacketIntern) {
-        self.hashed_packets.insert(hash.clone(), data);
-    }
-
-    fn fix_reverse_dependencies(
-        &mut self,
-        old_hash: &Option<Hash>,
-        new_hash: &Option<Hash>,
-        resolved_dependencies: &[Hash],
-    ) -> Result<()> {
-        for d in resolved_dependencies {
-            if let Some(p) = self.hashed_packets.get_mut(d) {
-                p.replace_reverse_resolved_dependency(old_hash, new_hash)?;
-            } else {
-                return Err(Error::Packet(format!(
-                    "Failed to find dependency \"{}\".",
-                    d
-                )));
-            }
-        }
-        Ok(())
-    }
+    //     fn add_hashed_packet(&mut self, hash: &Hash, data: PacketIntern) -> Result<()> {
+    //         // if let Some(old_hash) = data.replaces {}
+    //         self.hashed_packets.insert(hash.clone(), data);
+    //         todo!()
+    //     }
 }
 
-impl Default for RepositoryDbImpl {
+impl Default for DbImpl {
     #[tracing::instrument(level = "trace")]
     fn default() -> Self {
         Self {
@@ -571,9 +588,9 @@ impl Default for RepositoryDbImpl {
             global_repository_search_path: Vec::new(),
         }
     }
-} // Default for RepositoryDbImpl
+} // Default for DbImpl
 
-impl RepositoryDb for RepositoryDbImpl {
+impl Db for DbImpl {
     fn resolve_repository(&self, input: &str) -> Option<Uuid> {
         if let Ok(uuid) = Uuid::parse_str(input) {
             definitions::find_repository_by_uuid(&self.repositories, &uuid).map(|_| uuid)
@@ -660,34 +677,34 @@ impl RepositoryDb for RepositoryDbImpl {
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace", skip(self))]
-    fn adopt_packet(&mut self, packet: PacketData, repository: &Uuid) -> Result<()> {
-        let (packet_intern, facet_name, old_packet_hash) =
-            self.validate_packet_to_adopt(&packet, repository)?;
+    // #[tracing::instrument(level = "trace", skip(self))]
+    // fn adopt_packet(&mut self, packet: PacketData, repository: &Uuid) -> Result<()> {
+    //     let (packet_intern, facet_name, old_packet_hash) =
+    //         self.validate_packet_to_adopt(&packet, repository)?;
 
-        self.fix_reverse_dependencies(
-            &old_packet_hash,
-            &Some(packet.hash.clone()),
-            packet_intern.dependencies(),
-        )?;
-        self.add_hashed_packet(&packet.hash, packet_intern);
+    //     // self.fix_reverse_dependencies(
+    //     //     &old_packet_hash,
+    //     //     &Some(packet.hash.clone()),
+    //     //     packet_intern.dependencies(),
+    //     // )?;
+    //     self.add_hashed_packet(&packet.hash, packet_intern);
 
-        let repository =
-            definitions::find_repository_by_uuid_mut(&mut self.repositories, repository)
-                .ok_or_else(|| {
-                    Error::Repository(format!(
-                        "Could not open repository \"{}\" for writing.",
-                        repository
-                    ))
-                })?;
-        if let Some(facet_name) = facet_name {
-            repository.add_facet(facet_name);
-        }
+    //     let repository =
+    //         definitions::find_repository_by_uuid_mut(&mut self.repositories, repository)
+    //             .ok_or_else(|| {
+    //                 Error::Repository(format!(
+    //                     "Could not open repository \"{}\" for writing.",
+    //                     repository
+    //                 ))
+    //             })?;
+    //     if let Some(facet_name) = facet_name {
+    //         repository.add_facet(facet_name);
+    //     }
 
-        repository.add_packet(&packet.data.name, &packet.hash);
+    //     repository.add_packet(&packet.data.name, &packet.hash);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     fn fsck(&self) -> Result<bool> {
         update_repository_search_paths(&self.repositories)?;
@@ -715,7 +732,7 @@ mod tests {
 
     use super::*;
 
-    fn populate_repository_db(db: &mut RepositoryDbImpl) {
+    fn populate_repository_db(db: &mut DbImpl) {
         db.add_repository(Repository {
             name: Name::try_from("base_repo").expect("Name was valid!"),
             uuid: Uuid::new_v4(),
@@ -1030,7 +1047,7 @@ mod tests {
 
     #[test]
     fn test_repository_setup() {
-        let mut repo_db = RepositoryDbImpl::default();
+        let mut repo_db = DbImpl::default();
         populate_repository_db(&mut repo_db);
 
         let repositories = repo_db.list_repositories();
@@ -1056,40 +1073,84 @@ mod tests {
         assert!(it.next().is_none());
     }
 
+    // #[test]
+    // fn test_adopt_packet() {
+    //     let mut repo_db = DbImpl::default();
+    //     populate_repository_db(&mut repo_db);
+
+    //     let hash = Hash::try_from(
+    //         "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    //     )
+    //     .expect("Sha was valid!");
+
+    //     repo_db
+    //         .adopt_packet(
+    //             PacketData {
+    //                 facets: Vec::new(),
+    //                 data: Packet {
+    //                     source_name: Name::try_from("foobar").expect("Name was valid!"),
+    //                     version: Version::try_from("1.0").expect("Version was valid!"),
+    //                     license: "FooBar License!".to_string(),
+    //                     name: Name::try_from("baz").expect("Name was valid"),
+    //                     description: "Some description of baz packet".to_string(),
+    //                     url: None,
+    //                     bug_url: None,
+    //                     dependencies: Vec::new(),
+    //                     facets: Vec::new(),
+    //                     register_facet: None,
+    //                 },
+    //                 hash,
+    //             },
+    //             &repo_db
+    //                 .resolve_repository("ext_repo")
+    //                 .expect("Repo was valid"),
+    //         )
+    //         .unwrap();
+
+    //     repo_db.dump_metadata();
+    //     panic!("Always fail for now!");
+    // }
+
+    fn create_packet_intern(
+        name: &str,
+        dependencies: &[&str],
+        replaces: &Option<Hash>,
+        facets: &[(Name, Hash)],
+    ) -> PacketIntern {
+        let dependencies: Vec<_> = dependencies
+            .iter()
+            .map(|d| Hash::try_from(*d).expect("Dependency should have been valid"))
+            .collect();
+        let packet = gng_shared::Packet {
+            source_name: Name::try_from("source").expect("Version was valid"),
+            version: Version::try_from("1.0.0").expect("Version was valid"),
+            license: "some license".to_string(),
+            name: Name::try_from(name).expect("Name should have been valid"),
+            description: "Some description.".to_string(),
+            url: None,
+            bug_url: None,
+            dependencies: dependencies.to_vec(),
+            facets: Vec::new(),
+            register_facet: None,
+        };
+        PacketIntern::new(packet, replaces.clone(), facets.to_vec(), &[])
+            .expect("PacketIntern should have been valid.")
+    }
+
     #[test]
-    fn test_adopt_packet() {
-        let mut repo_db = RepositoryDbImpl::default();
-        populate_repository_db(&mut repo_db);
+    fn test_add_hashed_packet() {
+        let mut hashed_packets = HashedPackets::new();
 
-        let hash = Hash::try_from(
-            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        )
-        .expect("Sha was valid!");
+        let p0 = create_packet_intern("some", &[], &None, &[]);
 
-        repo_db
-            .adopt_packet(
-                PacketData {
-                    facets: Vec::new(),
-                    data: Packet {
-                        source_name: Name::try_from("foobar").expect("Name was valid!"),
-                        version: Version::try_from("1.0").expect("Version was valid!"),
-                        license: "FooBar License!".to_string(),
-                        name: Name::try_from("baz").expect("Name was valid"),
-                        description: "Some description of baz packet".to_string(),
-                        url: None,
-                        bug_url: None,
-                        dependencies: Names::default(),
-                        facet: None,
-                    },
-                    hash,
-                },
-                &repo_db
-                    .resolve_repository("ext_repo")
-                    .expect("Repo was valid"),
+        add_hashed_packet(
+            &mut hashed_packets,
+            &Hash::sha256(
+                "sha256:e15a94fa211b0aaa617f5fb0c1aadb99173469d7a532f6009e85f4ed2faf3b4b",
             )
-            .unwrap();
-
-        repo_db.dump_metadata();
-        panic!("Always fail for now!");
+            .expect("Hash should have been valid."),
+            p0,
+        )
+        .unwrap();
     }
 }

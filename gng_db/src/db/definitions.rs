@@ -50,6 +50,8 @@ pub type RepositoryPackets = std::collections::BTreeMap<Name, Hash>;
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct PacketIntern {
     data: Packet,
+    replaces: Option<Hash>,
+    replaced_by: Option<Hash>,
     facets: Vec<(Name, Hash)>,
     resolved_dependencies: Vec<Hash>,
     reverse_resolved_dependencies: Vec<Hash>,
@@ -58,26 +60,25 @@ pub struct PacketIntern {
 impl PacketIntern {
     pub fn new(
         data: Packet,
+        replaces: Option<Hash>,
         facets: Vec<(Name, Hash)>,
-        repository_group: &[&RepositoryIntern],
+        resolved_dependencies: &[Hash],
     ) -> Result<Self> {
         for (facet_name, facet_hash) in &facets {
             if facet_hash.algorithm() == "none" {
                 return Err(Error::Packet(format!(
-                    "Facet \"{}\" has no hash.",
+                    "Facet \"{}\" has none hash.",
                     facet_name
                 )));
             }
-
-            // TODO: Check facet name based on repository group!
         }
-
-        let resolved_dependencies = resolve_dependencies(&data.dependencies, repository_group)?;
 
         Ok(Self {
             data,
             facets,
-            resolved_dependencies,
+            replaces,
+            replaced_by: None,
+            resolved_dependencies: resolved_dependencies.to_vec(),
             reverse_resolved_dependencies: Vec::new(),
         })
     }
@@ -90,29 +91,21 @@ impl PacketIntern {
         &self.resolved_dependencies
     }
 
-    pub fn replace_reverse_resolved_dependency(
-        &mut self,
-        old: &Option<Hash>,
-        new: &Option<Hash>,
-    ) -> Result<()> {
-        let rev = &mut self.reverse_resolved_dependencies;
-        if let Some(old) = old {
-            if let Some(idx) = rev.iter().position(|e| e == old) {
-                rev.remove(idx);
-            } else {
-                return Err(Error::Packet(format!(
-                    "Failed to remove reverse dependency from \"{}\".",
-                    old
-                )));
-            }
-        }
-        if let Some(new) = new {
-            rev.push(new.clone());
-        }
+    pub fn replaces(&self) -> Option<Hash> {
+        self.replaces.clone()
+    }
 
-        rev.sort();
-
-        Ok(())
+    /// Replace a packet with a same one using a different Hash
+    /// Returns the "breakage" that gets introduced into the system by this change.
+    pub fn replace_by(&mut self, hash: &Hash) -> Result<Vec<Hash>> {
+        if let Some(h) = &self.replaced_by {
+            return Err(Error::Repository(format!(
+                "Packet was already replaced by {}!",
+                h
+            )));
+        }
+        self.replaced_by = Some(hash.clone());
+        Ok(self.reverse_resolved_dependencies.clone())
     }
 }
 
@@ -160,12 +153,12 @@ impl RepositoryIntern {
     }
 
     #[must_use]
-    pub fn is_local(&self) -> bool {
+    pub const fn is_local(&self) -> bool {
         self.repository().is_local()
     }
 
     #[must_use]
-    pub fn is_override(&self) -> bool {
+    pub const fn is_override(&self) -> bool {
         self.repository().is_override()
     }
 }
@@ -187,26 +180,6 @@ pub fn find_repository_by_uuid<'a, 'b>(
     uuid: &'b crate::Uuid,
 ) -> Option<&'a RepositoryIntern> {
     repositories.iter().find(|r| r.repository().uuid == *uuid)
-}
-
-pub fn recursive_repository_dependencies<'a>(
-    all_repositories: &'a [RepositoryIntern],
-    base_repository: &'a RepositoryIntern,
-) -> Vec<&'a RepositoryIntern> {
-    let br = base_repository.repository();
-    if let crate::RepositoryRelation::Dependency(dependencies) = &br.relation {
-        let mut result = Vec::with_capacity(dependencies.len() + 1);
-        result.push(base_repository);
-
-        result.extend(dependencies.iter().flat_map(|u| {
-            find_repository_by_uuid(all_repositories, u).map_or(Vec::new(), |r| {
-                recursive_repository_dependencies(all_repositories, r)
-            })
-        }));
-        result
-    } else {
-        Vec::new()
-    }
 }
 
 pub fn find_facet_implementation_repository<'a, 'b>(

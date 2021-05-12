@@ -16,7 +16,6 @@ filemagic = { version = "0.12" }
 glob = { version = "0.3" }
 gng_build_shared = { path = "../gng_build_shared" }
 gng_shared = { path = "../gng_shared" }
-indicatif = { version = "0.15" }
 lazy_static = { version = "1.4" }
 rand = { version = "0.8" }
 serde = { version = "1.0" }

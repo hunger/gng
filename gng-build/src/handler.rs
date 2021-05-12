@@ -33,67 +33,68 @@ fn package(
     source_package: &gng_build_shared::SourcePacket,
     ctx: &crate::handler::Context,
 ) -> Result<Vec<std::path::PathBuf>> {
-    let mut packager = crate::PackagerBuilder::default();
+    // let mut packager = crate::PackagerBuilder::default();
 
-    let mut has_base_packet = false;
+    // let mut has_base_packet = false;
 
-    for pd in &source_package.packets {
-        if pd.name == source_package.name {
-            has_base_packet = true
-        }
+    // for pd in &source_package.packets {
+    //     if pd.name == source_package.name {
+    //         has_base_packet = true
+    //     }
 
-        let p = packet_from(source_package)
-            .name(pd.name.clone())
-            .facet(pd.facet.clone())
-            .description(pd.description.clone())
-            .dependencies(pd.dependencies.clone())
-            .build()
-            .map_err(|e| gng_shared::Error::Runtime {
-                message: format!("Failed to define a packet: {}", e),
-            })?;
-        let patterns = pd
-            .files
-            .iter()
-            .map(|d| {
-                glob::Pattern::new(&d.to_string())
-                    .wrap_err("Failed to convert packet files to glob patterns.")
-            })
-            .collect::<Result<Vec<glob::Pattern>>>()?;
+    //     let p = packet_from(source_package)
+    //         .name(pd.name.clone())
+    //         .register_facet(pd.facet.clone())
+    //         .description(pd.description.clone())
+    //         .dependencies(pd.dependencies.clone())
+    //         .build()
+    //         .map_err(|e| gng_shared::Error::Runtime {
+    //             message: format!("Failed to define a packet: {}", e),
+    //         })?;
+    //     let patterns = pd
+    //         .files
+    //         .iter()
+    //         .map(|d| {
+    //             glob::Pattern::new(&d.to_string())
+    //                 .wrap_err("Failed to convert packet files to glob patterns.")
+    //         })
+    //         .collect::<Result<Vec<glob::Pattern>>>()?;
 
-        let contents_policy = if patterns.is_empty() {
-            crate::ContentsPolicy::Empty
-        } else {
-            crate::ContentsPolicy::NotEmpty
-        };
+    //     let contents_policy = if patterns.is_empty() {
+    //         crate::ContentsPolicy::Empty
+    //     } else {
+    //         crate::ContentsPolicy::NotEmpty
+    //     };
 
-        packager = packager.add_packet(&p, &patterns[..], contents_policy)?;
-    }
+    //     packager = packager.add_packet(&p, &patterns[..], contents_policy)?;
+    // }
 
-    if !has_base_packet {
-        let p = packet_from(source_package)
-            .name(source_package.name.clone())
-            .description(source_package.description.clone())
-            .dependencies(gng_shared::Names::default())
-            .facet(None)
-            .build()
-            .map_err(|e| gng_shared::Error::Runtime {
-                message: format!("Failed to define a packet: {}", e),
-            })?;
+    // if !has_base_packet {
+    //     let p = packet_from(source_package)
+    //         .name(source_package.name.clone())
+    //         .description(source_package.description.clone())
+    //         .dependencies(gng_shared::Names::default())
+    //         .facet(None)
+    //         .build()
+    //         .map_err(|e| gng_shared::Error::Runtime {
+    //             message: format!("Failed to define a packet: {}", e),
+    //         })?;
 
-        packager = packager.add_packet(
-            &p,
-            &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
-            crate::ContentsPolicy::MaybeEmpty,
-        )?;
-    }
+    //     packager = packager.add_packet(
+    //         &p,
+    //         &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
+    //         crate::ContentsPolicy::MaybeEmpty,
+    //     )?;
+    // }
 
-    packager
-        .build()?
-        .package(&ctx.install_directory, &std::env::current_dir()?)
-        .wrap_err(format!(
-            "Failed to package \"{}\".",
-            ctx.install_directory.to_string_lossy()
-        ))
+    // packager
+    //     .build()?
+    //     .package(&ctx.install_directory, &std::env::current_dir()?)
+    //     .wrap_err(format!(
+    //         "Failed to package \"{}\".",
+    //         ctx.install_directory.to_string_lossy()
+    //     ))
+    todo!()
 }
 
 // ----------------------------------------------------------------------

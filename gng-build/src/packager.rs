@@ -368,243 +368,243 @@ mod tests {
         (result, builder)
     }
 
-    #[test]
-    fn test_packager_builder_empty_inputs() {
-        let (result_map, mut builder) = packaging_setup(&Vec::new());
-        builder = builder
-            .add_packet(
-                &gng_shared::Packet {
-                    source_name: gng_shared::Name::try_from("foo").unwrap(),
-                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
-                    license: "GPL_v3+".to_string(),
-                    name: gng_shared::Name::try_from("foo").unwrap(),
-                    description: "The foo packet".to_string(),
-                    url: None,
-                    bug_url: None,
-                    dependencies: gng_shared::Names::default(),
-                    facet: None,
-                },
-                &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::Empty,
-            )
-            .unwrap();
-        let mut packager = builder.build().unwrap();
+    // #[test]
+    // fn test_packager_builder_empty_inputs() {
+    //     let (result_map, mut builder) = packaging_setup(&Vec::new());
+    //     builder = builder
+    //         .add_packet(
+    //             &gng_shared::Packet {
+    //                 source_name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 version: gng_shared::Version::try_from("1.0-5").unwrap(),
+    //                 license: "GPL_v3+".to_string(),
+    //                 name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 description: "The foo packet".to_string(),
+    //                 url: None,
+    //                 bug_url: None,
+    //                 dependencies: gng_shared::Names::default(),
+    //                 facet: None,
+    //             },
+    //             &[glob::Pattern::new("**").unwrap()],
+    //             crate::ContentsPolicy::Empty,
+    //         )
+    //         .unwrap();
+    //     let mut packager = builder.build().unwrap();
 
-        let result = packager.package(
-            &std::path::PathBuf::from("."),
-            &std::path::PathBuf::from("."),
-        );
+    //     let result = packager.package(
+    //         &std::path::PathBuf::from("."),
+    //         &std::path::PathBuf::from("."),
+    //     );
 
-        assert!(result.is_ok());
+    //     assert!(result.is_ok());
 
-        let result_map = result_map.replace(Vec::new());
-        assert!(result_map.is_empty());
-    }
+    //     let result_map = result_map.replace(Vec::new());
+    //     assert!(result_map.is_empty());
+    // }
 
-    #[test]
-    fn test_packager_builder_one_input() {
-        let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("."))]);
-        builder = builder
-            .add_packet(
-                &gng_shared::Packet {
-                    source_name: gng_shared::Name::try_from("foo").unwrap(),
-                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
-                    license: "GPL_v3+".to_string(),
-                    name: gng_shared::Name::try_from("foo").unwrap(),
-                    description: "The foo packet".to_string(),
-                    url: None,
-                    bug_url: None,
-                    dependencies: gng_shared::Names::default(),
-                    facet: None,
-                },
-                &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::NotEmpty,
-            )
-            .unwrap();
-        let mut packager = builder.build().unwrap();
+    // #[test]
+    // fn test_packager_builder_one_input() {
+    //     let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("."))]);
+    //     builder = builder
+    //         .add_packet(
+    //             &gng_shared::Packet {
+    //                 source_name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 version: gng_shared::Version::try_from("1.0-5").unwrap(),
+    //                 license: "GPL_v3+".to_string(),
+    //                 name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 description: "The foo packet".to_string(),
+    //                 url: None,
+    //                 bug_url: None,
+    //                 dependencies: gng_shared::Names::default(),
+    //                 facet: None,
+    //             },
+    //             &[glob::Pattern::new("**").unwrap()],
+    //             crate::ContentsPolicy::NotEmpty,
+    //         )
+    //         .unwrap();
+    //     let mut packager = builder.build().unwrap();
 
-        let result = packager
-            .package(
-                &std::path::PathBuf::from("."),
-                &std::path::PathBuf::from("."),
-            )
-            .unwrap();
+    //     let result = packager
+    //         .package(
+    //             &std::path::PathBuf::from("."),
+    //             &std::path::PathBuf::from("."),
+    //         )
+    //         .unwrap();
 
-        assert_eq!(result.len(), 1); // One packet was written
+    //     assert_eq!(result.len(), 1); // One packet was written
 
-        let results = results.replace(Vec::new());
-        for d in &results {
-            assert!(d.0.ends_with("/gng-build-foo-None-1.0-5"));
-            println!("{}: {:?}", d.0, d.1);
-        }
-        let mut it = results.iter();
-        assert_eq!(
-            it.next().unwrap().1,
-            gng_shared::packet::Path::new_directory(
-                std::path::Path::new(""),
-                &std::ffi::OsString::from(""),
-                0o755,
-                0,
-                0
-            )
-        );
+    //     let results = results.replace(Vec::new());
+    //     for d in &results {
+    //         assert!(d.0.ends_with("/gng-build-foo-None-1.0-5"));
+    //         println!("{}: {:?}", d.0, d.1);
+    //     }
+    //     let mut it = results.iter();
+    //     assert_eq!(
+    //         it.next().unwrap().1,
+    //         gng_shared::packet::Path::new_directory(
+    //             std::path::Path::new(""),
+    //             &std::ffi::OsString::from(""),
+    //             0o755,
+    //             0,
+    //             0
+    //         )
+    //     );
 
-        // Metadata
-        assert_eq!(
-            it.next().unwrap().1,
-            gng_shared::packet::Path::new_directory(
-                std::path::Path::new(""),
-                &std::ffi::OsString::from(".gng"),
-                0o755,
-                0,
-                0
-            )
-        );
-        assert_eq!(
-            it.next().unwrap().1,
-            gng_shared::packet::Path::new_directory(
-                std::path::Path::new(".gng"),
-                &std::ffi::OsString::from("foo"),
-                0o755,
-                0,
-                0
-            )
-        );
-        assert_eq!(
-            it.next().unwrap().1,
-            gng_shared::packet::Path::new_directory(
-                std::path::Path::new(".gng/foo"),
-                &std::ffi::OsString::from(crate::DEFAULT_FACET_NAME),
-                0o755,
-                0,
-                0
-            )
-        );
-        let meta = &it.next().unwrap().1;
-        assert_eq!(
-            meta.path(),
-            std::path::Path::new(".gng/foo/_MAIN_/info.json")
-        );
-        assert_eq!(meta.mode(), 0o755);
-        assert_eq!(meta.user_id(), 0);
-        assert_eq!(meta.group_id(), 0);
-        assert_eq!(meta.leaf_type(), "f");
+    //     // Metadata
+    //     assert_eq!(
+    //         it.next().unwrap().1,
+    //         gng_shared::packet::Path::new_directory(
+    //             std::path::Path::new(""),
+    //             &std::ffi::OsString::from(".gng"),
+    //             0o755,
+    //             0,
+    //             0
+    //         )
+    //     );
+    //     assert_eq!(
+    //         it.next().unwrap().1,
+    //         gng_shared::packet::Path::new_directory(
+    //             std::path::Path::new(".gng"),
+    //             &std::ffi::OsString::from("foo"),
+    //             0o755,
+    //             0,
+    //             0
+    //         )
+    //     );
+    //     assert_eq!(
+    //         it.next().unwrap().1,
+    //         gng_shared::packet::Path::new_directory(
+    //             std::path::Path::new(".gng/foo"),
+    //             &std::ffi::OsString::from(crate::DEFAULT_FACET_NAME),
+    //             0o755,
+    //             0,
+    //             0
+    //         )
+    //     );
+    //     let meta = &it.next().unwrap().1;
+    //     assert_eq!(
+    //         meta.path(),
+    //         std::path::Path::new(".gng/foo/_MAIN_/info.json")
+    //     );
+    //     assert_eq!(meta.mode(), 0o755);
+    //     assert_eq!(meta.user_id(), 0);
+    //     assert_eq!(meta.group_id(), 0);
+    //     assert_eq!(meta.leaf_type(), "f");
 
-        assert_eq!(it.next(), None);
-    }
+    //     assert_eq!(it.next(), None);
+    // }
 
-    #[test]
-    fn test_packager_builder_one_faceted() {
-        let (results, mut builder) = packaging_setup(&[
-            dir(std::path::Path::new("f1")),
-            file(std::path::Path::new("f1/foo"), b"Test FOO"),
-            dir(std::path::Path::new("f2")),
-            file(std::path::Path::new("f2/bar"), b"Test BAR"),
-        ]);
-        builder = builder
-            .add_packet(
-                &gng_shared::Packet {
-                    source_name: gng_shared::Name::try_from("foo").unwrap(),
-                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
-                    license: "GPL_v3+".to_string(),
-                    name: gng_shared::Name::try_from("foo").unwrap(),
-                    description: "The foo packet".to_string(),
-                    url: None,
-                    bug_url: None,
-                    dependencies: gng_shared::Names::default(),
-                    facet: None,
-                },
-                &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::Empty,
-            )
-            .unwrap()
-            .add_facet(
-                &gng_shared::Name::try_from("f1").unwrap(),
-                &gng_shared::Facet {
-                    mime_types: vec![],
-                    patterns: vec!["f1".to_string(), "f1/**".to_string()],
-                },
-            )
-            .unwrap()
-            .add_facet(
-                &gng_shared::Name::try_from("unused").unwrap(),
-                &gng_shared::Facet {
-                    mime_types: vec![],
-                    patterns: vec!["unused".to_string(), "unused/**".to_string()],
-                },
-            )
-            .unwrap()
-            .add_facet(
-                &gng_shared::Name::try_from("f2").unwrap(),
-                &gng_shared::Facet {
-                    mime_types: vec![],
-                    patterns: vec!["f2".to_string(), "f2/**".to_string()],
-                },
-            )
-            .unwrap();
-        let mut packager = builder.build().unwrap();
+    // #[test]
+    // fn test_packager_builder_one_faceted() {
+    //     let (results, mut builder) = packaging_setup(&[
+    //         dir(std::path::Path::new("f1")),
+    //         file(std::path::Path::new("f1/foo"), b"Test FOO"),
+    //         dir(std::path::Path::new("f2")),
+    //         file(std::path::Path::new("f2/bar"), b"Test BAR"),
+    //     ]);
+    //     builder = builder
+    //         .add_packet(
+    //             &gng_shared::Packet {
+    //                 source_name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 version: gng_shared::Version::try_from("1.0-5").unwrap(),
+    //                 license: "GPL_v3+".to_string(),
+    //                 name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 description: "The foo packet".to_string(),
+    //                 url: None,
+    //                 bug_url: None,
+    //                 dependencies: gng_shared::Names::default(),
+    //                 facet: None,
+    //             },
+    //             &[glob::Pattern::new("**").unwrap()],
+    //             crate::ContentsPolicy::Empty,
+    //         )
+    //         .unwrap()
+    //         .add_facet(
+    //             &gng_shared::Name::try_from("f1").unwrap(),
+    //             &gng_shared::Facet {
+    //                 mime_types: vec![],
+    //                 patterns: vec!["f1".to_string(), "f1/**".to_string()],
+    //             },
+    //         )
+    //         .unwrap()
+    //         .add_facet(
+    //             &gng_shared::Name::try_from("unused").unwrap(),
+    //             &gng_shared::Facet {
+    //                 mime_types: vec![],
+    //                 patterns: vec!["unused".to_string(), "unused/**".to_string()],
+    //             },
+    //         )
+    //         .unwrap()
+    //         .add_facet(
+    //             &gng_shared::Name::try_from("f2").unwrap(),
+    //             &gng_shared::Facet {
+    //                 mime_types: vec![],
+    //                 patterns: vec!["f2".to_string(), "f2/**".to_string()],
+    //             },
+    //         )
+    //         .unwrap();
+    //     let mut packager = builder.build().unwrap();
 
-        let result = packager
-            .package(
-                &std::path::PathBuf::from("."),
-                &std::path::PathBuf::from("."),
-            )
-            .unwrap();
+    //     let result = packager
+    //         .package(
+    //             &std::path::PathBuf::from("."),
+    //             &std::path::PathBuf::from("."),
+    //         )
+    //         .unwrap();
 
-        assert_eq!(result.len(), 2);
+    //     assert_eq!(result.len(), 2);
 
-        let results = results.replace(Vec::new());
-        for p in &results {
-            let path = p.1.path();
+    //     let results = results.replace(Vec::new());
+    //     for p in &results {
+    //         let path = p.1.path();
 
-            if path.starts_with(".gng/") {
-                continue;
-            }
-            println!("{}: {:?}", p.0, p.1);
+    //         if path.starts_with(".gng/") {
+    //             continue;
+    //         }
+    //         println!("{}: {:?}", p.0, p.1);
 
-            if path.as_os_str() == std::ffi::OsStr::new("f1")
-                || path.as_os_str() == std::ffi::OsStr::new("f1/foo")
-            {
-                assert!(p.0.contains(r#"Name("f1")"#))
-            } else if path.as_os_str() == std::ffi::OsStr::new("f2")
-                || path.as_os_str() == std::ffi::OsStr::new("f2/bar")
-            {
-                assert!(p.0.contains(r#"Name("f2")"#))
-            } else {
-                assert!(p.0.contains("UNEXPECTED FILE FOUND"));
-            }
-        }
-    }
+    //         if path.as_os_str() == std::ffi::OsStr::new("f1")
+    //             || path.as_os_str() == std::ffi::OsStr::new("f1/foo")
+    //         {
+    //             assert!(p.0.contains(r#"Name("f1")"#))
+    //         } else if path.as_os_str() == std::ffi::OsStr::new("f2")
+    //             || path.as_os_str() == std::ffi::OsStr::new("f2/bar")
+    //         {
+    //             assert!(p.0.contains(r#"Name("f2")"#))
+    //         } else {
+    //             assert!(p.0.contains("UNEXPECTED FILE FOUND"));
+    //         }
+    //     }
+    // }
 
-    #[test]
-    fn test_packager_builder_no_usr_local() {
-        let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("local/foobar"))]);
-        builder = builder
-            .add_packet(
-                &gng_shared::Packet {
-                    source_name: gng_shared::Name::try_from("foo").unwrap(),
-                    version: gng_shared::Version::try_from("1.0-5").unwrap(),
-                    license: "GPL_v3+".to_string(),
-                    name: gng_shared::Name::try_from("foo").unwrap(),
-                    description: "The foo packet".to_string(),
-                    url: None,
-                    bug_url: None,
-                    dependencies: gng_shared::Names::default(),
-                    facet: None,
-                },
-                &[glob::Pattern::new("**").unwrap()],
-                crate::ContentsPolicy::NotEmpty,
-            )
-            .unwrap();
-        let mut packager = builder.build().unwrap();
+    // #[test]
+    // fn test_packager_builder_no_usr_local() {
+    //     let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("local/foobar"))]);
+    //     builder = builder
+    //         .add_packet(
+    //             &gng_shared::Packet {
+    //                 source_name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 version: gng_shared::Version::try_from("1.0-5").unwrap(),
+    //                 license: "GPL_v3+".to_string(),
+    //                 name: gng_shared::Name::try_from("foo").unwrap(),
+    //                 description: "The foo packet".to_string(),
+    //                 url: None,
+    //                 bug_url: None,
+    //                 dependencies: gng_shared::Names::default(),
+    //                 facet: None,
+    //             },
+    //             &[glob::Pattern::new("**").unwrap()],
+    //             crate::ContentsPolicy::NotEmpty,
+    //         )
+    //         .unwrap();
+    //     let mut packager = builder.build().unwrap();
 
-        let result = packager.package(
-            &std::path::PathBuf::from("."),
-            &std::path::PathBuf::from("."),
-        );
+    //     let result = packager.package(
+    //         &std::path::PathBuf::from("."),
+    //         &std::path::PathBuf::from("."),
+    //     );
 
-        assert!(result.is_err()); // Things in /usr/local should trigger a packaging error!
-        let results = results.replace(Vec::new());
-        assert_eq!(results.len(), 0);
-    }
+    //     assert!(result.is_err()); // Things in /usr/local should trigger a packaging error!
+    //     let results = results.replace(Vec::new());
+    //     assert_eq!(results.len(), 0);
+    // }
 }

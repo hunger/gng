@@ -50,13 +50,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 // - Modules:
 // ----------------------------------------------------------------------
 
-pub mod repository_db;
+pub mod db;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
-pub use repository_db::RepositoryDb;
+pub use db::Db;
 
 pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 
@@ -200,20 +200,6 @@ impl PartialEq for Repository {
     }
 }
 
-// - Packet:
-// ----------------------------------------------------------------------
-
-#[derive(Clone, Debug)]
-/// All the data on `Packet` needed to store it in a `Repository`.
-pub struct PacketData {
-    /// The `Facet`s defined for this `Packet`
-    facets: Vec<(gng_shared::Name, gng_shared::Hash)>,
-    /// The `Packet` data itself
-    data: gng_shared::Packet,
-    /// The `Hash` of the `Packet` itself
-    hash: gng_shared::Hash,
-}
-
 // ----------------------------------------------------------------------
 // - Functions:
 // ----------------------------------------------------------------------
@@ -224,6 +210,6 @@ pub struct PacketData {
 ///  * `Error::WrongSchema` if the repository does not use a supported schema version
 ///  *`Error::Backend` if the Backend has trouble reading the repository data
 #[tracing::instrument(level = "trace")]
-pub fn open(path: &std::path::Path) -> Result<impl RepositoryDb> {
-    repository_db::RepositoryDbImpl::new(path)
+pub fn open(path: &std::path::Path) -> Result<impl Db> {
+    db::DbImpl::new(path)
 }

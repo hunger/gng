@@ -1,5 +1,5 @@
 [package]
-name = "gng_repository"
+name = "gng-db"
 version = "0.1.0"
 edition = "2018"
 authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
@@ -9,9 +9,11 @@ keywords = ["tool", "packaging", "distribution", "linux", "cleanroom" ]
 repository = "https://github.com/hunger/gng"
 
 [dependencies]
+clap = { version = "3.0.0-beta.2" }
+eyre = { version = "0.6" }
+gng_db = { path = "../gng_db" }
 gng_shared = { path = "../gng_shared" }
-serde = { version = "1.0" }
-serde_json = { version = "1.0" }
-thiserror = { version = "1.0" }
 tracing = { version = "0.1" }
-uuid = { version = "0.8", features = ["serde", "v4"] }
+
+[dev-dependencies]
+temp-dir = { version = "0.1" }

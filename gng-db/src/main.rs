@@ -15,9 +15,9 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
-use gng_repository::{
-    repository_db::RepositoryDb, LocalRepository, RemoteRepository, Repository, RepositoryRelation,
-    RepositorySource, Uuid,
+use gng_db::{
+    db::Db, LocalRepository, RemoteRepository, Repository, RepositoryRelation, RepositorySource,
+    Uuid,
 };
 
 use clap::Clap;
@@ -125,7 +125,7 @@ struct RepositoryRemoveCommand {
     name: String,
 }
 
-fn handle_repository_command(db: &mut impl RepositoryDb, cmd: &RepositoryCommands) -> Result<()> {
+fn handle_repository_command(db: &mut impl Db, cmd: &RepositoryCommands) -> Result<()> {
     match &cmd.sub_command {
         RepositorySubCommands::List(cmd) => handle_repository_list_command(db, cmd),
         RepositorySubCommands::Add(cmd) => handle_repository_add_command(db, cmd),
@@ -143,10 +143,7 @@ fn print_human(repository: &Repository) {
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_repository_list_command(
-    db: &mut impl RepositoryDb,
-    cmd: &RepositoryListCommand,
-) -> Result<()> {
+fn handle_repository_list_command(db: &mut impl Db, cmd: &RepositoryListCommand) -> Result<()> {
     let repositories = db.list_repositories();
 
     if !repositories.is_empty() {
@@ -163,10 +160,7 @@ fn handle_repository_list_command(
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_repository_add_command(
-    db: &mut impl RepositoryDb,
-    cmd: &RepositoryAddCommand,
-) -> Result<()> {
+fn handle_repository_add_command(db: &mut impl Db, cmd: &RepositoryAddCommand) -> Result<()> {
     let uuid = match &cmd.uuid {
         Some(u) => Uuid::from_str(u).wrap_err("Invalid UUID provided on command line"),
         None => Ok(Uuid::new_v4()),
@@ -215,10 +209,7 @@ fn handle_repository_add_command(
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_repository_remove_command(
-    db: &mut impl RepositoryDb,
-    cmd: &RepositoryRemoveCommand,
-) -> Result<()> {
+fn handle_repository_remove_command(db: &mut impl Db, cmd: &RepositoryRemoveCommand) -> Result<()> {
     db.remove_repository(
         &db.resolve_repository(&cmd.name).ok_or_else(|| {
             eyre::eyre!("Could not resolve \"{}\" to a known repository.", cmd.name)
@@ -287,7 +278,7 @@ struct PacketRemoveCommand {
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_packet_command(db: &mut impl RepositoryDb, cmd: &PacketCommands) -> Result<()> {
+fn handle_packet_command(db: &mut impl Db, cmd: &PacketCommands) -> Result<()> {
     Ok(())
 }
 
@@ -307,7 +298,7 @@ enum InternalSubCommands {
 }
 
 #[tracing::instrument(level = "trace", skip(db))]
-fn handle_internal_command(db: &mut impl RepositoryDb, cmd: &InternalCommands) -> Result<()> {
+fn handle_internal_command(db: &mut impl Db, cmd: &InternalCommands) -> Result<()> {
     match cmd.sub_command {
         InternalSubCommands::Metadata => Ok(db.dump_metadata()),
     }
@@ -328,7 +319,7 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    let mut db = gng_repository::open(&args.db_directory).wrap_err(format!(
+    let mut db = gng_db::open(&args.db_directory).wrap_err(format!(
         "Failed to open repository at \"{}\".",
         args.db_directory.to_string_lossy()
     ))?;

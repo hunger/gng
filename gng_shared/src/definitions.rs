@@ -470,6 +470,15 @@ impl<'a> IntoIterator for &'a Names {
 // - Packet:
 // ----------------------------------------------------------------------
 
+/// A `Facet` of a `Packet`
+#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct PacketFacet {
+    /// `Name` of the `Facet`
+    pub name: Name,
+    /// `Hash` of the `Facet` package
+    pub hash: Hash,
+}
+
 /// `Packet` meta data
 #[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct Packet {
@@ -490,11 +499,13 @@ pub struct Packet {
     /// The upstream bug tracker url
     pub bug_url: Option<String>,
 
-    /// `Packet`s this `Packet` depends on.
-    pub dependencies: Names,
+    /// `Hash`es of the `Packet`s this `Packet` depends on.
+    pub dependencies: Vec<Hash>,
+    /// `Hash`es of the `Facet`s of this `Packet`.
+    pub facets: Vec<PacketFacet>,
 
-    /// A `Facet` defined by this `Packet`
-    pub facet: Option<Facet>,
+    /// A `Facet` made available by this `Packet`
+    pub register_facet: Option<Facet>,
 }
 
 impl std::cmp::PartialEq for Packet {
