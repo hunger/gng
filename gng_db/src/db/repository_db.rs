@@ -3,10 +3,9 @@
 
 //! A object representing a `Repository`
 
-use super::backend;
 use crate::{Error, Repository, Result, Uuid};
 
-use gng_shared::{Hash, Name};
+use gng_shared::Name;
 
 use std::convert::TryFrom;
 
@@ -114,7 +113,7 @@ pub struct RepositoryIntern {
 }
 
 impl RepositoryIntern {
-    pub fn new(repository: Repository) -> Self {
+    pub const fn new(repository: Repository) -> Self {
         Self {
             repository,
             search_paths: Vec::new(),
@@ -124,28 +123,6 @@ impl RepositoryIntern {
     pub const fn repository(&self) -> &Repository {
         &self.repository
     }
-
-    #[must_use]
-    pub const fn is_local(&self) -> bool {
-        self.repository().is_local()
-    }
-
-    #[must_use]
-    pub const fn is_override(&self) -> bool {
-        self.repository().is_override()
-    }
-}
-
-// - Helper for RepositoryIntern:
-// ----------------------------------------------------------------------
-
-pub fn find_repository_by_uuid_mut<'a, 'b>(
-    repositories: &'a mut [RepositoryIntern],
-    uuid: &'b crate::Uuid,
-) -> Option<&'a mut RepositoryIntern> {
-    repositories
-        .iter_mut()
-        .find(|r| r.repository().uuid == *uuid)
 }
 
 pub fn find_repository_by_uuid<'a, 'b>(
@@ -443,7 +420,7 @@ impl RepositoryDb {
     #[tracing::instrument(level = "trace")]
     pub fn new(repositories: &[Repository]) -> Result<Self> {
         let repositories: Vec<_> = repositories
-            .into_iter()
+            .iter()
             .map(|r| RepositoryIntern::new(r.clone()))
             .collect();
 
@@ -455,6 +432,7 @@ impl RepositoryDb {
         })
     }
 
+    /// Resolve some user provided `&str` to an `Repository` `Uuid`.
     pub fn resolve_repository(&self, input: &str) -> Option<Uuid> {
         if let Ok(uuid) = Uuid::parse_str(input) {
             find_repository_by_uuid(&self.repositories, &uuid).map(|_| uuid)
@@ -465,6 +443,23 @@ impl RepositoryDb {
                 .map(|ri| ri.repository().uuid)
         } else {
             None
+        }
+    }
+
+    /// Get the search path for a `Repository`.
+    pub fn search_path(&self, uuid: Option<&Uuid>) -> Result<Vec<Uuid>> {
+        match uuid {
+            None => Ok(self.global_repository_search_path.clone()),
+            Some(uuid) => {
+                if let Some(repository) = find_repository_by_uuid(&self.repositories, uuid) {
+                    Ok(repository.search_paths.clone())
+                } else {
+                    Err(Error::Repository(format!(
+                        "Could not find repository with UUID {}.",
+                        uuid
+                    )))
+                }
+            }
         }
     }
 
@@ -483,8 +478,6 @@ impl RepositoryDb {
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn add_repository(&mut self, repository_data: Repository) -> Result<()> {
         let mut repositories = self.repositories.clone();
-
-        let uuid = repository_data.uuid;
 
         repositories.push(RepositoryIntern::new(repository_data));
         let global_repository_search_path = update_repository_search_paths(&repositories)?;
@@ -601,7 +594,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_ok() {
+    fn repository_validation_ok() {
         let repositories = [
             RepositoryIntern::new(Repository {
                 name: Name::try_from("base_repo").expect("Name was valid!"),
@@ -629,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_duplicate_name() {
+    fn repository_validation_duplicate_name() {
         let repositories = [
             RepositoryIntern::new(Repository {
                 name: Name::try_from("base_repo").expect("Name was valid!"),
@@ -657,7 +650,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_duplicate_uuid() {
+    fn repository_validation_duplicate_uuid() {
         let uuid = Uuid::new_v4();
         let repositories = [
             RepositoryIntern::new(Repository {
@@ -686,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_dependency_loop() {
+    fn repository_validation_dependency_loop() {
         let uuid1 = Uuid::new_v4();
         let uuid2 = Uuid::new_v4();
 
@@ -717,7 +710,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_override_loop() {
+    fn repository_validation_override_loop() {
         let uuid1 = Uuid::new_v4();
         let uuid2 = Uuid::new_v4();
 
@@ -748,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_validation_unknown_dependency() {
+    fn repository_validation_unknown_dependency() {
         let uuid1 = Uuid::new_v4();
         let uuid2 = Uuid::new_v4();
 
@@ -799,7 +792,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_search_paths_line() {
+    fn update_search_paths_line() {
         let uuid_0 = Uuid::new_v4();
         let uuid_1 = Uuid::new_v4();
         let uuid_1o0 = Uuid::new_v4();
@@ -828,7 +821,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_search_paths_diamond() {
+    fn update_search_paths_diamond() {
         let uuid_0 = Uuid::new_v4();
         let uuid_1 = Uuid::new_v4();
         let uuid_2left0 = Uuid::new_v4();
@@ -865,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_setup() {
+    fn repository_setup() {
         let mut repo_db = RepositoryDb::default();
         populate_repository_db(&mut repo_db);
 

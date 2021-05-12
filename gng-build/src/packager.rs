@@ -369,7 +369,7 @@ mod tests {
     }
 
     // #[test]
-    // fn test_packager_builder_empty_inputs() {
+    // fn packager_builder_empty_inputs() {
     //     let (result_map, mut builder) = packaging_setup(&Vec::new());
     //     builder = builder
     //         .add_packet(
@@ -402,7 +402,7 @@ mod tests {
     // }
 
     // #[test]
-    // fn test_packager_builder_one_input() {
+    // fn packager_builder_one_input() {
     //     let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("."))]);
     //     builder = builder
     //         .add_packet(
@@ -494,7 +494,7 @@ mod tests {
     // }
 
     // #[test]
-    // fn test_packager_builder_one_faceted() {
+    // fn packager_builder_one_faceted() {
     //     let (results, mut builder) = packaging_setup(&[
     //         dir(std::path::Path::new("f1")),
     //         file(std::path::Path::new("f1/foo"), b"Test FOO"),
@@ -577,7 +577,7 @@ mod tests {
     // }
 
     // #[test]
-    // fn test_packager_builder_no_usr_local() {
+    // fn packager_builder_no_usr_local() {
     //     let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("local/foobar"))]);
     //     builder = builder
     //         .add_packet(

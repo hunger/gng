@@ -684,7 +684,7 @@ mod tests {
     use super::{GpgKeyId, Hash, Name, Version};
 
     #[test]
-    fn test_package_gpg_key_id_ok() {
+    fn package_gpg_key_id_ok() {
         let key_id = GpgKeyId::new("aB-c D1---23   4EFAB5678").unwrap();
         assert_eq!(key_id.0, "abcd 1234 efab 5678");
 
@@ -695,14 +695,14 @@ mod tests {
     }
 
     #[test]
-    fn test_package_gpg_key_id_not_ok() {
+    fn package_gpg_key_id_not_ok() {
         assert!(GpgKeyId::new("").is_err());
         assert!(GpgKeyId::new("aB-c D1---23   4EFA5G78").is_err());
         assert!(GpgKeyId::new("aB-c D1---23   4EFAB5678 0").is_err());
     }
 
     #[test]
-    fn test_package_hash_ok() {
+    fn package_hash_ok() {
         assert_eq!(Hash::none(), Hash::None());
 
         assert_eq!(
@@ -730,7 +730,7 @@ mod tests {
     }
 
     #[test]
-    fn test_package_hash_not_ok() {
+    fn package_hash_not_ok() {
         assert!(Hash::try_from("foobar").is_err()); // unsupported hash
         assert!(Hash::try_from("foobar:baz").is_err()); // unsupported hash
         assert!(Hash::try_from("sha256:").is_err()); // No hex
@@ -747,7 +747,7 @@ mod tests {
 
     // Name:
     #[test]
-    fn test_package_name_ok() {
+    fn package_name_ok() {
         let name = Name::new("test").unwrap();
         assert_eq!(name, Name("test".to_string()));
 
@@ -756,7 +756,7 @@ mod tests {
     }
 
     #[test]
-    fn test_package_name_not_ok() {
+    fn package_name_not_ok() {
         assert!(Name::new("").is_err());
         assert!(Name::new("töst").is_err());
         assert!(Name::new("teSt").is_err());
@@ -765,7 +765,7 @@ mod tests {
     }
 
     #[test]
-    fn test_package_name_conversion() {
+    fn package_name_conversion() {
         let name = Name::try_from("9_foobar__").unwrap();
         assert_eq!(name.0, "9_foobar__");
         assert_eq!(String::from(name), "9_foobar__".to_string());
@@ -773,7 +773,7 @@ mod tests {
 
     // Version:
     #[test]
-    fn test_package_version_ok() {
+    fn package_version_ok() {
         let version = Version::new(43, "test", "foo").unwrap();
         assert_eq!(version.epoch, 43);
         assert_eq!(version.upstream, "test");
@@ -818,7 +818,7 @@ mod tests {
     }
 
     #[test]
-    fn test_package_version_not_ok() {
+    fn package_version_not_ok() {
         assert!(Version::try_from("").is_err());
 
         assert!(Version::try_from("2.4.5!").is_err());
@@ -837,7 +837,7 @@ mod tests {
     }
 
     #[test]
-    fn test_package_version_conversion() {
+    fn package_version_conversion() {
         let version = Version::try_from("42:foobar-baz").unwrap();
         assert_eq!(version.epoch, 42);
         assert_eq!(version.upstream, "foobar".to_string());

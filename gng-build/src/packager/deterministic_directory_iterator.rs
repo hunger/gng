@@ -191,14 +191,14 @@ mod tests {
     }
 
     #[test]
-    fn test_deterministic_iterator_empty_top_dir() {
+    fn deterministic_iterator_empty_top_dir() {
         let tmp = TempDir::new().unwrap();
         let mut it = DeterministicDirectoryIterator::new(tmp.path()).unwrap();
         assert!(it.next().is_none());
     }
 
     #[test]
-    fn test_deterministic_iterator_sort_order() {
+    fn deterministic_iterator_sort_order() {
         let tmp = TempDir::new().unwrap();
         let tmp_meta = std::fs::metadata(tmp.path()).unwrap();
 

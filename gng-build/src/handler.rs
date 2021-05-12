@@ -344,7 +344,7 @@ mod tests {
         }
     }
     #[test]
-    fn test_immutable_source_data_handler_ok() {
+    fn immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
         let ctx = create_ctx();
@@ -365,7 +365,7 @@ mod tests {
         }
     }
     #[test]
-    fn test_immutable_source_data_handler_ok_data_same() {
+    fn immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
         let ctx = create_ctx();
@@ -395,7 +395,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
-    fn test_immutable_source_data_handler_no_data_message() {
+    fn immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
         let ctx = create_ctx();
@@ -406,7 +406,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
-    fn test_immutable_source_data_handler_double_data() {
+    fn immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
         let ctx = create_ctx();
 
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
-    fn test_immutable_source_data_handler_non_data() {
+    fn immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
         let ctx = create_ctx();
 
@@ -450,7 +450,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
-    fn test_immutable_source_data_handler_data_changed() {
+    fn immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
         let ctx = create_ctx();
 
@@ -478,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_packet_handler_ok() {
+    fn validate_packet_handler_ok() {
         let mut handler = ValidatePacketsHandler::default();
         let ctx = create_ctx();
 
@@ -509,7 +509,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_packet_handler_err_wrong_dependencies() {
+    fn validate_packet_handler_err_wrong_dependencies() {
         let mut handler = ValidatePacketsHandler::default();
         let ctx = create_ctx();
 
