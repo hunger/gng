@@ -248,7 +248,7 @@ mod tests {
 
     use gng_shared::packet::PacketWriter;
 
-    use std::convert::{From, TryFrom};
+    use std::convert::From;
 
     type PacketContents = Vec<(String, gng_shared::packet::Path)>;
     type SharedPacketHash = std::rc::Rc<std::cell::RefCell<PacketContents>>;

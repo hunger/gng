@@ -31,6 +31,10 @@ struct Args {
     config: Option<PathBuf>,
 
     /// the directory containing the Lua runtime environment
+    #[clap(long, parse(from_os_str), env = "GNG_DB_DIR", value_name = "DIR")]
+    db_dir: PathBuf,
+
+    /// the directory containing the Lua runtime environment
     #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
     lua_dir: Option<PathBuf>,
 
@@ -86,6 +90,8 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
+    let db = gng_db::open(&args.db_dir)?;
+
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
     if let Some(tmp) = &args.lua_dir {
         case_officer.set_lua_directory(tmp);
@@ -114,7 +120,7 @@ fn main() -> Result<()> {
         .build(&args.pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
-    case_officer.process()?;
+    case_officer.process(&db)?;
 
     Ok(())
 }

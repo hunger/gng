@@ -28,7 +28,7 @@ fn packet_from(source_package: &gng_build_shared::SourcePacket) -> gng_shared::P
     result
 }
 
-#[tracing::instrument(level = "trace", skip(source_package))]
+#[tracing::instrument(level = "trace", skip(source_package, ctx))]
 fn package(
     source_package: &gng_build_shared::SourcePacket,
     ctx: &crate::handler::Context,
@@ -102,8 +102,9 @@ fn package(
 // ----------------------------------------------------------------------
 
 /// A `Context` in which a `Handler` is run
-#[derive(Debug)]
-pub struct Context {
+pub struct Context<'a> {
+    /// The gng `Db` to work with.
+    pub db: &'a dyn gng_db::Db,
     /// The Lua directory with additional Lua files.
     pub lua_directory: std::path::PathBuf,
     /// The directory the build script can work in
@@ -172,13 +173,13 @@ impl Default for ImmutableSourceDataHandler {
 }
 
 impl Handler for ImmutableSourceDataHandler {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         self.first_message = true;
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn handle(
         &mut self,
         ctx: &Context,
@@ -211,7 +212,7 @@ impl Handler for ImmutableSourceDataHandler {
         }
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if self.first_message {
             panic!("gng-build-agent did not react as expected!");
@@ -239,12 +240,12 @@ impl Default for ValidatePacketsHandler {
 }
 
 impl Handler for ValidatePacketsHandler {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn handle(
         &mut self,
         ctx: &Context,
@@ -268,7 +269,7 @@ impl Handler for ValidatePacketsHandler {
         Ok(false)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
@@ -293,12 +294,12 @@ impl Default for PackagingHandler {
 }
 
 impl Handler for PackagingHandler {
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn handle(
         &mut self,
         ctx: &Context,
@@ -312,7 +313,7 @@ impl Handler for PackagingHandler {
         Ok(false)
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(ctx))]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if *mode != crate::Mode::Package {
             return Ok(());
@@ -333,9 +334,10 @@ impl Handler for PackagingHandler {
 mod tests {
     use super::*;
 
-    fn create_ctx() -> Context {
+    fn create_ctx(db: &dyn gng_db::Db) -> Context {
         let tmp = std::path::PathBuf::from(".");
         Context {
+            db,
             lua_directory: tmp.clone(),
             work_directory: tmp.clone(),
             install_directory: tmp.clone(),
@@ -347,7 +349,8 @@ mod tests {
     fn immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
@@ -368,7 +371,8 @@ mod tests {
     fn immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -398,7 +402,8 @@ mod tests {
     fn immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
@@ -408,7 +413,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -434,7 +440,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -452,7 +459,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -480,7 +488,8 @@ mod tests {
     #[test]
     fn validate_packet_handler_ok() {
         let mut handler = ValidatePacketsHandler::default();
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
@@ -511,7 +520,8 @@ mod tests {
     #[test]
     fn validate_packet_handler_err_wrong_dependencies() {
         let mut handler = ValidatePacketsHandler::default();
-        let ctx = create_ctx();
+        let db = gng_db::empty_db();
+        let ctx = create_ctx(&db);
 
         assert!(handler
             .handle(&ctx, &crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)

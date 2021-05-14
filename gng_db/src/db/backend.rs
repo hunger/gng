@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! A backend database for a `RepositoryDb`
+//! A backend database for a `Db`
 
-use super::definitions::HashedPackets;
 use crate::{Error, Repository, Result};
 
 use gng_shared::Name;
@@ -211,7 +210,7 @@ pub fn init_db(db_directory: &std::path::Path) -> crate::Result<()> {
 }
 
 #[tracing::instrument(level = "trace")]
-pub fn read_db(db_directory: &std::path::Path) -> crate::Result<(Vec<Repository>, HashedPackets)> {
+pub fn read_db(db_directory: &std::path::Path) -> crate::Result<(Vec<Repository>,)> {
     if get_db_schema_version(db_directory)? != MetaData::latest_schema() {
         return Err(crate::Error::Db("Unsupported schema version.".to_string()));
     }
@@ -219,7 +218,7 @@ pub fn read_db(db_directory: &std::path::Path) -> crate::Result<(Vec<Repository>
     tracing::debug!("Reading repositories from DB.");
     let repositories = read_repositories(db_directory)?;
 
-    Ok((repositories, HashedPackets::new()))
+    Ok((repositories,))
 }
 
 fn repository_file_name(

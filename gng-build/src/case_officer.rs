@@ -511,8 +511,9 @@ impl CaseOfficer {
         }
     }
 
-    fn create_ctx(&self) -> crate::handler::Context {
+    fn create_ctx<'a>(&self, db: &'a impl gng_db::Db) -> crate::handler::Context<'a> {
         crate::handler::Context {
+            db,
             lua_directory: self.lua_directory.clone(),
             work_directory: self.work_directory.clone(),
             install_directory: self.install_directory.clone(),
@@ -603,10 +604,10 @@ impl CaseOfficer {
     }
 
     /// Process a build
-    #[tracing::instrument(level = "debug", skip(self))]
-    pub fn process(&mut self) -> Result<()> {
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    pub fn process(&mut self, db: &impl gng_db::Db) -> Result<()> {
         let mut mode = Some(Mode::default());
-        let ctx = self.create_ctx();
+        let ctx = self.create_ctx(db);
 
         while mode.is_some() {
             let m = mode.expect("Mode was some!");

@@ -144,6 +144,12 @@ impl Hash {
         Self::None()
     }
 
+    /// Check whether there is no real hash.
+    #[must_use]
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None())
+    }
+
     /// Create a `SHA256` hash
     ///
     /// # Errors
@@ -506,6 +512,9 @@ pub struct Packet {
 
     /// A `Facet` made available by this `Packet`
     pub register_facet: Option<Facet>,
+
+    /// The `Hash` of this `Packet`
+    pub hash: Hash,
 }
 
 impl std::cmp::PartialEq for Packet {

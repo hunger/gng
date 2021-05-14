@@ -3,6 +3,8 @@
 
 //! Repository management for all `gng` binaries.
 
+// Features:
+#![feature(map_try_insert)]
 // Setup warnings/errors:
 #![forbid(unsafe_code)]
 #![deny(
@@ -211,5 +213,13 @@ impl PartialEq for Repository {
 ///  *`Error::Backend` if the Backend has trouble reading the repository data
 #[tracing::instrument(level = "trace")]
 pub fn open(path: &std::path::Path) -> Result<impl Db> {
-    db::DbImpl::new(path)
+    let mut db = db::DbImpl::default();
+    db.load(path)?;
+    Ok(db)
+}
+
+/// Open a empty `Repository`
+#[tracing::instrument(level = "trace")]
+pub fn empty_db() -> impl Db {
+    db::DbImpl::default()
 }

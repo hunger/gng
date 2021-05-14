@@ -4,16 +4,12 @@
 //! A object representing a `Db` with all the data on `Packet`s and related data.
 
 mod backend;
-mod definitions;
 mod repository_db;
 mod repository_packet_db;
 
 use crate::{Repository, Result, Uuid};
 
-use self::{
-    definitions::HashedPackets, repository_db::RepositoryDb,
-    repository_packet_db::RepositoryPacketDb,
-};
+use self::{repository_db::RepositoryDb, repository_packet_db::RepositoryPacketDb};
 
 // ----------------------------------------------------------------------
 // - Db:
@@ -71,23 +67,19 @@ pub(crate) struct DbImpl {
 
     repository_db: RepositoryDb,
     repository_packet_db: RepositoryPacketDb,
-    hashed_packets: HashedPackets,
 }
 
 impl DbImpl {
     #[tracing::instrument(level = "trace")]
-    pub(crate) fn new(db_directory: &std::path::Path) -> Result<Self> {
+    pub(crate) fn load(&mut self, db_directory: &std::path::Path) -> Result<()> {
+        self.db_directory = None;
+
         self::backend::init_db(db_directory)?;
 
-        let (repositories, hashed_packets) = backend::read_db(db_directory)?;
+        // FIXME: Implement loading from disk
 
-        Ok(Self {
-            db_directory: Some(db_directory.to_owned()),
-
-            repository_db: RepositoryDb::new(&repositories[..])?,
-            repository_packet_db: RepositoryPacketDb::new()?,
-            hashed_packets,
-        })
+        self.db_directory = Some(db_directory.to_owned());
+        todo!()
     }
 }
 
@@ -98,7 +90,6 @@ impl Default for DbImpl {
             db_directory: None,
             repository_db: RepositoryDb::default(),
             repository_packet_db: RepositoryPacketDb::default(),
-            hashed_packets: HashedPackets::new(),
         }
     }
 } // Default for DbImpl

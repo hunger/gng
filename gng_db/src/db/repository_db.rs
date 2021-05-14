@@ -418,7 +418,7 @@ pub struct RepositoryDb {
 
 impl RepositoryDb {
     #[tracing::instrument(level = "trace")]
-    pub fn new(repositories: &[Repository]) -> Result<Self> {
+    pub fn reset_db(repositories: &[Repository]) -> Result<Self> {
         let repositories: Vec<_> = repositories
             .iter()
             .map(|r| RepositoryIntern::new(r.clone()))

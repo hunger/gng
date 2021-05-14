@@ -445,6 +445,7 @@ dependencies = [
  "filemagic",
  "glob",
  "gng_build_shared",
+ "gng_db",
  "gng_shared",
  "lazy_static",
  "rand",
