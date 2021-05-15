@@ -33,6 +33,7 @@ type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<
 #[derive(Debug)]
 pub struct NamedFacet {
     name: gng_shared::Name,
+    packet_hash: gng_shared::Hash,
     facet: gng_shared::Facet,
 }
 
@@ -57,10 +58,12 @@ impl PackagerBuilder {
     pub fn add_facet(
         mut self,
         name: &gng_shared::Name,
+        packet_hash: &gng_shared::Hash,
         facet: &gng_shared::Facet,
     ) -> eyre::Result<Self> {
         let nf = NamedFacet {
             name: name.clone(),
+            packet_hash: packet_hash.clone(),
             facet: facet.clone(),
         };
         self.facet_definitions.push(nf);
@@ -124,11 +127,11 @@ impl PackagerBuilder {
 impl Default for PackagerBuilder {
     fn default() -> Self {
         Self {
-            packet_factory_fn: Box::new(|packet_path, packet_name, facet_name, version| {
+            packet_factory_fn: Box::new(|packet_path, packet_name, facet_data, version| {
                 gng_shared::packet::create_packet_writer(
                     packet_path,
                     packet_name,
-                    facet_name,
+                    facet_data,
                     version,
                 )
             }),
@@ -153,7 +156,7 @@ impl Default for PackagerBuilder {
 type InternalPacketWriterFactory = Box<
     dyn Fn(
         &gng_shared::Name,
-        &Option<gng_shared::Name>,
+        &Option<(gng_shared::Name, gng_shared::Hash)>,
         &gng_shared::Version,
     ) -> eyre::Result<Box<dyn gng_shared::packet::PacketWriter>>,
 >;
@@ -186,10 +189,10 @@ impl Packager {
             .ok_or_else(|| eyre::eyre!("Packager has been used up already!"))?;
         let factory: InternalPacketWriterFactory = Box::new(
             move |name,
-                  facet,
+                  facet_data,
                   version|
                   -> eyre::Result<Box<dyn gng_shared::packet::PacketWriter>> {
-                (factory)(&packet_directory, name, facet, version)
+                (factory)(&packet_directory, name, facet_data, version)
                     .wrap_err("Failed to create a packet writer.")
             },
         );

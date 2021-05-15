@@ -135,7 +135,7 @@ fn main() -> Result<()> {
         .add_handler(Box::new(gng_build::handler::ParseSourceDataHandler::new(
             source_packet_info.clone(),
         )))
-        .add_handler(Box::new(gng_build::handler::ValidatePacketsHandler::new(
+        .add_handler(Box::new(gng_build::handler::ValidateHandler::new(
             source_packet_info.clone(),
         )))
         .add_handler(Box::new(gng_build::handler::PackagingHandler::new(

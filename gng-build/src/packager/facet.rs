@@ -83,7 +83,7 @@ fn create_packet_meta_data(
 // ----------------------------------------------------------------------
 
 pub struct Facet {
-    pub facet_name: Option<gng_shared::Name>,
+    pub facet_data: Option<(gng_shared::Name, gng_shared::Hash)>,
     pub mime_types: Vec<String>,
     pub patterns: Vec<glob::Pattern>,
     pub data: Option<gng_shared::Packet>,
@@ -95,8 +95,8 @@ impl std::fmt::Debug for Facet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Facet {{ facet_name: {:?}, mime_types: {:?}, patterns: {:?}, data: {:?} }}",
-            &self.facet_name, &self.mime_types, &self.patterns, &self.data,
+            "Facet {{ facet_data: {:?}, mime_types: {:?}, patterns: {:?}, data: {:?} }}",
+            &self.facet_data, &self.mime_types, &self.patterns, &self.data,
         )
     }
 }
@@ -108,45 +108,46 @@ impl Facet {
         packet: &gng_shared::Packet,
         contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Vec<Self>> {
-        // let mut result = Vec::with_capacity(definitions.len() + 1);
-        // for d in definitions {
-        //     if !packet.dependencies.contains(&d.name) {
-        //         result.push(Self {
-        //             facet_name: Some(d.name.clone()),
-        //             mime_types: d.facet.mime_types.clone(),
-        //             patterns: d
-        //                 .facet
-        //                 .patterns
-        //                 .iter()
-        //                 .map(|s| {
-        //                     glob::Pattern::new(&s[..]).wrap_err("Invalid glob pattern in facet.")
-        //                 })
-        //                 .collect::<eyre::Result<Vec<_>>>()?,
-        //             data: Some(packet.clone()),
-        //             writer: None,
-        //             contents_policy: crate::ContentsPolicy::MaybeEmpty,
-        //         });
-        //     }
-        // }
-        // result.push(Self {
-        //     facet_name: None,
-        //     mime_types: Vec::new(),
-        //     patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
-        //     data: Some(packet.clone()),
-        //     writer: None,
-        //     contents_policy,
-        // });
-        // Ok(result)
-        todo!()
+        let mut result = Vec::with_capacity(definitions.len() + 1);
+        for d in definitions {
+            if !packet.dependencies.contains(&d.packet_hash) {
+                result.push(Self {
+                    facet_data: Some((d.name.clone(), d.packet_hash.clone())),
+                    mime_types: d.facet.mime_types.clone(),
+                    patterns: d
+                        .facet
+                        .patterns
+                        .iter()
+                        .map(|s| {
+                            glob::Pattern::new(&s[..]).wrap_err("Invalid glob pattern in facet.")
+                        })
+                        .collect::<eyre::Result<Vec<_>>>()?,
+                    data: Some(packet.clone()),
+                    writer: None,
+                    contents_policy: crate::ContentsPolicy::MaybeEmpty,
+                });
+            }
+        }
+        result.push(Self {
+            facet_data: None,
+            mime_types: Vec::new(),
+            patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
+            data: Some(packet.clone()),
+            writer: None,
+            contents_policy,
+        });
+        Ok(result)
     }
 
     fn full_debug_name(&self) -> String {
         let data = self.data.as_ref();
         let name = data.map_or("<unknown>".to_owned(), |p| p.name.to_string());
-        let facet = self.facet_name.as_ref().map_or(
-            crate::DEFAULT_FACET_NAME.to_string(),
-            gng_shared::Name::to_string,
-        );
+        let facet = self
+            .facet_data
+            .as_ref()
+            .map_or(crate::DEFAULT_FACET_NAME.to_string(), |(n, _)| {
+                n.to_string()
+            });
         let version = data.map_or("<unknown>".to_owned(), |p| p.version.to_string());
         format!("{}-{}-{}", &name, &facet, &version,)
     }
@@ -217,7 +218,7 @@ impl Facet {
                 .as_ref()
                 .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
 
-            self.writer = Some((factory)(&data.name, &self.facet_name, &data.version)?);
+            self.writer = Some((factory)(&data.name, &self.facet_data, &data.version)?);
             tracing::info!("Packet file for \"{}\" created", &self.full_debug_name());
         }
 
@@ -225,31 +226,29 @@ impl Facet {
     }
 
     fn write_packet_metadata(&mut self) -> eyre::Result<()> {
-        // let mut data = self
-        //     .data
-        //     .clone()
-        //     .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
+        let mut data = self
+            .data
+            .clone()
+            .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
 
-        // let mut description_suffix = String::new();
+        let mut description_suffix = String::new();
 
-        // if let Some(n) = &self.facet_name {
-        //     data.dependencies.insert(n.clone()); // Depend on base facet
-        //     data.dependencies.insert(data.name.clone()); // Depend on main facet
-        //     description_suffix = n.to_string();
-        // }
+        if let Some((n, h)) = &self.facet_data {
+            data.dependencies.push(h.clone()); // Depend on base facet
+            description_suffix = n.to_string();
+        }
 
-        // let facet_name = self
-        //     .facet_name
-        //     .as_ref()
-        //     .map(|n| std::ffi::OsString::from(n.to_string()));
-        // let writer = self.get_writer()?;
-        // let meta_data_directory = create_packet_meta_data_directory(
-        //     writer,
-        //     &std::ffi::OsString::from(data.name.to_string()),
-        //     &facet_name,
-        // )?;
+        let facet_name = self
+            .facet_data
+            .as_ref()
+            .map(|(n, _)| std::ffi::OsString::from(n.to_string()));
+        let writer = self.get_writer()?;
+        let meta_data_directory = create_packet_meta_data_directory(
+            writer,
+            &std::ffi::OsString::from(data.name.to_string()),
+            &facet_name,
+        )?;
 
-        // create_packet_meta_data(writer, &meta_data_directory, &data, &description_suffix)
-        todo!()
+        create_packet_meta_data(writer, &meta_data_directory, &data, &description_suffix)
     }
 }

@@ -511,7 +511,7 @@ impl CaseOfficer {
         }
     }
 
-    fn create_ctx<'a>(&self) -> crate::handler::Context {
+    fn create_ctx(&self) -> crate::handler::Context {
         crate::handler::Context {
             lua_directory: self.lua_directory.clone(),
             work_directory: self.work_directory.clone(),

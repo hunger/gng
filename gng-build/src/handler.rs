@@ -4,7 +4,6 @@
 //! A object used to handle events from the `CaseOfficer` from `gng-build-agent`
 
 use eyre::{Result, WrapErr};
-use gng_build_shared::Source;
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -34,68 +33,68 @@ fn package(
     source_package: &gng_build_shared::SourcePacket,
     ctx: &crate::handler::Context,
 ) -> Result<Vec<std::path::PathBuf>> {
-    // let mut packager = crate::PackagerBuilder::default();
+    let mut packager = crate::PackagerBuilder::default();
 
-    // let mut has_base_packet = false;
+    let mut has_base_packet = false;
 
-    // for pd in &source_package.packets {
-    //     if pd.name == source_package.name {
-    //         has_base_packet = true
-    //     }
+    for pd in &source_package.packets {
+        if pd.name == source_package.name {
+            has_base_packet = true
+        }
 
-    //     let p = packet_from(source_package)
-    //         .name(pd.name.clone())
-    //         .register_facet(pd.facet.clone())
-    //         .description(pd.description.clone())
-    //         .dependencies(pd.dependencies.clone())
-    //         .build()
-    //         .map_err(|e| gng_shared::Error::Runtime {
-    //             message: format!("Failed to define a packet: {}", e),
-    //         })?;
-    //     let patterns = pd
-    //         .files
-    //         .iter()
-    //         .map(|d| {
-    //             glob::Pattern::new(&d.to_string())
-    //                 .wrap_err("Failed to convert packet files to glob patterns.")
-    //         })
-    //         .collect::<Result<Vec<glob::Pattern>>>()?;
+        let p = packet_from(source_package)
+            .name(pd.name.clone())
+            .register_facet(pd.facet.clone())
+            .description(pd.description.clone())
+            // FIXME: Handle dependencies!
+            // .dependencies(pd.dependencies.clone())
+            .build()
+            .map_err(|e| gng_shared::Error::Runtime {
+                message: format!("Failed to define a packet: {}", e),
+            })?;
+        let patterns = pd
+            .files
+            .iter()
+            .map(|d| {
+                glob::Pattern::new(&d.to_string())
+                    .wrap_err("Failed to convert packet files to glob patterns.")
+            })
+            .collect::<Result<Vec<glob::Pattern>>>()?;
 
-    //     let contents_policy = if patterns.is_empty() {
-    //         crate::ContentsPolicy::Empty
-    //     } else {
-    //         crate::ContentsPolicy::NotEmpty
-    //     };
+        let contents_policy = if patterns.is_empty() {
+            crate::ContentsPolicy::Empty
+        } else {
+            crate::ContentsPolicy::NotEmpty
+        };
 
-    //     packager = packager.add_packet(&p, &patterns[..], contents_policy)?;
-    // }
+        packager = packager.add_packet(&p, &patterns[..], contents_policy)?;
+    }
 
-    // if !has_base_packet {
-    //     let p = packet_from(source_package)
-    //         .name(source_package.name.clone())
-    //         .description(source_package.description.clone())
-    //         .dependencies(gng_shared::Names::default())
-    //         .facet(None)
-    //         .build()
-    //         .map_err(|e| gng_shared::Error::Runtime {
-    //             message: format!("Failed to define a packet: {}", e),
-    //         })?;
+    if !has_base_packet {
+        let p = packet_from(source_package)
+            .name(source_package.name.clone())
+            .description(source_package.description.clone())
+            .dependencies(Vec::new())
+            .register_facet(None)
+            .build()
+            .map_err(|e| gng_shared::Error::Runtime {
+                message: format!("Failed to define a packet: {}", e),
+            })?;
 
-    //     packager = packager.add_packet(
-    //         &p,
-    //         &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
-    //         crate::ContentsPolicy::MaybeEmpty,
-    //     )?;
-    // }
+        packager = packager.add_packet(
+            &p,
+            &[glob::Pattern::new("**").wrap_err("Failed to register catch-all glob pattern.")?],
+            crate::ContentsPolicy::MaybeEmpty,
+        )?;
+    }
 
-    // packager
-    //     .build()?
-    //     .package(&ctx.install_directory, &std::env::current_dir()?)
-    //     .wrap_err(format!(
-    //         "Failed to package \"{}\".",
-    //         ctx.install_directory.to_string_lossy()
-    //     ))
-    todo!()
+    packager
+        .build()?
+        .package(&ctx.install_directory, &std::env::current_dir()?)
+        .wrap_err(format!(
+            "Failed to package \"{}\".",
+            ctx.install_directory.to_string_lossy()
+        ))
 }
 
 // ----------------------------------------------------------------------
@@ -309,46 +308,22 @@ impl Handler for ParseSourceDataHandler {
 }
 
 // ----------------------------------------------------------------------
-// - ValidatePacketsHandler:
+// - ValidateHandler:
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-pub struct ValidatePacketsHandler {
+pub struct ValidateHandler {
     source_packet_info: std::rc::Rc<SourcePacketInfo>,
 }
 
-impl ValidatePacketsHandler {
-    /// Create a new `ValidatePacketsHandler`.
+impl ValidateHandler {
+    /// Create a new `ValidateHandler`.
     pub const fn new(source_packet_info: std::rc::Rc<SourcePacketInfo>) -> Self {
         Self { source_packet_info }
     }
 }
 
-impl Handler for ValidatePacketsHandler {
-    #[tracing::instrument(level = "trace", skip(self, _ctx))]
-    fn handle(
-        &mut self,
-        _ctx: &Context,
-        mode: &crate::Mode,
-        message_type: &gng_build_shared::MessageType,
-        message: &str,
-    ) -> Result<bool> {
-        if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
-            let data: gng_build_shared::SourcePacket = serde_json::from_str(message)?;
-
-            let build_dependencies = data.build_dependencies.clone();
-            for p in &data.packets {
-                for pd in &p.dependencies {
-                    if !build_dependencies.contains(pd) {
-                        tracing::error!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd);
-                        return Err(eyre::eyre!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd));
-                    }
-                }
-            }
-        }
-        Ok(false)
-    }
-
+impl Handler for ValidateHandler {
     #[tracing::instrument(level = "trace", skip(self, _ctx))]
     fn verify(&mut self, _ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if *mode == crate::Mode::Query {
@@ -552,8 +527,7 @@ mod tests {
 
     #[test]
     fn validate_packet_handler_ok() {
-        let mut handler =
-            ValidatePacketsHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
+        let mut handler = ValidateHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
 
         let ctx = create_ctx();
 
@@ -585,8 +559,7 @@ mod tests {
 
     #[test]
     fn validate_packet_handler_err_wrong_dependencies() {
-        let mut handler =
-            ValidatePacketsHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
+        let mut handler = ValidateHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
 
         let ctx = create_ctx();
 

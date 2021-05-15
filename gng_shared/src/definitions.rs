@@ -506,14 +506,19 @@ pub struct Packet {
     pub bug_url: Option<String>,
 
     /// `Hash`es of the `Packet`s this `Packet` depends on.
+    #[builder(default)]
     pub dependencies: Vec<Hash>,
     /// `Hash`es of the `Facet`s of this `Packet`.
+    #[builder(default)]
     pub facets: Vec<PacketFacet>,
 
     /// A `Facet` made available by this `Packet`
+    #[builder(default)]
     pub register_facet: Option<Facet>,
 
     /// The `Hash` of this `Packet`
+    #[builder(setter(skip))]
+    #[builder(default)]
     pub hash: Hash,
 }
 

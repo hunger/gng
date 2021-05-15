@@ -345,7 +345,7 @@ fn calculate_repository_search_paths(
             let a = repositories[*a].repository();
             let b = repositories[*b].repository();
 
-            b.cmp(&a)
+            b.cmp(a)
         });
 
         tmp
