@@ -524,47 +524,4 @@ mod tests {
             .unwrap();
         handler.verify(&ctx, &crate::Mode::Query).unwrap();
     }
-
-    #[test]
-    fn validate_packet_handler_ok() {
-        let mut handler = ValidateHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
-
-        let ctx = create_ctx();
-
-        let mut mode = Some(crate::Mode::Query);
-        while let Some(m) = crate::Mode::next(mode.unwrap()) {
-            handler.prepare(&ctx, &m).unwrap();
-            handler
-                .handle(&ctx, &m, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":[],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
-                .unwrap();
-            handler.verify(&ctx, &m).unwrap();
-            mode = Some(m)
-        }
-
-        let mut mode = Some(crate::Mode::Query);
-        while let Some(m) = crate::Mode::next(mode.unwrap()) {
-            handler.prepare(&ctx, &m).unwrap();
-            handler
-                .handle(
-                    &ctx,
-                    &m,
-                    &gng_build_shared::MessageType::Test,
-                    r#"{"nXXX broken JSON"#,
-                )
-                .unwrap();
-            handler.verify(&ctx, &m).unwrap();
-            mode = Some(m)
-        }
-    }
-
-    #[test]
-    fn validate_packet_handler_err_wrong_dependencies() {
-        let mut handler = ValidateHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
-
-        let ctx = create_ctx();
-
-        assert!(handler
-            .handle(&ctx, &crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)
-            .is_err());
-    }
 }
