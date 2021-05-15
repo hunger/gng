@@ -4,6 +4,7 @@
 //! A object used to handle events from the `CaseOfficer` from `gng-build-agent`
 
 use eyre::{Result, WrapErr};
+use gng_build_shared::Source;
 use sha3::{Digest, Sha3_256};
 
 // - Helper:
@@ -117,6 +118,50 @@ pub struct Context {
 }
 
 // ----------------------------------------------------------------------
+// - SourcePacketInfo:
+// ----------------------------------------------------------------------
+
+/// A simple struct to provide access to the `SourcePacket` to handlers that need to care.
+pub struct SourcePacketInfo {
+    source_packet: std::cell::RefCell<Option<gng_build_shared::SourcePacket>>,
+}
+
+impl SourcePacketInfo {
+    /// Get the `SourcePacket`
+    ///
+    /// # Errors
+    /// Errors out if the `SourcePacket` has not been set yet!
+    pub fn get(&self) -> Result<gng_build_shared::SourcePacket> {
+        self.source_packet
+            .borrow()
+            .clone()
+            .ok_or_else(|| eyre::eyre!("SourcePacket has not been set yet!"))
+    }
+
+    /// Set the `SourcePacket`
+    ///
+    /// # Errors
+    /// Errors out if the `SourcePacket` has been set before!
+    pub fn set(&self, source_packet: gng_build_shared::SourcePacket) -> Result<()> {
+        let mut sp = self.source_packet.borrow_mut();
+        if sp.is_some() {
+            Err(eyre::eyre!("SourcePacket has already been set!"))
+        } else {
+            *sp = Some(source_packet);
+            Ok(())
+        }
+    }
+}
+
+impl Default for SourcePacketInfo {
+    fn default() -> Self {
+        Self {
+            source_packet: std::cell::RefCell::new(None),
+        }
+    }
+} // Default for SourcePacketInfo
+
+// ----------------------------------------------------------------------
 // - Handler:
 // ----------------------------------------------------------------------
 
@@ -126,7 +171,9 @@ pub trait Handler {
     ///
     /// # Errors
     /// Generic Error
-    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()>;
+    fn prepare(&mut self, _ctx: &Context, _mode: &crate::Mode) -> Result<()> {
+        Ok(())
+    }
 
     /// Handle one message from `gng-build-agent`
     ///
@@ -137,17 +184,21 @@ pub trait Handler {
     /// Generic Error
     fn handle(
         &mut self,
-        ctx: &Context,
-        mode: &crate::Mode,
-        message_type: &gng_build_shared::MessageType,
-        message: &str,
-    ) -> Result<bool>;
+        _ctx: &Context,
+        _mode: &crate::Mode,
+        _message_type: &gng_build_shared::MessageType,
+        _message: &str,
+    ) -> Result<bool> {
+        Ok(false)
+    }
 
     /// Verify state after `gng-build-agent` has quit successfully
     ///
     /// # Errors
     /// Generic Error
-    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()>;
+    fn verify(&mut self, _ctx: &Context, _mode: &crate::Mode) -> Result<()> {
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -155,7 +206,6 @@ pub trait Handler {
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-#[derive(Debug)]
 pub struct ImmutableSourceDataHandler {
     hash: Option<Vec<u8>>,
     first_message: bool,
@@ -168,19 +218,19 @@ impl Default for ImmutableSourceDataHandler {
             first_message: true,
         }
     }
-}
+} // Default for ImmutableSourceDataHandler
 
 impl Handler for ImmutableSourceDataHandler {
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
+    fn prepare(&mut self, _ctx: &Context, mode: &crate::Mode) -> Result<()> {
         self.first_message = true;
         Ok(())
     }
 
-    #[tracing::instrument(level = "trace", skip(ctx))]
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
     fn handle(
         &mut self,
-        ctx: &Context,
+        _ctx: &Context,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
@@ -201,17 +251,18 @@ impl Handler for ImmutableSourceDataHandler {
         match self.hash.as_ref() {
             None => {
                 self.hash = Some(v);
-                Ok(false)
             }
-            Some(vg) if *vg == v => Ok(false),
+            Some(vg) if *vg == v => {}
             Some(_) => {
                 panic!("gng-build-agent did not react as expected!");
             }
         }
+
+        Ok(false)
     }
 
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
+    fn verify(&mut self, _ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if self.first_message {
             panic!("gng-build-agent did not react as expected!");
         }
@@ -224,29 +275,60 @@ impl Handler for ImmutableSourceDataHandler {
 }
 
 // ----------------------------------------------------------------------
+// - ParseSourceDataHandler:
+// ----------------------------------------------------------------------
+
+/// Make sure the source as seen by the `gng-build-agent` stays constant
+pub struct ParseSourceDataHandler {
+    source_packet_info: std::rc::Rc<SourcePacketInfo>,
+}
+
+impl ParseSourceDataHandler {
+    /// Create a new `ImmutableSourceDataHandler`
+    pub const fn new(source_packet_info: std::rc::Rc<SourcePacketInfo>) -> Self {
+        Self { source_packet_info }
+    }
+}
+
+impl Handler for ParseSourceDataHandler {
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
+    fn handle(
+        &mut self,
+        _ctx: &Context,
+        mode: &crate::Mode,
+        message_type: &gng_build_shared::MessageType,
+        message: &str,
+    ) -> Result<bool> {
+        if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
+            let data: gng_build_shared::SourcePacket = serde_json::from_str(message)?;
+            self.source_packet_info.set(data)?;
+        }
+
+        Ok(false)
+    }
+}
+
+// ----------------------------------------------------------------------
 // - ValidatePacketsHandler:
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-#[derive(Debug)]
-pub struct ValidatePacketsHandler {}
+pub struct ValidatePacketsHandler {
+    source_packet_info: std::rc::Rc<SourcePacketInfo>,
+}
 
-impl Default for ValidatePacketsHandler {
-    fn default() -> Self {
-        Self {}
+impl ValidatePacketsHandler {
+    /// Create a new `ValidatePacketsHandler`.
+    pub const fn new(source_packet_info: std::rc::Rc<SourcePacketInfo>) -> Self {
+        Self { source_packet_info }
     }
 }
 
 impl Handler for ValidatePacketsHandler {
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
-        Ok(())
-    }
-
-    #[tracing::instrument(level = "trace", skip(ctx))]
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
     fn handle(
         &mut self,
-        ctx: &Context,
+        _ctx: &Context,
         mode: &crate::Mode,
         message_type: &gng_build_shared::MessageType,
         message: &str,
@@ -267,8 +349,20 @@ impl Handler for ValidatePacketsHandler {
         Ok(false)
     }
 
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
+    #[tracing::instrument(level = "trace", skip(self, _ctx))]
+    fn verify(&mut self, _ctx: &Context, mode: &crate::Mode) -> Result<()> {
+        if *mode == crate::Mode::Query {
+            let source_packet = self.source_packet_info.get()?;
+            let build_dependencies = source_packet.build_dependencies.clone();
+            for p in &source_packet.packets {
+                for pd in &p.dependencies {
+                    if !build_dependencies.contains(pd) {
+                        tracing::error!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd);
+                        return Err(eyre::eyre!("Packet \"{}\" has a dependency \"{}\" that is not a build dependency of the Source Packet.", &p.name, pd));
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -278,49 +372,26 @@ impl Handler for ValidatePacketsHandler {
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-#[derive(Debug)]
 pub struct PackagingHandler {
-    source_packet: Option<gng_build_shared::SourcePacket>,
+    source_packet_info: std::rc::Rc<SourcePacketInfo>,
 }
 
-impl Default for PackagingHandler {
-    fn default() -> Self {
-        Self {
-            source_packet: None,
-        }
+impl PackagingHandler {
+    /// Create a new `PackagingHandler`.
+    pub const fn new(source_packet_info: std::rc::Rc<SourcePacketInfo>) -> Self {
+        Self { source_packet_info }
     }
 }
 
 impl Handler for PackagingHandler {
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn prepare(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
-        Ok(())
-    }
-
-    #[tracing::instrument(level = "trace", skip(ctx))]
-    fn handle(
-        &mut self,
-        ctx: &Context,
-        mode: &crate::Mode,
-        message_type: &gng_build_shared::MessageType,
-        message: &str,
-    ) -> Result<bool> {
-        if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
-            self.source_packet = serde_json::from_str(message)?;
-        }
-        Ok(false)
-    }
-
-    #[tracing::instrument(level = "trace", skip(ctx))]
+    #[tracing::instrument(level = "trace", skip(self, ctx))]
     fn verify(&mut self, ctx: &Context, mode: &crate::Mode) -> Result<()> {
         if *mode != crate::Mode::Package {
             return Ok(());
         }
 
-        match &self.source_packet {
-            Some(source_packet) => package(source_packet, ctx).map(|_| ()),
-            None => Err(eyre::eyre!("Can not package: No data found!")),
-        }
+        let source_packet = self.source_packet_info.get()?;
+        package(&source_packet, ctx).map(|_| ())
     }
 }
 
@@ -481,7 +552,8 @@ mod tests {
 
     #[test]
     fn validate_packet_handler_ok() {
-        let mut handler = ValidatePacketsHandler::default();
+        let mut handler =
+            ValidatePacketsHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
 
         let ctx = create_ctx();
 
@@ -513,7 +585,8 @@ mod tests {
 
     #[test]
     fn validate_packet_handler_err_wrong_dependencies() {
-        let mut handler = ValidatePacketsHandler::default();
+        let mut handler =
+            ValidatePacketsHandler::new(std::rc::Rc::new(SourcePacketInfo::default()));
 
         let ctx = create_ctx();
 

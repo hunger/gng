@@ -109,6 +109,8 @@ fn main() -> Result<()> {
     //     )
     // })?;
 
+    let source_packet_info = std::rc::Rc::new(gng_build::handler::SourcePacketInfo::default());
+
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
     if let Some(tmp) = &args.lua_dir {
         case_officer.set_lua_directory(tmp);
@@ -130,10 +132,15 @@ fn main() -> Result<()> {
         .add_handler(Box::new(
             gng_build::handler::ImmutableSourceDataHandler::default(),
         ))
-        .add_handler(Box::new(
-            gng_build::handler::ValidatePacketsHandler::default(),
-        ))
-        .add_handler(Box::new(gng_build::handler::PackagingHandler::default()))
+        .add_handler(Box::new(gng_build::handler::ParseSourceDataHandler::new(
+            source_packet_info.clone(),
+        )))
+        .add_handler(Box::new(gng_build::handler::ValidatePacketsHandler::new(
+            source_packet_info.clone(),
+        )))
+        .add_handler(Box::new(gng_build::handler::PackagingHandler::new(
+            source_packet_info,
+        )))
         .build(&args.pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
