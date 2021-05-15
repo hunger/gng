@@ -15,20 +15,25 @@ type NamePacketsMap = BTreeMap<Name, Packet>;
 type RepositoryPacketsMap = BTreeMap<Uuid, NamePacketsMap>;
 
 // ----------------------------------------------------------------------
-// - RepositoryPacketDb:
+// - PacketDb:
 // ----------------------------------------------------------------------
 
 /// A `Db` of gng `Packet`s and related information
 #[derive(Clone, Debug)]
-pub struct RepositoryPacketDb {
+pub struct PacketDb {
     repository_packet_db: RepositoryPacketsMap,
 }
 
-impl RepositoryPacketDb {
+impl PacketDb {
+    /// Reset the `PacketDb`
     pub fn reset_db(&mut self) {
         self.repository_packet_db = RepositoryPacketsMap::new();
     }
 
+    /// Add a new `Repository` to the `PacketDb`
+    ///
+    /// # Errors
+    /// `Error::Packet` might be returned, if the `Repository` is already known.
     pub fn add_repository(&mut self, repository: &Uuid, packets: &[Packet]) -> Result<()> {
         let packet_map = packets
             .iter()
@@ -37,10 +42,14 @@ impl RepositoryPacketDb {
 
         self.repository_packet_db
             .try_insert(*repository, packet_map)
-            .map_err(|e| Error::Db(format!("Repository {} already known: {}", repository, e)))
+            .map_err(|e| Error::Packet(format!("Repository {} already known: {}", repository, e)))
             .map(|_| ())
     }
 
+    /// Remove a `Repository` from the `PacketDB` again.
+    ///
+    /// # Errors
+    /// `Error::Packet` might be returned, if the `Repository` is already known.
     pub fn remove_repository(&mut self, repository: &Uuid) -> Result<()> {
         match self.repository_packet_db.remove(repository) {
             Some(_) => Ok(()),
@@ -50,6 +59,7 @@ impl RepositoryPacketDb {
 
     /// Resolve a `Packet` by its `name`, using a `search_path` of `Repository`s.
     #[allow(clippy::map_flatten)]
+    #[must_use]
     pub fn resolve_packet(&self, name: &Name, search_path: &[&Uuid]) -> Option<(Packet, Uuid)> {
         let mut r = self.resolve_all_packets(name, search_path);
         if r.is_empty() {
@@ -61,6 +71,7 @@ impl RepositoryPacketDb {
 
     /// Resolve a `Packet` by its `name`, using a `search_path` of `Repository`s.
     #[allow(clippy::map_flatten)]
+    #[must_use]
     pub fn resolve_all_packets(&self, name: &Name, search_path: &[&Uuid]) -> Vec<(Packet, Uuid)> {
         search_path
             .iter()
@@ -76,42 +87,52 @@ impl RepositoryPacketDb {
 
     /// Add a new `Packet` to the DB.
     /// Returns an `Option<Hash>` which will contain a Hash that is no longer used.
+    ///
+    /// # Errors
+    /// `Error::Packet` might be returned, if the `Repository` is not known.
     pub fn add_packet(&mut self, repository: &Uuid, packet: Packet) -> Result<Option<Packet>> {
         let name = packet.name.clone();
 
         Ok(self
             .repository_packet_db
             .get_mut(repository)
-            .ok_or_else(|| Error::Repository(format!("Repository {} not known.", repository)))?
+            .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
             .insert(name, packet))
     }
 
     /// Remove a `Packet` from the DB.
     /// Returns an `Option<Hash>` which will contain a Hash that is no longer used.
+    ///
+    /// # Errors
+    /// `Error::Packet` might be returned, if the `Repository` or the `Packet` is not known.
     pub fn remove_packet(&mut self, repository: &Uuid, name: &Name) -> Result<Packet> {
         self.repository_packet_db
             .get_mut(repository)
-            .ok_or_else(|| Error::Repository(format!("Repository {} not known.", repository)))?
+            .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
             .remove(name)
             .ok_or_else(|| {
-                Error::Repository(format!(
+                Error::Packet(format!(
                     "Packet {} not found in repository {}.",
                     &name, &repository
                 ))
             })
     }
 
+    /// List all `Packet`s in a `Repository`
+    ///
+    /// # Errors
+    /// `Error::Packet` might be returned, if the `Repository` is not known.
     pub fn list_packets(&self, repository: &Uuid) -> Result<Vec<&Packet>> {
         Ok(self
             .repository_packet_db
             .get(repository)
-            .ok_or_else(|| Error::Repository(format!("Repository {} not known.", repository)))?
+            .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
             .values()
             .collect())
     }
 }
 
-impl Default for RepositoryPacketDb {
+impl Default for PacketDb {
     #[tracing::instrument(level = "trace")]
     fn default() -> Self {
         Self {
@@ -149,7 +170,7 @@ mod tests {
 
     #[test]
     fn add_remove_repository_ok() {
-        let mut db = RepositoryPacketDb::default();
+        let mut db = PacketDb::default();
         assert!(db.repository_packet_db.is_empty());
 
         let uuid = Uuid::new_v4();

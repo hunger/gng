@@ -478,18 +478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gng-db"
-version = "0.1.0"
-dependencies = [
- "clap",
- "eyre",
- "gng_db",
- "gng_shared",
- "temp-dir",
- "tracing",
-]
-
-[[package]]
 name = "gng_build_shared"
 version = "0.1.0"
 dependencies = [

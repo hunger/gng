@@ -102,9 +102,7 @@ fn package(
 // ----------------------------------------------------------------------
 
 /// A `Context` in which a `Handler` is run
-pub struct Context<'a> {
-    /// The gng `Db` to work with.
-    pub db: &'a dyn gng_db::Db,
+pub struct Context {
     /// The Lua directory with additional Lua files.
     pub lua_directory: std::path::PathBuf,
     /// The directory the build script can work in
@@ -334,10 +332,9 @@ impl Handler for PackagingHandler {
 mod tests {
     use super::*;
 
-    fn create_ctx(db: &dyn gng_db::Db) -> Context {
+    fn create_ctx() -> Context {
         let tmp = std::path::PathBuf::from(".");
         Context {
-            db,
             lua_directory: tmp.clone(),
             work_directory: tmp.clone(),
             install_directory: tmp.clone(),
@@ -349,8 +346,7 @@ mod tests {
     fn immutable_source_data_handler_ok() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+        let ctx = create_ctx();
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
@@ -371,8 +367,7 @@ mod tests {
     fn immutable_source_data_handler_ok_data_same() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+        let ctx = create_ctx();
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -402,8 +397,7 @@ mod tests {
     fn immutable_source_data_handler_no_data_message() {
         let mut handler = ImmutableSourceDataHandler::default();
 
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+        let ctx = create_ctx();
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler.verify(&ctx, &crate::Mode::Prepare).unwrap();
@@ -413,8 +407,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_double_data() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+
+        let ctx = create_ctx();
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -440,8 +434,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_non_data() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+
+        let ctx = create_ctx();
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -459,8 +453,8 @@ mod tests {
     #[should_panic(expected = "gng-build-agent did not react as expected!")]
     fn immutable_source_data_handler_data_changed() {
         let mut handler = ImmutableSourceDataHandler::default();
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+
+        let ctx = create_ctx();
 
         handler.prepare(&ctx, &crate::Mode::Prepare).unwrap();
         handler
@@ -488,8 +482,8 @@ mod tests {
     #[test]
     fn validate_packet_handler_ok() {
         let mut handler = ValidatePacketsHandler::default();
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+
+        let ctx = create_ctx();
 
         let mut mode = Some(crate::Mode::Query);
         while let Some(m) = crate::Mode::next(mode.unwrap()) {
@@ -520,8 +514,8 @@ mod tests {
     #[test]
     fn validate_packet_handler_err_wrong_dependencies() {
         let mut handler = ValidatePacketsHandler::default();
-        let db = gng_db::empty_db();
-        let ctx = create_ctx(&db);
+
+        let ctx = create_ctx();
 
         assert!(handler
             .handle(&ctx, &crate::Mode::Query, &gng_build_shared::MessageType::Data, r#"{"name":"filesystem","description":"Basic filesystem layout and facets","version":"1.0.0-1","license":"GPL-v3-or-later","url":null,"bug_url":null,"bootstrap":true,"build_dependencies":["foo"],"check_dependencies":[],"sources":[],"packets":[{"name":"dev","description":"Development files","dependencies":["bar"],"files":[],"facet":{"description_suffix":"development files","mime_types":[],"patterns":["include/**"]}}]}"#)

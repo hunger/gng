@@ -16,8 +16,7 @@
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 use gng_db::{
-    db::Db, LocalRepository, RemoteRepository, Repository, RepositoryRelation, RepositorySource,
-    Uuid,
+    LocalRepository, RemoteRepository, Repository, RepositoryRelation, RepositorySource, Uuid,
 };
 
 use clap::Clap;

@@ -35,6 +35,10 @@ struct Args {
     db_dir: PathBuf,
 
     /// the directory containing the Lua runtime environment
+    #[clap(long, value_name = "REPO")]
+    repository: Option<String>,
+
+    /// the directory containing the Lua runtime environment
     #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
     lua_dir: Option<PathBuf>,
 
@@ -90,7 +94,20 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    let db = gng_db::open(&args.db_dir)?;
+    let pkgsrc_dir = args
+        .pkgsrc_dir
+        .canonicalize() // FIXME: Just make absolute!
+        .wrap_err("Failed to canonicalize pkgsrc path.")?;
+
+    // let repo = match &args.repository {
+    //     Some(rin) => db.resolve_repository(rin),
+    //     None => db.repository_for_packet_source_path(&pkgsrc_dir),
+    // }
+    // .ok_or_else(|| {
+    //     eyre::eyre!(
+    //         "Could not find repository to adopt the build result into. Please make sure some repository feels responsible for the packet source directory or provide --repository."
+    //     )
+    // })?;
 
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
     if let Some(tmp) = &args.lua_dir {
@@ -120,7 +137,7 @@ fn main() -> Result<()> {
         .build(&args.pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
-    case_officer.process(&db)?;
+    case_officer.process()?;
 
     Ok(())
 }

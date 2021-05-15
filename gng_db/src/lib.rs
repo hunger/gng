@@ -52,15 +52,17 @@ pub type Result<T> = std::result::Result<T, Error>;
 // - Modules:
 // ----------------------------------------------------------------------
 
-pub mod db;
+pub mod packet_db;
+pub mod repository_db;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
-pub use db::Db;
-
 pub use uuid::Uuid; // Reexport Uuid from uuid crate!
+
+pub use packet_db::PacketDb;
+pub use repository_db::RepositoryDb;
 
 // ----------------------------------------------------------------------
 // - Structures:
@@ -202,24 +204,20 @@ impl PartialEq for Repository {
     }
 }
 
-// ----------------------------------------------------------------------
-// - Functions:
-// ----------------------------------------------------------------------
+impl Eq for Repository {}
 
-/// Open a `Repository`
-///
-/// # Errors
-///  * `Error::WrongSchema` if the repository does not use a supported schema version
-///  *`Error::Backend` if the Backend has trouble reading the repository data
-#[tracing::instrument(level = "trace")]
-pub fn open(path: &std::path::Path) -> Result<impl Db> {
-    let mut db = db::DbImpl::default();
-    db.load(path)?;
-    Ok(db)
+impl PartialOrd for Repository {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
-/// Open a empty `Repository`
-#[tracing::instrument(level = "trace")]
-pub fn empty_db() -> impl Db {
-    db::DbImpl::default()
+impl Ord for Repository {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.priority.cmp(&other.priority) {
+            std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
+            std::cmp::Ordering::Equal => self.uuid.cmp(&other.uuid),
+            std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
+        }
+    }
 }
