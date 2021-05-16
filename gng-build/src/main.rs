@@ -31,8 +31,24 @@ struct Args {
     config: Option<PathBuf>,
 
     /// the directory containing the Lua runtime environment
-    #[clap(long, parse(from_os_str), env = "GNG_DB_DIR", value_name = "DIR")]
+    #[clap(
+        long,
+        parse(from_os_str),
+        env = "GNG_DB_DIR",
+        value_name = "DIR",
+        default_value("/var/cache/gng/packets")
+    )]
     db_dir: PathBuf,
+
+    /// the directory containing the Lua runtime environment
+    #[clap(
+        long,
+        parse(from_os_str),
+        env = "GNG_REPO_CONFIG_DIR",
+        value_name = "DIR",
+        default_value = "/etc/gng/repositories"
+    )]
+    repository_config_dir: PathBuf,
 
     /// the directory containing the Lua runtime environment
     #[clap(long, value_name = "REPO")]
@@ -99,15 +115,21 @@ fn main() -> Result<()> {
         .canonicalize() // FIXME: Just make absolute!
         .wrap_err("Failed to canonicalize pkgsrc path.")?;
 
-    // let repo = match &args.repository {
-    //     Some(rin) => db.resolve_repository(rin),
-    //     None => db.repository_for_packet_source_path(&pkgsrc_dir),
-    // }
-    // .ok_or_else(|| {
-    //     eyre::eyre!(
-    //         "Could not find repository to adopt the build result into. Please make sure some repository feels responsible for the packet source directory or provide --repository."
-    //     )
-    // })?;
+    let repo_db = gng_db::RepositoryDb::open(&args.repository_config_dir).wrap_err(format!(
+        "Failed to read repositories in {}.",
+        &args.repository_config_dir.display()
+    ))?;
+
+    let repo = match &args.repository {
+        Some(rin) => repo_db.resolve_repository(rin),
+        None => repo_db.repository_for_packet_source_path(&pkgsrc_dir),
+    }
+    .ok_or_else(|| {
+        eyre::eyre!(
+            "Could not find repository to adopt the build result into. Please make sure some repository feels responsible for the packet source directory or provide --repository."
+        )
+    })?;
+    tracing::debug!("Inserting packets into repository {}.", repo);
 
     let source_packet_info = std::rc::Rc::new(gng_build::handler::SourcePacketInfo::default());
 

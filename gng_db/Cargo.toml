@@ -10,6 +10,7 @@ repository = "https://github.com/hunger/gng"
 
 [dependencies]
 gng_shared = { path = "../gng_shared" }
+justconfig = { version = "1.0" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 thiserror = { version = "1.0" }

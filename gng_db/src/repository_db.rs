@@ -383,7 +383,10 @@ fn update_repository_search_paths(repositories: &mut [RepositoryIntern]) -> Resu
         r.search_paths = sp;
     }
 
-    assert!(!global_repository_search_path.is_empty());
+    assert_eq!(
+        global_repository_search_path.is_empty(),
+        repositories.is_empty()
+    );
     Ok(global_repository_search_path)
 }
 
@@ -404,7 +407,7 @@ impl RepositoryDb {
     /// # Errors
     /// Return `Error::Repository` if there are inconsistencies discovered while loading the repositories
     pub fn open(repository_directory: &std::path::Path) -> Result<Self> {
-        let mut repositories = backend::read_repositories(repository_directory)?
+        let mut repositories = backend::read_repositories(&[repository_directory])?
             .into_iter()
             .map(RepositoryIntern::new)
             .collect::<Vec<_>>();
@@ -507,45 +510,262 @@ impl Default for RepositoryDb {
 // ----------------------------------------------------------------------
 
 mod backend {
-    use crate::{Error, Repository, Result};
+    use crate::{Error, LocalRepository, RemoteRepository, Repository, Result};
 
-    pub fn read_repositories(repository_directory: &std::path::Path) -> Result<Vec<Repository>> {
-        let mut result = Vec::new();
+    use justconfig::item::StringItem;
+    use justconfig::item::ValueExtractor;
+    use justconfig::processors::Trim;
+    use justconfig::sources::defaults::Defaults;
+    use justconfig::sources::env::Env;
+    use justconfig::sources::text::ConfigText;
+    use justconfig::validators::Range;
+    use justconfig::ConfPath;
+    use justconfig::Config;
+    use serde_json::map;
 
-        if let Ok(repository_files) = std::fs::read_dir(repository_directory) {
-            for entry in repository_files {
-                match entry {
-                    Ok(entry) => {
-                        let file_name = entry.file_name().to_string_lossy().to_string();
-                        if file_name
-                            .rsplit('.')
-                            .next()
-                            .map(|ext| ext.eq_ignore_ascii_case("json"))
-                            != Some(true)
-                        {
-                            tracing::debug!("\"{}\" is not a .repo file, skipping.", file_name);
-                            continue; // ignore non-json files!
-                        }
+    use std::convert::TryFrom;
+    use std::str::FromStr;
 
-                        let fd = std::fs::OpenOptions::new()
-                            .read(true)
-                            .open(entry.path())
-                            .map_err(|e| {
-                                Error::Repository(format!(
-                                    "Failed to open repository data \"{}\": {}.",
-                                    file_name, e
-                                ))
-                            })?;
-                        result.push(serde_json::from_reader(fd).map_err(|e| {
-                            Error::Repository(format!("Failed to parse \"{}\": {}.", file_name, e))
-                        })?);
-                    }
-                    Err(e) => tracing::warn!("Could not retrieve directory data: {}", e),
+    fn probe_for_filenames(
+        directories: &[&std::path::Path],
+    ) -> Result<std::collections::HashSet<std::ffi::OsString>> {
+        let repo_file_extension: &std::ffi::OsStr = std::ffi::OsStr::new("conf");
+
+        let mut result = std::collections::HashSet::new();
+
+        for d in directories {
+            tracing::debug!(
+                "Probing directory {} for repository configuration",
+                d.display()
+            );
+            for f in d.read_dir()? {
+                let f_path = f?.path();
+                if !f_path.is_file() {
+                    tracing::trace!("    Skipping {}: Not a file.", f_path.display());
+                    continue;
                 }
+                if let Some(extension) = f_path.extension() {
+                    if extension == repo_file_extension {
+                        result.insert(
+                            f_path
+                                .file_name()
+                                .expect("Extension was Some, so file_name should be, too.")
+                                .to_owned(),
+                        );
+                        tracing::trace!("    Adding {}.", f_path.display());
+                        continue;
+                    }
+                    tracing::trace!("    Skipping {}: Extension is not .conf.", f_path.display());
+                    continue;
+                }
+                tracing::trace!("    Skipping {}: Not file extension.", f_path.display());
             }
         }
 
         Ok(result)
+    }
+
+    struct RepositoryData {
+        pub name: gng_shared::Name,
+        pub uuid: crate::Uuid,
+        pub priority: u32,
+
+        pub relation_override_uuid: Option<String>,
+        pub relation_dependency_uuids: Vec<String>,
+
+        pub source_local_sources_base_directory: Option<std::path::PathBuf>,
+        pub source_local_export_directory: Option<std::path::PathBuf>,
+        pub source_remote_remote_url: Option<String>,
+        pub source_remote_packets_url: Option<String>,
+    }
+
+    fn v<T>(conf: &justconfig::Config, path: &[&str]) -> Option<T>
+    where
+        T: FromStr,
+        <T as std::str::FromStr>::Err: std::error::Error + 'static,
+    {
+        conf.get(justconfig::ConfPath::default().push_all(path))
+            .trim()
+            .value()
+            .ok()
+    }
+
+    fn vs<T>(conf: &justconfig::Config, path: &[&str]) -> Option<Vec<T>>
+    where
+        T: FromStr,
+        <T as std::str::FromStr>::Err: std::error::Error + 'static,
+    {
+        conf.get(justconfig::ConfPath::default().push_all(path))
+            .trim()
+            .values(..)
+            .ok()
+    }
+
+    fn create_config_file_parser(
+        f: &std::ffi::OsString,
+        repository_directories: &[&std::path::Path],
+    ) -> Result<Config> {
+        let mut conf_path = ConfPath::default();
+        let mut conf = Config::default();
+        justconfig::sources::text::stack_config(
+            &mut conf,
+            Some(&mut conf_path),
+            f,
+            repository_directories,
+        )
+        .map_err(|e| {
+            Error::Repository(format!(
+                "Failed to read repository configuration \"{}\": {}",
+                f.to_string_lossy(),
+                e
+            ))
+        })?;
+
+        Ok(conf)
+    }
+
+    fn repository_data_from(conf: &Config) -> Result<RepositoryData> {
+        let rd = RepositoryData {
+            name: gng_shared::Name::try_from(
+                v::<String>(conf, &["name"]).unwrap_or_else(|| "<unset>".to_string()),
+            )
+            .map_err(|e| Error::Repository(format!("Conversion of name failed: {}", e)))?,
+            uuid: crate::Uuid::parse_str(
+                &v::<String>(conf, &["uuid"]).unwrap_or_else(|| "<unset>".to_string()),
+            )
+            .map_err(|e| Error::Repository(format!("Conversion of uuid failed: {}", e)))?,
+            priority: v(conf, &["priority"]).unwrap_or(1500),
+            relation_override_uuid: v(conf, &["overrides"]),
+            relation_dependency_uuids: vs(conf, &["depends_on"]).unwrap_or_else(Vec::new),
+            source_local_sources_base_directory: v(conf, &["Local", "sources_directory"]),
+            source_local_export_directory: v(conf, &["Local", "export_directory"]),
+            source_remote_remote_url: v(conf, &["Remote", "repository_url"]),
+            source_remote_packets_url: v(conf, &["Remote", "packets_url"]),
+        };
+
+        if rd.relation_override_uuid.is_some() && !rd.relation_dependency_uuids.is_empty() {
+            return Err(Error::Repository(
+                "Repository can not override and depend on other repositories.".to_string(),
+            ));
+        }
+
+        let has_remote =
+            rd.source_remote_packets_url.is_some() || rd.source_remote_remote_url.is_some();
+        let has_local = rd.source_local_export_directory.is_some()
+            || rd.source_local_sources_base_directory.is_some();
+
+        if has_remote && has_local {
+            return Err(Error::Repository(
+                "Repository can not have \"Local\" and \"Remote\" configuration.".to_string(),
+            ));
+        }
+        if !has_remote && !has_local {
+            return Err(Error::Repository(
+                "Repository must have either a \"Local\" or a \"Remote\" configuration."
+                    .to_string(),
+            ));
+        }
+
+        if has_remote && rd.source_remote_packets_url.is_none() {
+            return Err(Error::Repository(
+                "Remote repository must have a \"Remote.packets_url\" key.".to_string(),
+            ));
+        }
+        if has_remote && rd.source_remote_remote_url.is_none() {
+            return Err(Error::Repository(
+                "Remote repository must have a \"Remote.repository_url\" key.".to_string(),
+            ));
+        }
+
+        if has_local && rd.source_local_sources_base_directory.is_none() {
+            return Err(Error::Repository(
+                "Local repository must have a \"Local.sources_directory\" key.".to_string(),
+            ));
+        }
+
+        Ok(rd)
+    }
+
+    fn map_to_uuid(repositories: &[RepositoryData], repo: &str) -> Result<crate::Uuid> {
+        crate::Uuid::parse_str(repo).or_else(|_| {
+            let v = repositories
+                .iter()
+                .find(|rd| rd.name.to_string().as_str() == repo)
+                .map(|rd| rd.uuid);
+            v.ok_or_else(|| Error::Repository(format!("Could not find repository \"{}\".", repo)))
+        })
+    }
+
+    pub fn read_repositories(
+        repository_directories: &[&std::path::Path],
+    ) -> Result<Vec<Repository>> {
+        let files = probe_for_filenames(repository_directories)?;
+        let mut name_uuid_map = std::collections::HashMap::with_capacity(files.len());
+        let mut repo_data = Vec::with_capacity(files.len());
+
+        for f in files {
+            let conf = create_config_file_parser(&f, repository_directories)?;
+
+            tracing::trace!("Reading configuration from {}", f.to_string_lossy());
+            let rd = repository_data_from(&conf)?;
+
+            tracing::trace!(
+                "{}: {}, {}, {}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}.",
+                &f.to_string_lossy(),
+                &rd.name,
+                &rd.uuid,
+                &rd.priority,
+                &rd.relation_override_uuid,
+                &rd.relation_dependency_uuids,
+                &rd.source_local_sources_base_directory,
+                &rd.source_local_export_directory,
+                &rd.source_remote_remote_url,
+                &rd.source_remote_packets_url
+            );
+
+            name_uuid_map.insert(rd.name.clone(), rd.uuid);
+            repo_data.push(rd);
+        }
+
+        repo_data
+            .iter()
+            .map(|rd| -> Result<Repository> {
+                let relation = if let Some(repo) = &rd.relation_override_uuid {
+                    let uuid = map_to_uuid(&repo_data, repo)?;
+                    crate::RepositoryRelation::Override(uuid)
+                } else {
+                    let depends_on = rd
+                        .relation_dependency_uuids
+                        .iter()
+                        .map(|d| map_to_uuid(&repo_data, d))
+                        .collect::<Result<Vec<_>>>()?;
+                    crate::RepositoryRelation::Dependency(depends_on)
+                };
+
+                let source = if let Some(ru) = &rd.source_remote_remote_url {
+                    crate::RepositorySource::Remote(RemoteRepository {
+                        remote_url: ru.clone(),
+                        packets_url: rd.source_remote_packets_url.clone(),
+                    })
+                } else {
+                    crate::RepositorySource::Local(LocalRepository {
+                        sources_base_directory: rd
+                            .source_local_sources_base_directory
+                            .clone()
+                            .expect("Was Some when this was validated above!"),
+                        export_directory: rd.source_local_export_directory.clone(),
+                    })
+                };
+
+                Ok(Repository {
+                    name: rd.name.clone(),
+                    uuid: rd.uuid,
+                    priority: rd.priority,
+                    relation,
+                    source,
+                })
+            })
+            .collect::<Result<Vec<_>>>()
     }
 }
 
