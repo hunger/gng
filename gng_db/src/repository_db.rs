@@ -512,16 +512,7 @@ impl Default for RepositoryDb {
 mod backend {
     use crate::{Error, LocalRepository, RemoteRepository, Repository, Result};
 
-    use justconfig::item::StringItem;
-    use justconfig::item::ValueExtractor;
-    use justconfig::processors::Trim;
-    use justconfig::sources::defaults::Defaults;
-    use justconfig::sources::env::Env;
-    use justconfig::sources::text::ConfigText;
-    use justconfig::validators::Range;
-    use justconfig::ConfPath;
-    use justconfig::Config;
-    use serde_json::map;
+    use justconfig::{item::ValueExtractor, processors::Trim, ConfPath, Config};
 
     use std::convert::TryFrom;
     use std::str::FromStr;

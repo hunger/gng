@@ -110,10 +110,9 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    let pkgsrc_dir = args
-        .pkgsrc_dir
-        .canonicalize() // FIXME: Just make absolute!
-        .wrap_err("Failed to canonicalize pkgsrc path.")?;
+    let pkgsrc_dir = std::env::current_dir()
+        .wrap_err("Failed to get current work directory.")?
+        .join(args.pkgsrc_dir);
 
     let repo_db = gng_db::RepositoryDb::open(&args.repository_config_dir).wrap_err(format!(
         "Failed to read repositories in {}.",
@@ -163,7 +162,7 @@ fn main() -> Result<()> {
         .add_handler(Box::new(gng_build::handler::PackagingHandler::new(
             source_packet_info,
         )))
-        .build(&args.pkgsrc_dir)
+        .build(&pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
     case_officer.process()?;
