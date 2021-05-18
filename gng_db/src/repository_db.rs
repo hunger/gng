@@ -733,20 +733,23 @@ mod backend {
                     crate::RepositoryRelation::Dependency(depends_on)
                 };
 
-                let source = if let Some(ru) = &rd.source_remote_remote_url {
-                    crate::RepositorySource::Remote(RemoteRepository {
-                        remote_url: ru.clone(),
-                        packets_url: rd.source_remote_packets_url.clone(),
-                    })
-                } else {
-                    crate::RepositorySource::Local(LocalRepository {
-                        sources_base_directory: rd
-                            .source_local_sources_base_directory
-                            .clone()
-                            .expect("Was Some when this was validated above!"),
-                        export_directory: rd.source_local_export_directory.clone(),
-                    })
-                };
+                let source = rd.source_remote_remote_url.as_ref().map_or_else(
+                    || {
+                        crate::RepositorySource::Local(LocalRepository {
+                            sources_base_directory: rd
+                                .source_local_sources_base_directory
+                                .clone()
+                                .expect("Was Some when this was validated above!"),
+                            export_directory: rd.source_local_export_directory.clone(),
+                        })
+                    },
+                    |ru| {
+                        crate::RepositorySource::Remote(RemoteRepository {
+                            remote_url: ru.clone(),
+                            packets_url: rd.source_remote_packets_url.clone(),
+                        })
+                    },
+                );
 
                 Ok(Repository {
                     name: rd.name.clone(),
