@@ -439,8 +439,8 @@ impl CaseOfficer {
             OsString::from("--quiet"),
             OsString::from("--settings=off"),
             OsString::from("--register=off"),
-            // OsString::from("-U"), // --private-users=pick or no user name-spacing
             OsString::from("--private-network"),
+            OsString::from("--private-users=pick"),
             OsString::from("--resolv-conf=off"),
             OsString::from("--timezone=off"),
             OsString::from("--link-journal=no"),
@@ -449,7 +449,6 @@ impl CaseOfficer {
             OsString::from(format!("--uuid={}", BUILDER_MACHINE_ID)),
             OsString::from("--console=interactive"),
             OsString::from("--tmpfs=/gng"),
-            OsString::from("--read-only"),
             setenv(
                 ce::GNG_BUILD_AGENT,
                 cc::GNG_BUILD_AGENT_EXECUTABLE.to_str().unwrap(),
@@ -491,7 +490,16 @@ impl CaseOfficer {
         new_mode: &Mode,
         message_prefix: String,
     ) -> Result<()> {
-        let mut child = std::process::Command::new(&self.nspawn_binary)
+        let (command, args) = if gng_shared::is_root() {
+            (self.nspawn_binary.clone(), args.to_vec())
+        } else {
+            let mut a: Vec<OsString> = vec![self.nspawn_binary.as_os_str().to_os_string()];
+            a.extend_from_slice(args);
+
+            (std::path::PathBuf::from("/usr/bin/sudo"), a)
+        };
+
+        let mut child = std::process::Command::new(&command)
             .args(args)
             .env_clear()
             .stdin(std::process::Stdio::piped())

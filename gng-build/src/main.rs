@@ -104,10 +104,6 @@ fn main() -> Result<()> {
         .setup_logging()
         .wrap_err("Failed to set up logging.")?;
 
-    if !gng_shared::is_root() {
-        return Err(eyre!("This application needs to be run by root."));
-    }
-
     tracing::debug!("Command line arguments: {:#?}", args);
 
     let pkgsrc_dir = std::env::current_dir()
