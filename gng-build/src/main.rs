@@ -50,7 +50,7 @@ struct Args {
     )]
     repository_config_dir: PathBuf,
 
-    /// the directory containing the Lua runtime environment
+    /// the directory containing the repository data
     #[clap(long, value_name = "REPO")]
     repository: Option<String>,
 

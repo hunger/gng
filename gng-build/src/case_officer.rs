@@ -13,6 +13,7 @@ use gng_shared::is_executable;
 use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 use eyre::{eyre, Result, WrapErr};
@@ -434,13 +435,17 @@ impl CaseOfficer {
             Mode::Package => self.mode_args(true, true, &mut Vec::new(), "polish"),
         };
 
+        let effective_uid = std::fs::metadata("/proc/self")
+            .map(|m| m.uid())
+            .expect("/proc/self should be accessible to this process!");
+
         let mut result = vec![
             bind(true, &self.agent, Path::new("/gng/build-agent")),
             OsString::from("--quiet"),
             OsString::from("--settings=off"),
             OsString::from("--register=off"),
             OsString::from("--private-network"),
-            OsString::from("--private-users=pick"),
+            OsString::from(format!("--private-users={}:1", effective_uid)),
             OsString::from("--resolv-conf=off"),
             OsString::from("--timezone=off"),
             OsString::from("--link-journal=no"),

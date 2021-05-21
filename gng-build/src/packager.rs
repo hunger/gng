@@ -203,6 +203,7 @@ impl Packager {
             if in_packet_path == std::path::PathBuf::from(".") {
                 continue;
             }
+
             if in_packet_path.starts_with("local") {
                 return Err(eyre::eyre!(
                     "Trying to package data in admin private area /usr/local"
@@ -221,6 +222,12 @@ impl Packager {
                         packaged_path_str,
                     ),)
                 })?;
+
+            tracing::debug!(
+                "Packaging {} into packet {}...",
+                &in_packet_path.display(),
+                &packet.data.name
+            );
 
             packet.store_path(
                 &factory,
