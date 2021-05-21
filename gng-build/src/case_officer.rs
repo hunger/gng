@@ -482,7 +482,7 @@ impl CaseOfficer {
         result
     }
 
-    #[tracing::instrument(level = "debug", skip(self, ctx))]
+    #[tracing::instrument(level = "debug", skip(self, ctx, args))]
     fn run_agent(
         &mut self,
         ctx: &crate::handler::Context,
@@ -498,6 +498,13 @@ impl CaseOfficer {
 
             (std::path::PathBuf::from("/usr/bin/sudo"), a)
         };
+
+        let arg_str = args
+            .iter()
+            .map(|s| s.to_string_lossy())
+            .collect::<Vec<_>>()
+            .join(" ");
+        tracing::trace!("Running: {} {}", &command.display(), &arg_str);
 
         let mut child = std::process::Command::new(&command)
             .args(args)

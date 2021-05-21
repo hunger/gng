@@ -18,7 +18,7 @@
 use std::path::PathBuf;
 
 use clap::Clap;
-use eyre::{eyre, Result, WrapErr};
+use eyre::{Result, WrapErr};
 
 // - Helper:
 // ----------------------------------------------------------------------
