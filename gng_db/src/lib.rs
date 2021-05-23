@@ -25,6 +25,10 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// A generic `Error` about the `RepositoryDb`.
+    #[error("Configuration error: {}", .0)]
+    Config(String),
+
+    /// A generic `Error` about the `RepositoryDb`.
     #[error("General repository DB error: {}", .0)]
     Db(String),
 
@@ -52,6 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 // - Modules:
 // ----------------------------------------------------------------------
 
+pub mod config;
 pub mod packet_db;
 pub mod repository_db;
 
@@ -61,6 +66,8 @@ pub mod repository_db;
 
 pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 
+pub use config::Config;
+// FIXME: Are the following needed?
 pub use packet_db::PacketDb;
 pub use repository_db::RepositoryDb;
 

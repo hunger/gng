@@ -41,14 +41,8 @@ struct Args {
     db_dir: PathBuf,
 
     /// the repository configuration directory
-    #[clap(
-        long,
-        parse(from_os_str),
-        env = "GNG_REPO_CONFIG_DIR",
-        value_name = "DIR",
-        default_value = "/etc/gng/repositories"
-    )]
-    repository_config_dir: PathBuf,
+    #[clap(long, parse(from_os_str), env = "GNG_CONFIG_FILE", value_name = "FILE")]
+    config_file: Option<PathBuf>,
 
     /// the repository to use
     #[clap(long, value_name = "REPO")]
@@ -110,10 +104,9 @@ fn main() -> Result<()> {
         .wrap_err("Failed to get current work directory.")?
         .join(args.pkgsrc_dir);
 
-    let repo_db = gng_db::RepositoryDb::open(&args.repository_config_dir).wrap_err(format!(
-        "Failed to read repositories in {}.",
-        &args.repository_config_dir.display()
-    ))?;
+    let config = gng_db::Config::new(&args.config_file)?;
+
+    let repo_db = config.repository_db()?;
 
     let repo = match &args.repository {
         Some(rin) => repo_db.resolve_repository(rin),
