@@ -112,11 +112,7 @@ fn main() -> Result<()> {
         Some(rin) => repo_db.resolve_repository(rin),
         None => repo_db.repository_for_packet_source_path(&pkgsrc_dir),
     }
-    .ok_or_else(|| {
-        eyre::eyre!(
-            "Could not find repository to adopt the build result into. Please make sure some repository feels responsible for the packet source directory or provide --repository."
-        )
-    })?;
+    .ok_or_else(|| eyre::eyre!("Could not find repository to adopt the build result into."))?;
     tracing::debug!("Inserting packets into repository {}.", repo);
 
     let source_packet_info = std::rc::Rc::new(gng_build::handler::SourcePacketInfo::default());

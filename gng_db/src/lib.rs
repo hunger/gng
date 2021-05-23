@@ -87,6 +87,7 @@ pub struct LocalRepository {
     pub sources_base_directory: std::path::PathBuf,
     /// The directory to export this `Repository` into for use as a
     /// `Remote` repository.
+    #[serde(default)]
     pub export_directory: Option<std::path::PathBuf>,
 }
 
@@ -98,6 +99,7 @@ pub struct RemoteRepository {
     /// The base URL to download the packaging sources from.
     /// This is for information only and will not be used by the
     /// `Repository` this `RepositoryKind` is part of!
+    #[serde(default)]
     pub packets_url: Option<String>,
 }
 
@@ -105,8 +107,10 @@ pub struct RemoteRepository {
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub enum RepositorySource {
     /// A `Local` repository that users can add packets to
+    #[serde(rename = "local")]
     Local(LocalRepository),
     /// A `Remote` repository hosted elsewhere
+    #[serde(rename = "remote")]
     Remote(RemoteRepository),
 }
 
@@ -114,8 +118,10 @@ pub enum RepositorySource {
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub enum RepositoryRelation {
     /// Override another `Repository`
+    #[serde(rename = "override")]
     Override(Uuid),
     /// Depend on zero or more other `Repository`s.
+    #[serde(rename = "dependencies")]
     Dependency(Vec<Uuid>),
 }
 
@@ -127,14 +133,17 @@ pub struct Repository {
     /// The repository UUID
     pub uuid: Uuid,
     /// The priority of this `RepositoryData`
+    #[serde(default)]
     pub priority: u32,
 
     /// `Repository`(s) this one relates to
+    #[serde(flatten)]
     pub relation: RepositoryRelation,
 
     /// The `RepositoryConnectivity` we are dealing with plus all
     /// the kind-specific data.
     /// Basically: Where does all the data in this `Repository` come from?
+    #[serde(flatten)]
     pub source: RepositorySource,
 }
 

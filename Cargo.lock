@@ -492,7 +492,6 @@ name = "gng_db"
 version = "0.1.0"
 dependencies = [
  "gng_shared",
- "justconfig",
  "serde",
  "serde_json",
  "thiserror",
@@ -716,12 +715,6 @@ checksum = "83bdfbace3a0e81a4253f73b49e960b053e396a11012cbd49b9b74d6a2b67062"
 dependencies = [
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "justconfig"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f73ba283cfc9b74fd251b87a70c7b88c29fb8cba28069f76f2dd5cfd7075faa2"
 
 [[package]]
 name = "keccak"
