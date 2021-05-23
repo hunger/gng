@@ -22,6 +22,7 @@ type RepositoryPacketsMap = BTreeMap<Uuid, NamePacketsMap>;
 #[derive(Clone, Debug)]
 pub struct PacketDb {
     repository_packet_db: RepositoryPacketsMap,
+    is_modified: bool,
 }
 
 impl PacketDb {
@@ -40,39 +41,59 @@ impl PacketDb {
 
         Ok(Self {
             repository_packet_db,
+            is_modified: false,
         })
     }
 
-    /// Reset the `PacketDb`
-    pub fn reset_db(&mut self) {
-        self.repository_packet_db = RepositoryPacketsMap::new();
-    }
-
-    /// Add a new `Repository` to the `PacketDb`
+    /// Persist the `PacketDb` to `packet_db_directory`.
     ///
     /// # Errors
-    /// `Error::Packet` might be returned, if the `Repository` is already known.
-    pub fn add_repository(&mut self, repository: &Uuid, packets: &[Packet]) -> Result<()> {
-        let packet_map = packets
-            .iter()
-            .map(|p| (p.name.clone(), p.clone()))
-            .collect::<NamePacketsMap>();
-
-        self.repository_packet_db
-            .try_insert(*repository, packet_map)
-            .map_err(|e| Error::Packet(format!("Repository {} already known: {}", repository, e)))
-            .map(|_| ())
-    }
-
-    /// Remove a `Repository` from the `PacketDB` again.
-    ///
-    /// # Errors
-    /// `Error::Packet` might be returned, if the `Repository` is already known.
-    pub fn remove_repository(&mut self, repository: &Uuid) -> Result<()> {
-        match self.repository_packet_db.remove(repository) {
-            Some(_) => Ok(()),
-            None => Err(Error::Db(format!("Repository {} not known", repository))),
+    /// `Error::Packet` may be returned when writing failed
+    #[tracing::instrument(level = "trace")]
+    pub fn persist(&self, packet_db_directory: &std::path::Path) -> Result<()> {
+        if self.is_modified {
+            tracing::info!(
+                "Persisting Packet DB into {}.",
+                packet_db_directory.display()
+            );
+            backend::write_packet_dbs(packet_db_directory, &self.repository_packet_db)
+        } else {
+            tracing::info!("Packet DB was not modified. Persisting of DB to storage was skipped.");
+            Ok(())
         }
+    }
+
+    /// Make sure the repositories known to the packet DB match up with those provided in `repository_uuids`.
+    pub fn sync_repositories(&mut self, repository_uuids: &[Uuid]) {
+        let old_uuids = self
+            .repository_packet_db
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+
+        for u in repository_uuids {
+            let _res = self
+                .repository_packet_db
+                .try_insert(*u, NamePacketsMap::new());
+        }
+
+        let mut to_remove = Vec::new();
+        for u in self.repository_packet_db.keys() {
+            if !repository_uuids.contains(u) {
+                to_remove.push(*u);
+            }
+        }
+
+        for u in to_remove {
+            self.repository_packet_db.remove(&u);
+        }
+
+        self.is_modified = self.is_modified
+            || self
+                .repository_packet_db
+                .keys()
+                .zip(old_uuids.iter())
+                .any(|(n, o)| n != o);
     }
 
     /// Resolve a `Packet` by its `name`, using a `search_path` of `Repository`s.
@@ -103,39 +124,6 @@ impl PacketDb {
             .collect()
     }
 
-    /// Add a new `Packet` to the DB.
-    /// Returns an `Option<Hash>` which will contain a Hash that is no longer used.
-    ///
-    /// # Errors
-    /// `Error::Packet` might be returned, if the `Repository` is not known.
-    pub fn add_packet(&mut self, repository: &Uuid, packet: Packet) -> Result<Option<Packet>> {
-        let name = packet.name.clone();
-
-        Ok(self
-            .repository_packet_db
-            .get_mut(repository)
-            .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
-            .insert(name, packet))
-    }
-
-    /// Remove a `Packet` from the DB.
-    /// Returns an `Option<Hash>` which will contain a Hash that is no longer used.
-    ///
-    /// # Errors
-    /// `Error::Packet` might be returned, if the `Repository` or the `Packet` is not known.
-    pub fn remove_packet(&mut self, repository: &Uuid, name: &Name) -> Result<Packet> {
-        self.repository_packet_db
-            .get_mut(repository)
-            .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
-            .remove(name)
-            .ok_or_else(|| {
-                Error::Packet(format!(
-                    "Packet {} not found in repository {}.",
-                    &name, &repository
-                ))
-            })
-    }
-
     /// List all `Packet`s in a `Repository`
     ///
     /// # Errors
@@ -157,67 +145,114 @@ impl Default for PacketDb {
 
         Self {
             repository_packet_db: RepositoryPacketsMap::new(),
+            is_modified: false,
         }
     }
 }
 
 mod backend {
-    use super::RepositoryPacketsMap;
+    use super::{NamePacketsMap, RepositoryPacketsMap};
     use crate::{Error, Result, Uuid};
 
-    pub fn read_packet_dbs(packet_db_directory: &std::path::Path) -> Result<RepositoryPacketsMap> {
-        let packet_file_prefix = "packets_";
-        let packet_file_extension = std::ffi::OsStr::new("conf");
-        let mut result = RepositoryPacketsMap::new();
-        for f in packet_db_directory.read_dir()? {
-            let f_path = f?.path();
-            if !f_path.is_file() {
-                tracing::trace!("    Skipping {}: Not a file.", f_path.display());
-                continue;
-            }
-            let file_stem = f_path
-                .file_stem()
-                .unwrap_or(std::ffi::OsStr::new(""))
-                .to_string_lossy();
-            if !file_stem.starts_with(packet_file_prefix) {
-                tracing::trace!("    Skipping {}: Not a packet file.", f_path.display());
-                continue;
-            }
-            if let Some(extension) = f_path.extension() {
-                if extension == packet_file_extension {
-                    let repo =
-                        Uuid::parse_str(&file_stem[packet_file_prefix.len()..]).map_err(|_| {
-                            Error::Packet(format!(
-                                "Could not extract repository UUID form {}.",
-                                f_path.display()
-                            ))
-                        })?;
-                    let file = std::fs::File::open(&f_path)?;
+    fn packet_db_constants() -> (String, String) {
+        (String::from("packets_"), String::from(".conf"))
+    }
 
-                    let packets =
-                        serde_json::from_reader(std::io::BufReader::new(file)).map_err(|e| {
-                            println!("Original error: {}.", e);
-                            Error::Repository(format!(
-                                "Could not read repository from {}.",
-                                &f_path.display()
-                            ))
-                        })?;
+    fn uuid_from_packet_file_path(path: &std::path::Path) -> Option<Uuid> {
+        let (prefix, suffix) = packet_db_constants();
 
-                    tracing::trace!("    Read {}.", f_path.display());
-
-                    result.insert(repo, packets);
-                    continue;
-                }
-                tracing::trace!(
-                    "    Skipping {}: Extension is not \".{}\".",
-                    f_path.display(),
-                    &packet_file_extension.to_string_lossy()
-                );
-                continue;
+        let file_name = path
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new(""))
+            .to_string_lossy();
+        if file_name.starts_with(&prefix) && file_name.ends_with(&suffix) {
+            let slice_start = prefix.len();
+            let slice_end = file_name.len() - (suffix.len() + 1); // + 1 for the '.'
+            match Uuid::parse_str(&file_name[slice_start..slice_end]) {
+                Ok(u) => Some(u),
+                Err(_) => None,
             }
-            tracing::trace!("    Skipping {}: No file extension.", f_path.display());
+        } else {
+            tracing::trace!("    Skipping {}: Not a packet file.", path.display());
+            None
         }
-        Ok(result)
+    }
+
+    fn packet_file_path(packet_db_directory: &std::path::Path, uuid: &Uuid) -> std::path::PathBuf {
+        let (prefix, suffix) = packet_db_constants();
+        packet_db_directory.join(format!("{}{}{}", &prefix, uuid, &suffix))
+    }
+
+    fn packet_file_paths(
+        packet_db_directory: &std::path::Path,
+    ) -> Result<Vec<(std::path::PathBuf, Uuid)>> {
+        packet_db_directory
+            .read_dir()?
+            .filter_map(|rd| {
+                rd.map_or_else(
+                    |e| Some(Err(Error::Packet(e.to_string()))),
+                    |rd| {
+                        let path = rd.path();
+                        uuid_from_packet_file_path(&path).map(|uuid| Ok((path, uuid)))
+                    },
+                )
+            })
+            .collect()
+    }
+
+    fn read_packet_file(path: &std::path::Path) -> Result<NamePacketsMap> {
+        let file = std::fs::File::open(path)?;
+        serde_json::from_reader(std::io::BufReader::new(file)).map_err(|_| {
+            Error::Packet(format!(
+                "Could not read packet information from {}.",
+                &path.display()
+            ))
+        })
+    }
+
+    pub fn read_packet_dbs(packet_db_directory: &std::path::Path) -> Result<RepositoryPacketsMap> {
+        packet_file_paths(packet_db_directory)?
+            .iter()
+            .map(|(path, uuid)| Ok((*uuid, read_packet_file(path)?)))
+            .collect()
+    }
+
+    fn write_packet_file(path: &std::path::Path, packets: &NamePacketsMap) -> Result<()> {
+        let file = std::fs::OpenOptions::new()
+            .truncate(true)
+            .write(true)
+            .open(path)?;
+        serde_json::to_writer(std::io::BufWriter::new(file), packets).map_err(|_| {
+            Error::Packet(format!(
+                "Could not read write information to {}.",
+                &path.display()
+            ))
+        })
+    }
+
+    pub fn write_packet_dbs(
+        packet_db_directory: &std::path::Path,
+        packet_db: &RepositoryPacketsMap,
+    ) -> Result<()> {
+        // Find packet files:
+        let old_packet_files = packet_file_paths(packet_db_directory)?;
+
+        let written_uuids = packet_db
+            .iter()
+            .map(|(k, v)| {
+                write_packet_file(&packet_file_path(packet_db_directory, k), v)?;
+                Ok(*k)
+            })
+            .collect::<Result<std::collections::HashSet<_>>>()?;
+
+        for (path, _) in old_packet_files
+            .iter()
+            .filter(|(_, u)| !written_uuids.contains(u))
+        {
+            std::fs::remove_file(path)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -246,37 +281,5 @@ mod tests {
             )
             .expect("Hash was ok"),
         }
-    }
-
-    #[test]
-    fn add_remove_repository_ok() {
-        let mut db = PacketDb::default();
-        assert!(db.repository_packet_db.is_empty());
-
-        let uuid = Uuid::new_v4();
-        let unused_uuid = Uuid::new_v4();
-
-        db.add_repository(&uuid, &[create_packet("test1")]).unwrap();
-        assert_eq!(db.repository_packet_db.len(), 1);
-
-        assert!(db.add_repository(&uuid, &[create_packet("test2")]).is_err());
-        assert!(matches!(
-            db.repository_packet_db
-                .get(&uuid)
-                .expect("Should have worked")
-                .get(&Name::try_from("test1").expect("Name was fine")),
-            Some(_)
-        ));
-
-        assert!(db.remove_repository(&unused_uuid).is_err());
-        assert!(db.remove_repository(&uuid).is_ok());
-        assert!(db.repository_packet_db.is_empty());
-
-        // Re-add the repo that failed before:
-        assert!(db.add_repository(&uuid, &[create_packet("test2")]).is_ok());
-        assert_eq!(db.repository_packet_db.len(), 1);
-
-        db.reset_db();
-        assert!(db.repository_packet_db.is_empty());
     }
 }
