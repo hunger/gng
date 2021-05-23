@@ -521,7 +521,7 @@ mod backend {
     use crate::{Error, Repository, Result};
 
     pub fn read_repositories(repository_directory: &std::path::Path) -> Result<Vec<Repository>> {
-        let repo_file_extension: &std::ffi::OsStr = std::ffi::OsStr::new("conf");
+        let repo_file_extension = std::ffi::OsStr::new("conf");
 
         let mut result = Vec::new();
 
@@ -826,11 +826,6 @@ mod tests {
             create_override_repo("r2r0o0", &uuid_2right0o0, uuid_2right0, 99),
             create_dependent_repo("r3", &uuid_3, vec![uuid_2left1, uuid_2right0]),
         ];
-
-        for r in &repositories {
-            println!("{:?}", serde_json::to_string_pretty(&r).unwrap())
-        }
-        assert!(false);
 
         let global_search_path = update_repository_search_paths(&mut repositories)
             .expect("Input was supposed to be correct");

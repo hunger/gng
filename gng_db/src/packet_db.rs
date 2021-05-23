@@ -25,6 +25,24 @@ pub struct PacketDb {
 }
 
 impl PacketDb {
+    /// Open a packet DB with all the packet lists found in `packet_db_directory`.
+    ///
+    /// # Errors
+    /// `Error::Packet` may be returned when some of the packet DB files are invalid in any way
+    #[tracing::instrument(level = "trace")]
+    pub fn open(packet_db_directory: &std::path::Path) -> Result<Self> {
+        let repository_packet_db = backend::read_packet_dbs(packet_db_directory)?;
+
+        tracing::info!(
+            "Packet DB with packets from {} repositories created.",
+            repository_packet_db.len()
+        );
+
+        Ok(Self {
+            repository_packet_db,
+        })
+    }
+
     /// Reset the `PacketDb`
     pub fn reset_db(&mut self) {
         self.repository_packet_db = RepositoryPacketsMap::new();
@@ -135,11 +153,73 @@ impl PacketDb {
 impl Default for PacketDb {
     #[tracing::instrument(level = "trace")]
     fn default() -> Self {
+        tracing::info!("Packet DB with packets from 0 repositories created.",);
+
         Self {
             repository_packet_db: RepositoryPacketsMap::new(),
         }
     }
-} // Default for DbImpl
+}
+
+mod backend {
+    use super::RepositoryPacketsMap;
+    use crate::{Error, Result, Uuid};
+
+    pub fn read_packet_dbs(packet_db_directory: &std::path::Path) -> Result<RepositoryPacketsMap> {
+        let packet_file_prefix = "packets_";
+        let packet_file_extension = std::ffi::OsStr::new("conf");
+        let mut result = RepositoryPacketsMap::new();
+        for f in packet_db_directory.read_dir()? {
+            let f_path = f?.path();
+            if !f_path.is_file() {
+                tracing::trace!("    Skipping {}: Not a file.", f_path.display());
+                continue;
+            }
+            let file_stem = f_path
+                .file_stem()
+                .unwrap_or(std::ffi::OsStr::new(""))
+                .to_string_lossy();
+            if !file_stem.starts_with(packet_file_prefix) {
+                tracing::trace!("    Skipping {}: Not a packet file.", f_path.display());
+                continue;
+            }
+            if let Some(extension) = f_path.extension() {
+                if extension == packet_file_extension {
+                    let repo =
+                        Uuid::parse_str(&file_stem[packet_file_prefix.len()..]).map_err(|_| {
+                            Error::Packet(format!(
+                                "Could not extract repository UUID form {}.",
+                                f_path.display()
+                            ))
+                        })?;
+                    let file = std::fs::File::open(&f_path)?;
+
+                    let packets =
+                        serde_json::from_reader(std::io::BufReader::new(file)).map_err(|e| {
+                            println!("Original error: {}.", e);
+                            Error::Repository(format!(
+                                "Could not read repository from {}.",
+                                &f_path.display()
+                            ))
+                        })?;
+
+                    tracing::trace!("    Read {}.", f_path.display());
+
+                    result.insert(repo, packets);
+                    continue;
+                }
+                tracing::trace!(
+                    "    Skipping {}: Extension is not \".{}\".",
+                    f_path.display(),
+                    &packet_file_extension.to_string_lossy()
+                );
+                continue;
+            }
+            tracing::trace!("    Skipping {}: No file extension.", f_path.display());
+        }
+        Ok(result)
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -109,4 +109,13 @@ impl Config {
     pub fn repository_db(&self) -> Result<crate::repository_db::RepositoryDb> {
         crate::repository_db::RepositoryDb::open(&self.repository_dir)
     }
+
+    /// Open the `RepositoryDB` pointed to by this `Config`
+    ///
+    /// # Errors
+    /// May return a `Error::Repository` if opening the Repository DB failed.
+    #[tracing::instrument(level = "debug")]
+    pub fn packet_db(&self) -> Result<crate::packet_db::PacketDb> {
+        crate::packet_db::PacketDb::open(&self.packet_db_directory)
+    }
 }
