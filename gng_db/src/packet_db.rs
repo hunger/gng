@@ -5,13 +5,27 @@
 
 use crate::{Error, Result, Uuid};
 
-use gng_shared::{Name, Packet};
+use gng_shared::{Hash, Name, Packet};
 use std::collections::BTreeMap;
+
+// ----------------------------------------------------------------------
+// - PacketInfo:
+// ----------------------------------------------------------------------
+
+/// A `Packet` with a `Hash`
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub(crate) struct PacketInfo {
+    /// The `Packet`.
+    #[serde(flatten)]
+    packet: Packet,
+    /// The `Hash`
+    hash: Hash,
+}
 
 // - Type aliases:
 // ----------------------------------------------------------------------
 
-type NamePacketsMap = BTreeMap<Name, Packet>;
+type NamePacketsMap = BTreeMap<Name, PacketInfo>;
 type RepositoryPacketsMap = BTreeMap<Uuid, NamePacketsMap>;
 
 // ----------------------------------------------------------------------
@@ -99,7 +113,11 @@ impl PacketDb {
     /// Resolve a `Packet` by its `name`, using a `search_path` of `Repository`s.
     #[allow(clippy::map_flatten)]
     #[must_use]
-    pub fn resolve_packet(&self, name: &Name, search_path: &[&Uuid]) -> Option<(Packet, Uuid)> {
+    pub fn resolve_packet(
+        &self,
+        name: &Name,
+        search_path: &[&Uuid],
+    ) -> Option<(Packet, Hash, Uuid)> {
         let mut r = self.resolve_all_packets(name, search_path);
         if r.is_empty() {
             None
@@ -111,7 +129,11 @@ impl PacketDb {
     /// Resolve a `Packet` by its `name`, using a `search_path` of `Repository`s.
     #[allow(clippy::map_flatten)]
     #[must_use]
-    pub fn resolve_all_packets(&self, name: &Name, search_path: &[&Uuid]) -> Vec<(Packet, Uuid)> {
+    pub fn resolve_all_packets(
+        &self,
+        name: &Name,
+        search_path: &[&Uuid],
+    ) -> Vec<(Packet, Hash, Uuid)> {
         search_path
             .iter()
             .map(|u| {
@@ -120,7 +142,7 @@ impl PacketDb {
                     *u,
                 )
             })
-            .filter_map(|(p, u)| p.map(|p| (p.clone(), *u)))
+            .filter_map(|(p, u)| p.map(|p| (p.packet.clone(), p.hash.clone(), *u)))
             .collect()
     }
 
@@ -128,12 +150,13 @@ impl PacketDb {
     ///
     /// # Errors
     /// `Error::Packet` might be returned, if the `Repository` is not known.
-    pub fn list_packets(&self, repository: &Uuid) -> Result<Vec<&Packet>> {
+    pub fn list_packets(&self, repository: &Uuid) -> Result<Vec<(&Packet, Hash)>> {
         Ok(self
             .repository_packet_db
             .get(repository)
             .ok_or_else(|| Error::Packet(format!("Repository {} not known.", repository)))?
             .values()
+            .map(|pi| (&pi.packet, pi.hash.clone()))
             .collect())
     }
 }
@@ -150,6 +173,7 @@ impl Default for PacketDb {
     }
 }
 
+#[allow(clippy::redundant_pub_crate)]
 mod backend {
     use super::{NamePacketsMap, RepositoryPacketsMap};
     use crate::{Error, Result, Uuid};
@@ -210,7 +234,9 @@ mod backend {
         })
     }
 
-    pub fn read_packet_dbs(packet_db_directory: &std::path::Path) -> Result<RepositoryPacketsMap> {
+    pub(crate) fn read_packet_dbs(
+        packet_db_directory: &std::path::Path,
+    ) -> Result<RepositoryPacketsMap> {
         packet_file_paths(packet_db_directory)?
             .iter()
             .map(|(path, uuid)| Ok((*uuid, read_packet_file(path)?)))
@@ -230,7 +256,7 @@ mod backend {
         })
     }
 
-    pub fn write_packet_dbs(
+    pub(crate) fn write_packet_dbs(
         packet_db_directory: &std::path::Path,
         packet_db: &RepositoryPacketsMap,
     ) -> Result<()> {
@@ -260,7 +286,7 @@ mod backend {
 mod tests {
     use super::*;
 
-    use gng_shared::{Hash, Version};
+    use gng_shared::Version;
 
     use std::convert::TryFrom;
 
@@ -276,10 +302,6 @@ mod tests {
             dependencies: Vec::new(),
             facets: Vec::new(),
             register_facet: None,
-            hash: Hash::try_from(
-                "sha256:4459946be75c8fe5bef821596387f1222927e996e2acaa5b50d2222f4d2eddc4",
-            )
-            .expect("Hash was ok"),
         }
     }
 }

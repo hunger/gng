@@ -158,7 +158,7 @@ impl Default for SourcePacketInfo {
             source_packet: std::cell::RefCell::new(None),
         }
     }
-} // Default for SourcePacketInfo
+}
 
 // ----------------------------------------------------------------------
 // - Handler:
@@ -217,7 +217,7 @@ impl Default for ImmutableSourceDataHandler {
             first_message: true,
         }
     }
-} // Default for ImmutableSourceDataHandler
+}
 
 impl Handler for ImmutableSourceDataHandler {
     #[tracing::instrument(level = "trace", skip(self, _ctx))]

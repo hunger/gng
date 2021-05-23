@@ -239,7 +239,7 @@ impl std::convert::TryFrom<String> for Hash {
     }
 }
 
-impl std::default::Default for Hash {
+impl Default for Hash {
     fn default() -> Self {
         Self::None()
     }
@@ -515,11 +515,6 @@ pub struct Packet {
     /// A `Facet` made available by this `Packet`
     #[builder(default)]
     pub register_facet: Option<Facet>,
-
-    /// The `Hash` of this `Packet`
-    #[builder(setter(skip))]
-    #[builder(default)]
-    pub hash: Hash,
 }
 
 impl std::cmp::PartialEq for Packet {

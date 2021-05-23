@@ -511,7 +511,7 @@ impl Default for RepositoryDb {
             global_repository_search_path: Vec::new(),
         }
     }
-} // Default for DbImpl
+}
 
 // ----------------------------------------------------------------------
 // - Backend:

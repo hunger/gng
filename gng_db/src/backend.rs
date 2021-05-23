@@ -51,7 +51,7 @@ impl Default for MetaData {
             schema: SCHEMA_VERSION,
         }
     }
-} // Default for MetaData
+}
 
 // ----------------------------------------------------------------------
 // - Helpers:
