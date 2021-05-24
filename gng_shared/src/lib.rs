@@ -135,9 +135,9 @@ pub fn start_alnum_char(input: &str) -> bool {
 
 pub mod config;
 mod definitions;
+mod hash;
 pub mod log;
 pub mod packet;
 
-pub use definitions::{
-    Facet, FacetBuilder, GpgKeyId, Hash, Name, Names, Packet, PacketBuilder, Version,
-};
+pub use definitions::{Facet, FacetBuilder, GpgKeyId, Name, Names, Packet, PacketBuilder, Version};
+pub use hash::Hash;
