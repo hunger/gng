@@ -4,19 +4,9 @@
 //! A object used to handle events from the `CaseOfficer` from `gng-build-agent`
 
 use eyre::{Result, WrapErr};
-use sha3::{Digest, Sha3_256};
 
 // - Helper:
 // ----------------------------------------------------------------------
-
-fn hash_str(input: &str) -> Vec<u8> {
-    let mut hasher = Sha3_256::new();
-    hasher.update(input.as_bytes());
-    let mut v = Vec::with_capacity(Sha3_256::output_size());
-    v.extend_from_slice(&hasher.finalize());
-
-    v
-}
 
 fn packet_from(source_package: &gng_build_shared::SourcePacket) -> gng_shared::PacketBuilder {
     let mut result = gng_shared::PacketBuilder::default();
@@ -206,7 +196,7 @@ pub trait Handler {
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct ImmutableSourceDataHandler {
-    hash: Option<Vec<u8>>,
+    hash: Option<gng_shared::Hash>,
     first_message: bool,
 }
 
@@ -245,7 +235,7 @@ impl Handler for ImmutableSourceDataHandler {
 
         self.first_message = false;
 
-        let v = hash_str(message);
+        let v = gng_shared::Hash::calculate_sha256(message.as_bytes());
 
         match self.hash.as_ref() {
             None => {

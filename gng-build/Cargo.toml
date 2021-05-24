@@ -21,7 +21,6 @@ lazy_static = { version = "1.4" }
 rand = { version = "0.8" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
-sha3 = { version = "0.9" }
 tempfile = { version = "3.2" }
 tracing = { version = "0.1" }
 url = { version = "2.2" }

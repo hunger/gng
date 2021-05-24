@@ -161,6 +161,36 @@ impl Hash {
         Ok(Self::Sha256(v))
     }
 
+    /// Create a `SHA256` hash by hashing the provided bytes
+    #[must_use]
+    pub fn calculate_sha256(value: &[u8]) -> Self {
+        use sha3::{Digest, Sha3_256};
+
+        let mut hasher = Sha3_256::default();
+        hasher.update(&value);
+        let result = hasher.finalize();
+
+        let mut v = [0_u8; 32];
+        v.clone_from_slice(&result);
+
+        Self::Sha256(v)
+    }
+
+    /// Create a `SHA256` hash by hashing the provided bytes
+    #[must_use]
+    pub fn calculate_sha512(value: &[u8]) -> Self {
+        use sha3::{Digest, Sha3_512};
+
+        let mut hasher = Sha3_512::default();
+        hasher.update(&value);
+        let result = hasher.finalize();
+
+        let mut v = [0_u8; 64];
+        v.clone_from_slice(&result);
+
+        Self::Sha512(v)
+    }
+
     /// Create a `SHA512` hash
     ///
     /// # Errors
