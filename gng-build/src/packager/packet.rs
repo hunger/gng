@@ -127,7 +127,9 @@ impl Packet {
     }
 
     #[tracing::instrument(level = "trace")]
-    pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
+    pub fn finish(
+        &mut self,
+    ) -> eyre::Result<Vec<(gng_shared::Packet, std::path::PathBuf, gng_shared::Hash)>> {
         let mut result = Vec::with_capacity(self.facets.len());
 
         for f in &mut self.facets {

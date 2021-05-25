@@ -177,7 +177,7 @@ impl Packager {
         &mut self,
         package_directory: &std::path::Path,
         packet_directory: &std::path::Path,
-    ) -> eyre::Result<Vec<std::path::PathBuf>> {
+    ) -> eyre::Result<Vec<(Packet, std::path::PathBuf, Hash)>> {
         let package_directory = package_directory.canonicalize()?;
         let packet_directory = packet_directory.canonicalize()?;
 
@@ -240,7 +240,6 @@ impl Packager {
         for p in &mut packets {
             result.append(&mut p.finish()?);
         }
-
         Ok(result)
     }
 }
@@ -288,11 +287,11 @@ mod tests {
             Ok(())
         }
 
-        fn finish(&mut self) -> gng_shared::Result<std::path::PathBuf> {
-            Ok(std::path::PathBuf::from(format!(
-                "{}.gng",
-                self.packet_info
-            )))
+        fn finish(&mut self) -> gng_shared::Result<(std::path::PathBuf, Hash)> {
+            Ok((
+                std::path::PathBuf::from(format!("{}.gng", self.packet_info)),
+                Hash::default(),
+            ))
         }
     }
 

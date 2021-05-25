@@ -135,7 +135,7 @@ pub fn start_alnum_char(input: &str) -> bool {
 
 pub mod config;
 mod definitions;
-mod hash;
+pub(crate) mod hash;
 pub mod log;
 pub mod packet;
 

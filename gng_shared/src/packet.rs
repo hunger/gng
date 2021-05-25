@@ -365,7 +365,7 @@ pub trait PacketWriter {
     ///
     /// # Errors
     /// Depends on the actual Writer being used.
-    fn finish(&mut self) -> crate::Result<std::path::PathBuf>;
+    fn finish(&mut self) -> crate::Result<(std::path::PathBuf, crate::Hash)>;
 }
 
 /// The product of a `PacketWriterFactory`
@@ -403,7 +403,7 @@ pub fn create_packet_writer(
     facet_data: &Option<(crate::Name, crate::Hash)>,
     version: &crate::Version,
 ) -> PacketWriterProduct {
-    // TODO: Make this configurable?
+    // TODO: Make this configurable to support e.g. different compression formats?
     let full_name = full_packet_path(packet_path, packet_name, facet_data, version);
 
     let writer = std::fs::OpenOptions::new()
@@ -437,7 +437,7 @@ struct PacketWriterImpl<T>
 where
     T: std::io::Write,
 {
-    tarball: Option<tar::Builder<T>>,
+    tarball: Option<tar::Builder<crate::hash::HashedWriter<T>>>,
     cleanup_function: Option<CleanUpFunction<T>>,
 }
 
@@ -446,7 +446,9 @@ where
     T: std::io::Write,
 {
     fn new(packet_writer: T) -> Self {
-        let mut tarball = tar::Builder::new(packet_writer);
+        let hasher = crate::hash::HashedWriter::new(packet_writer);
+
+        let mut tarball = tar::Builder::new(hasher);
         tarball.follow_symlinks(false);
 
         Self {
@@ -491,14 +493,18 @@ where
         }
     }
 
-    fn finish(&mut self) -> crate::Result<std::path::PathBuf> {
+    fn finish(&mut self) -> crate::Result<(std::path::PathBuf, crate::Hash)> {
         let tb = self.tarball.take().ok_or(crate::Error::Runtime {
             message: "Writer has finished already.".to_string(),
         })?;
         let inner = tb.into_inner()?;
-        (self
-            .cleanup_function
-            .take()
-            .unwrap_or_else(|| Box::new(|_| Ok(std::path::PathBuf::new()))))(inner)
+        let (hash, inner) = inner.into_inner();
+        let path =
+            (self
+                .cleanup_function
+                .take()
+                .unwrap_or_else(|| Box::new(|_| Ok(std::path::PathBuf::new()))))(inner)?;
+
+        Ok((path, hash))
     }
 }

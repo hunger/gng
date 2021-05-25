@@ -89,16 +89,12 @@ fn main() -> Result<()> {
         .add_packet(&p, &globs, gng_build::ContentsPolicy::NotEmpty)?
         .build()?;
 
-    let package_files = packager
+    let _package_files = packager
         .package(&args.package_dir, &std::env::current_dir()?)
         .wrap_err(format!(
             "Failed to package \"{}\".",
             args.package_dir.to_string_lossy()
         ))?;
-
-    for pf in package_files {
-        println!("Package \"{}\" created.", pf.to_string_lossy());
-    }
 
     Ok(())
 }

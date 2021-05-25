@@ -50,9 +50,9 @@ fn create_packet_meta_data_directory(
 fn create_packet_meta_data(
     writer: &mut dyn PacketWriter,
     meta_data_directory: &std::path::Path,
-    data: &gng_shared::Packet,
+    data: gng_shared::Packet,
     description_suffix: &str,
-) -> eyre::Result<()> {
+) -> eyre::Result<gng_shared::Packet> {
     let mut data = data.clone();
     let ds = description_suffix.to_owned();
 
@@ -75,7 +75,9 @@ fn create_packet_meta_data(
             0,
             0,
         ))
-        .wrap_err("Failed to write packet meta data.")
+        .wrap_err("Failed to write packet meta data.")?;
+
+    Ok(data)
 }
 
 // ----------------------------------------------------------------------
@@ -173,7 +175,9 @@ impl Facet {
     }
 
     #[tracing::instrument(level = "trace")]
-    pub fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
+    pub fn finish(
+        &mut self,
+    ) -> eyre::Result<Vec<(gng_shared::Packet, std::path::PathBuf, gng_shared::Hash)>> {
         let has_contents = self.writer.is_some();
 
         if has_contents && self.contents_policy == crate::ContentsPolicy::Empty {
@@ -190,12 +194,10 @@ impl Facet {
         }
 
         if self.writer.is_some() {
-            self.write_packet_metadata()?;
+            let packet = self.write_packet_metadata()?;
+            let (path, hash) = self.get_writer().expect("Was just is_some()!").finish()?;
 
-            Ok(vec![self
-                .get_writer()
-                .expect("Was just is_some()!")
-                .finish()?])
+            Ok(vec![(packet, path, hash)])
         } else {
             Ok(Vec::new())
         }
@@ -225,7 +227,7 @@ impl Facet {
         self.get_writer()
     }
 
-    fn write_packet_metadata(&mut self) -> eyre::Result<()> {
+    fn write_packet_metadata(&mut self) -> eyre::Result<gng_shared::Packet> {
         let mut data = self
             .data
             .clone()
@@ -249,6 +251,6 @@ impl Facet {
             &facet_name,
         )?;
 
-        create_packet_meta_data(writer, &meta_data_directory, &data, &description_suffix)
+        create_packet_meta_data(writer, &meta_data_directory, data, &description_suffix)
     }
 }
