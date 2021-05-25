@@ -53,7 +53,7 @@ fn create_packet_meta_data(
     data: gng_shared::Packet,
     description_suffix: &str,
 ) -> eyre::Result<gng_shared::Packet> {
-    let mut data = data.clone();
+    let mut data = data;
     let ds = description_suffix.to_owned();
 
     if !ds.is_empty() {
