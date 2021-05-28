@@ -8,8 +8,10 @@ use eyre::{Result, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
-fn packet_from(source_package: &gng_build_shared::SourcePacket) -> gng_shared::PacketBuilder {
-    let mut result = gng_shared::PacketBuilder::default();
+fn packet_from(
+    source_package: &gng_build_shared::SourcePacket,
+) -> gng_shared::PacketFileDataBuilder {
+    let mut result = gng_shared::PacketFileDataBuilder::default();
     result.source_name(source_package.name.clone());
     result.license(source_package.license.clone());
     result.version(source_package.version.clone());
@@ -22,7 +24,12 @@ fn packet_from(source_package: &gng_build_shared::SourcePacket) -> gng_shared::P
 fn package(
     source_package: &gng_build_shared::SourcePacket,
     ctx: &crate::handler::Context,
-) -> Result<Vec<(gng_shared::Packet, std::path::PathBuf, gng_shared::Hash)>> {
+) -> Result<
+    Vec<(
+        gng_shared::PacketFileData,
+        Vec<(std::path::PathBuf, gng_shared::Hash)>,
+    )>,
+> {
     let mut packager = crate::PackagerBuilder::default();
 
     let mut has_base_packet = false;
@@ -358,7 +365,10 @@ impl Handler for PackagingHandler {
         let source_packet = self.source_packet_info.get()?;
         let result = package(&source_packet, ctx)?;
         for r in &result {
-            println!("{}: {} - {}", &r.0.name, &r.1.display(), &r.2);
+            let packet_name = &r.0.name;
+            for f in &r.1 {
+                println!("{}: {} - {}", packet_name, &f.0.display(), &f.1);
+            }
         }
         Ok(())
     }

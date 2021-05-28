@@ -5,7 +5,7 @@
 
 use crate::{Error, Result, Uuid};
 
-use gng_shared::{Hash, Name, Packet};
+use gng_shared::{Hash, Name, PacketFileData};
 use std::collections::BTreeMap;
 
 // ----------------------------------------------------------------------
@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 pub(crate) struct PacketInfo {
     /// The `Packet`.
     #[serde(flatten)]
-    packet: Packet,
+    packet: PacketFileData,
     /// The `Hash`
     hash: Hash,
 }
@@ -117,7 +117,7 @@ impl PacketDb {
         &self,
         name: &Name,
         search_path: &[&Uuid],
-    ) -> Option<(Packet, Hash, Uuid)> {
+    ) -> Option<(PacketFileData, Hash, Uuid)> {
         let mut r = self.resolve_all_packets(name, search_path);
         if r.is_empty() {
             None
@@ -133,7 +133,7 @@ impl PacketDb {
         &self,
         name: &Name,
         search_path: &[&Uuid],
-    ) -> Vec<(Packet, Hash, Uuid)> {
+    ) -> Vec<(PacketFileData, Hash, Uuid)> {
         search_path
             .iter()
             .map(|u| {
@@ -150,7 +150,7 @@ impl PacketDb {
     ///
     /// # Errors
     /// `Error::Packet` might be returned, if the `Repository` is not known.
-    pub fn list_packets(&self, repository: &Uuid) -> Result<Vec<(&Packet, Hash)>> {
+    pub fn list_packets(&self, repository: &Uuid) -> Result<Vec<(&PacketFileData, Hash)>> {
         Ok(self
             .repository_packet_db
             .get(repository)
@@ -290,8 +290,8 @@ mod tests {
 
     use std::convert::TryFrom;
 
-    fn create_packet(name: &str) -> Packet {
-        Packet {
+    fn create_packet(name: &str) -> PacketFileData {
+        PacketFileData {
             source_name: Name::try_from("source").expect("Name was ok."),
             version: Version::try_from("1.0.0").expect("Name was ok."),
             license: "some license".to_string(),

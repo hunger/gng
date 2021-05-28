@@ -2,7 +2,7 @@
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
 use gng_shared::packet::{PacketWriter, PacketWriterFactory, Path};
-use gng_shared::{Facet, Hash, Name, Packet, Version};
+use gng_shared::{FacetDefinition, Hash, Name, PacketFileData, Version};
 
 use eyre::WrapErr;
 
@@ -35,7 +35,8 @@ type PackagingIteratorFactory = dyn FnMut(&std::path::Path) -> eyre::Result<Box<
 pub struct NamedFacet {
     name: Name,
     packet_hash: Hash,
-    facet: Facet,
+    facet: FacetDefinition,
+    contents_policy: crate::ContentsPolicy,
 }
 
 // ----------------------------------------------------------------------
@@ -60,12 +61,14 @@ impl PackagerBuilder {
         mut self,
         name: &Name,
         packet_hash: &Hash,
-        facet: &Facet,
+        facet: &FacetDefinition,
+        contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Self> {
         let nf = NamedFacet {
             name: name.clone(),
             packet_hash: packet_hash.clone(),
             facet: facet.clone(),
+            contents_policy,
         };
         self.facet_definitions.push(nf);
 
@@ -79,7 +82,7 @@ impl PackagerBuilder {
     #[tracing::instrument(level = "trace", skip(self))]
     pub fn add_packet(
         mut self,
-        data: &Packet,
+        data: &PacketFileData,
         patterns: &[glob::Pattern],
         contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Self> {
@@ -119,7 +122,7 @@ impl PackagerBuilder {
 
         Ok(Packager {
             packet_factory: Some(self.packet_factory_fn),
-            packets: Some(packets),
+            packets,
             iterator_factory: self.iterator_factory_fn,
         })
     }
@@ -128,11 +131,11 @@ impl PackagerBuilder {
 impl Default for PackagerBuilder {
     fn default() -> Self {
         Self {
-            packet_factory_fn: Box::new(|packet_path, packet_name, facet_data, version| {
+            packet_factory_fn: Box::new(|packet_path, packet_name, facet_name, version| {
                 gng_shared::packet::create_packet_writer(
                     packet_path,
                     packet_name,
-                    facet_data,
+                    facet_name,
                     version,
                 )
             }),
@@ -155,14 +158,14 @@ impl Default for PackagerBuilder {
 
 /// A type for factories of `PacketWriter`
 type InternalPacketWriterFactory =
-    Box<dyn Fn(&Name, &Option<(Name, Hash)>, &Version) -> eyre::Result<Box<dyn PacketWriter>>>;
+    Box<dyn Fn(&Name, &Option<Name>, &Version) -> eyre::Result<Box<dyn PacketWriter>>>;
 
 /// A simple Packet creator
 pub struct Packager {
     /// The `PacketWriterFactory` to use to create packets
     packet_factory: Option<Box<PacketWriterFactory>>,
     /// The actual `Packet` definitions.
-    packets: Option<Vec<crate::packager::packet::Packet>>,
+    packets: Vec<crate::packager::packet::Packet>,
     /// The factory used to create the iterator for all files that are to be packaged.
     iterator_factory: Box<PackagingIteratorFactory>,
 }
@@ -177,23 +180,20 @@ impl Packager {
         &mut self,
         package_directory: &std::path::Path,
         packet_directory: &std::path::Path,
-    ) -> eyre::Result<Vec<(Packet, std::path::PathBuf, Hash)>> {
+    ) -> eyre::Result<Vec<(PacketFileData, Vec<(std::path::PathBuf, Hash)>)>> {
         let package_directory = package_directory.canonicalize()?;
         let packet_directory = packet_directory.canonicalize()?;
 
         let factory = std::mem::take(&mut self.packet_factory)
             .ok_or_else(|| eyre::eyre!("Packager has been used up already!"))?;
         let factory: InternalPacketWriterFactory = Box::new(
-            move |name, facet_data, version| -> eyre::Result<Box<dyn PacketWriter>> {
-                (factory)(&packet_directory, name, facet_data, version)
+            move |name, facet_name, version| -> eyre::Result<Box<dyn PacketWriter>> {
+                (factory)(&packet_directory, name, facet_name, version)
                     .wrap_err("Failed to create a packet writer.")
             },
         );
 
-        let mut packets = self
-            .packets
-            .take()
-            .ok_or_else(|| eyre::eyre!("Packages were already created!"))?;
+        let mut packets = std::mem::take(&mut self.packets);
 
         tracing::debug!("Packaging into {:?}", &packets);
 
@@ -236,11 +236,10 @@ impl Packager {
             )?;
         }
 
-        let mut result = Vec::new();
-        for p in &mut packets {
-            result.append(&mut p.finish()?);
-        }
-        Ok(result)
+        packets
+            .iter_mut()
+            .map(|p| p.finish(&factory))
+            .collect::<eyre::Result<Vec<_>>>()
     }
 }
 
@@ -248,7 +247,7 @@ impl Packager {
 mod tests {
     use super::*;
 
-    use gng_shared::{packet::PacketWriter, packet::Path, Hash, Name, Packet, Version};
+    use gng_shared::{packet::PacketWriter, packet::Path, Hash, Name, PacketFileData, Version};
 
     use std::convert::{From, TryFrom};
 
@@ -370,7 +369,7 @@ mod tests {
         let (result_map, mut builder) = packaging_setup(&Vec::new());
         builder = builder
             .add_packet(
-                &Packet {
+                &PacketFileData {
                     source_name: Name::try_from("foo").unwrap(),
                     version: Version::try_from("1.0-5").unwrap(),
                     license: "GPL_v3+".to_string(),
@@ -404,7 +403,7 @@ mod tests {
         let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("."))]);
         builder = builder
             .add_packet(
-                &Packet {
+                &PacketFileData {
                     source_name: Name::try_from("foo").unwrap(),
                     version: Version::try_from("1.0-5").unwrap(),
                     license: "GPL_v3+".to_string(),
@@ -473,7 +472,7 @@ mod tests {
             it.next().unwrap().1,
             Path::new_directory(
                 std::path::Path::new(".gng/foo"),
-                &std::ffi::OsString::from(crate::DEFAULT_FACET_NAME),
+                &std::ffi::OsString::from("_MAIN_"),
                 0o755,
                 0,
                 0
@@ -502,7 +501,7 @@ mod tests {
         ]);
         builder = builder
             .add_packet(
-                &Packet {
+                &PacketFileData {
                     source_name: Name::try_from("foo").unwrap(),
                     version: Version::try_from("1.0-5").unwrap(),
                     license: "GPL_v3+".to_string(),
@@ -521,28 +520,31 @@ mod tests {
             .add_facet(
                 &Name::try_from("f1").unwrap(),
                 &Hash::default(),
-                &Facet {
+                &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["f1".to_string(), "f1/**".to_string()],
                 },
+                crate::ContentsPolicy::Empty,
             )
             .unwrap()
             .add_facet(
                 &Name::try_from("unused").unwrap(),
                 &Hash::default(),
-                &Facet {
+                &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["unused".to_string(), "unused/**".to_string()],
                 },
+                crate::ContentsPolicy::Empty,
             )
             .unwrap()
             .add_facet(
                 &Name::try_from("f2").unwrap(),
                 &Hash::default(),
-                &Facet {
+                &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["f2".to_string(), "f2/**".to_string()],
                 },
+                crate::ContentsPolicy::Empty,
             )
             .unwrap();
         let mut packager = builder.build().unwrap();
@@ -584,7 +586,7 @@ mod tests {
         let (results, mut builder) = packaging_setup(&[dir(std::path::Path::new("local/foobar"))]);
         builder = builder
             .add_packet(
-                &Packet {
+                &PacketFileData {
                     source_name: Name::try_from("foo").unwrap(),
                     version: Version::try_from("1.0-5").unwrap(),
                     license: "GPL_v3+".to_string(),

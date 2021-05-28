@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use super::facet::Facet;
+use super::facet::{Facet, MainFacet};
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -26,14 +26,14 @@ pub fn validate_packets(packet: &PacketBuilder, packets: &[PacketBuilder]) -> ey
 
 #[derive(Debug)]
 pub struct PacketBuilder {
-    pub data: gng_shared::Packet,
+    pub data: gng_shared::PacketFileData,
     pub patterns: Vec<glob::Pattern>,
     pub contents_policy: crate::ContentsPolicy,
 }
 
 impl PacketBuilder {
     pub fn new(
-        data: &gng_shared::Packet,
+        data: &gng_shared::PacketFileData,
         patterns: Vec<glob::Pattern>,
         contents_policy: crate::ContentsPolicy,
     ) -> Self {
@@ -59,10 +59,11 @@ impl PacketBuilder {
 // ----------------------------------------------------------------------
 
 pub struct Packet {
-    pub data: gng_shared::Packet,
+    pub data: gng_shared::PacketFileData,
     pub patterns: Vec<glob::Pattern>,
     pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
     pub facets: Vec<Facet>,
+    pub main_facet: MainFacet,
 }
 
 impl std::fmt::Debug for Packet {
@@ -70,7 +71,7 @@ impl std::fmt::Debug for Packet {
         let patterns: Vec<String> = self.patterns.iter().map(glob::Pattern::to_string).collect();
         write!(
             f,
-            "Packet {{ full_name: {:?}, patterns: {:?} }}",
+            "Packet {{ name: {:?}, patterns: {:?} }}",
             &self.full_debug_name(),
             &patterns
         )
@@ -88,18 +89,19 @@ impl Packet {
 
     #[tracing::instrument(level = "trace")]
     fn new(
-        data: gng_shared::Packet,
+        data: gng_shared::PacketFileData,
         patterns: Vec<glob::Pattern>,
         facet_definitions: &[super::NamedFacet],
         contents_policy: crate::ContentsPolicy,
     ) -> eyre::Result<Self> {
-        let facets = Facet::facets_from(facet_definitions, &data, contents_policy)?;
+        let (facets, main_facet) = Facet::facets_from(facet_definitions, &data, contents_policy)?;
 
         Ok(Self {
             data,
             patterns,
             writer: None,
             facets,
+            main_facet,
         })
     }
 
@@ -110,6 +112,7 @@ impl Packet {
         result
     }
 
+    #[allow(clippy::option_if_let_else)]
     #[tracing::instrument(level = "trace", skip(factory))]
     pub fn store_path(
         &mut self,
@@ -121,20 +124,43 @@ impl Packet {
         let facet = self
             .facets
             .iter_mut()
-            .find(|f| f.contains(&path, mime_type))
-            .ok_or_else(|| eyre::eyre!("No facet found!"))?;
-        facet.store_path(factory, package_path, mime_type)
+            .find(|f| f.contains(&path, mime_type));
+
+        if let Some(facet) = facet {
+            facet.store_path(factory, package_path, mime_type)
+        } else {
+            self.main_facet.store_path(factory, package_path, mime_type)
+        }
     }
 
-    #[tracing::instrument(level = "trace")]
+    #[tracing::instrument(level = "trace", skip(factory))]
     pub fn finish(
         &mut self,
-    ) -> eyre::Result<Vec<(gng_shared::Packet, std::path::PathBuf, gng_shared::Hash)>> {
-        let mut result = Vec::with_capacity(self.facets.len());
+        factory: &super::InternalPacketWriterFactory,
+    ) -> eyre::Result<(
+        gng_shared::PacketFileData,
+        Vec<(std::path::PathBuf, gng_shared::Hash)>,
+    )> {
+        let facets: Vec<Option<(gng_shared::Name, std::path::PathBuf, gng_shared::Hash)>> = self
+            .facets
+            .iter_mut()
+            .map(Facet::finish)
+            .collect::<eyre::Result<Vec<_>>>()?;
 
-        for f in &mut self.facets {
-            result.append(&mut f.finish()?);
-        }
+        let mut files = facets
+            .iter()
+            .filter_map(|f| f.as_ref().map(|(_, p, h)| (p.clone(), h.clone())))
+            .collect::<Vec<_>>();
+        let facets = facets
+            .iter()
+            .filter_map(|f| f.as_ref().map(|(n, _, h)| (n.clone(), h.clone())))
+            .collect::<Vec<_>>();
+
+        let (packet, path, hash) = self.main_facet.finish(&facets[..], factory)?;
+        files.push((path, hash));
+
+        let result = (packet, files);
+
         Ok(result)
     }
 }

@@ -74,7 +74,7 @@ fn main() -> Result<()> {
         .collect::<Result<Vec<glob::Pattern>, glob::PatternError>>()
         .map_err(|e| eyre!("Invalid glob pattern given on command line: {}", e))?;
 
-    let p = gng_shared::PacketBuilder::default()
+    let p = gng_shared::PacketFileDataBuilder::default()
         .source_name(gng_shared::Name::try_from("manual")?)
         .license("unknown".to_string())
         .name(gng_shared::Name::try_from(args.packet_name.as_str())?)

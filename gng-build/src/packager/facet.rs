@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use gng_shared::packet::PacketWriter;
+use gng_shared::{packet::PacketWriter, PacketFileData};
 
 use eyre::WrapErr;
 
@@ -11,7 +11,6 @@ use eyre::WrapErr;
 fn create_packet_meta_data_directory(
     writer: &mut dyn PacketWriter,
     packet_name: &std::ffi::OsStr,
-    facet_name: &Option<std::ffi::OsString>,
 ) -> eyre::Result<std::path::PathBuf> {
     let meta_dir = std::path::PathBuf::from(".gng");
 
@@ -32,52 +31,64 @@ fn create_packet_meta_data_directory(
     ))?;
 
     let packet_meta_dir = meta_dir.join(packet_name);
-    let facet_string = facet_name
-        .clone()
-        .unwrap_or_else(|| std::ffi::OsString::from(crate::DEFAULT_FACET_NAME));
 
-    writer.add_path(&mut gng_shared::packet::Path::new_directory(
-        &packet_meta_dir,
-        &facet_string,
-        0o755,
-        0,
-        0,
-    ))?;
-
-    Ok(packet_meta_dir.join(facet_string))
+    Ok(packet_meta_dir)
 }
 
-fn create_packet_meta_data(
-    writer: &mut dyn PacketWriter,
-    meta_data_directory: &std::path::Path,
-    data: gng_shared::Packet,
-    description_suffix: &str,
-) -> eyre::Result<gng_shared::Packet> {
-    let mut data = data;
-    let ds = description_suffix.to_owned();
+fn side_facets_from(
+    definitions: &[super::NamedFacet],
+    packet: &gng_shared::PacketFileData,
+) -> eyre::Result<Vec<Facet>> {
+    definitions
+        .iter()
+        .filter_map(|d| {
+            if packet.dependencies.contains(&d.packet_hash) {
+                None
+            } else {
+                let patterns = match d
+                    .facet
+                    .patterns
+                    .iter()
+                    .map(|s| glob::Pattern::new(&s[..]).wrap_err("Invalid glob pattern in facet."))
+                    .collect::<eyre::Result<Vec<_>>>()
+                {
+                    Ok(p) => p,
+                    Err(e) => return Some(Err(e)),
+                };
 
-    if !ds.is_empty() {
-        data.description = format!("{} [{}]", &data.description, ds);
-    }
+                Some(Ok(Facet {
+                    packet_name: packet.name.clone(),
+                    packet_version: packet.version.clone(),
+                    facet_name: d.name.clone(),
+                    facet_definition_packet: d.packet_hash.clone(),
+                    mime_types: d.facet.mime_types.clone(),
+                    patterns,
+                    writer: None,
+                    contents_policy: crate::ContentsPolicy::MaybeEmpty,
+                }))
+            }
+        })
+        .collect()
+}
 
-    let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
-        expression: "Packet".to_string(),
-        typename: "JSON".to_string(),
-        message: e.to_string(),
-    })?;
-
-    writer
-        .add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
-            buffer,
-            meta_data_directory,
-            &std::ffi::OsString::from("info.json"),
-            0o755,
-            0,
-            0,
+fn check_contents_policy(
+    has_contents: bool,
+    contents_policy: &crate::ContentsPolicy,
+    full_name: &str,
+) -> eyre::Result<()> {
+    if has_contents && *contents_policy == crate::ContentsPolicy::Empty {
+        Err(eyre::eyre!(
+            "\"{}\" contains some data, but it was expected to be empty!",
+            full_name
         ))
-        .wrap_err("Failed to write packet meta data.")?;
-
-    Ok(data)
+    } else if !has_contents && *contents_policy == crate::ContentsPolicy::NotEmpty {
+        Err(eyre::eyre!(
+            "\"{}\" contains no data, but it was expected to have contents!",
+            full_name
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -85,20 +96,27 @@ fn create_packet_meta_data(
 // ----------------------------------------------------------------------
 
 pub struct Facet {
-    pub facet_data: Option<(gng_shared::Name, gng_shared::Hash)>,
+    pub packet_name: gng_shared::Name,
+    pub packet_version: gng_shared::Version,
+    pub facet_name: gng_shared::Name,
+
+    pub facet_definition_packet: gng_shared::Hash,
+
     pub mime_types: Vec<String>,
     pub patterns: Vec<glob::Pattern>,
-    pub data: Option<gng_shared::Packet>,
-    pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
     pub contents_policy: crate::ContentsPolicy,
+
+    writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
 }
 
 impl std::fmt::Debug for Facet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             f,
-            "Facet {{ facet_data: {:?}, mime_types: {:?}, patterns: {:?}, data: {:?} }}",
-            &self.facet_data, &self.mime_types, &self.patterns, &self.data,
+            "Facet {{ {}, mime_types: {:?}, patterns: {:?} }}",
+            &self.full_debug_name(),
+            &self.mime_types,
+            &self.patterns,
         )
     }
 }
@@ -107,51 +125,24 @@ impl Facet {
     #[tracing::instrument(level = "trace")]
     pub fn facets_from(
         definitions: &[super::NamedFacet],
-        packet: &gng_shared::Packet,
+        packet: &gng_shared::PacketFileData,
         contents_policy: crate::ContentsPolicy,
-    ) -> eyre::Result<Vec<Self>> {
-        let mut result = Vec::with_capacity(definitions.len() + 1);
-        for d in definitions {
-            if !packet.dependencies.contains(&d.packet_hash) {
-                result.push(Self {
-                    facet_data: Some((d.name.clone(), d.packet_hash.clone())),
-                    mime_types: d.facet.mime_types.clone(),
-                    patterns: d
-                        .facet
-                        .patterns
-                        .iter()
-                        .map(|s| {
-                            glob::Pattern::new(&s[..]).wrap_err("Invalid glob pattern in facet.")
-                        })
-                        .collect::<eyre::Result<Vec<_>>>()?,
-                    data: Some(packet.clone()),
-                    writer: None,
-                    contents_policy: crate::ContentsPolicy::MaybeEmpty,
-                });
-            }
-        }
-        result.push(Self {
-            facet_data: None,
-            mime_types: Vec::new(),
-            patterns: vec![glob::Pattern::new("**").expect("** is a valid pattern")],
-            data: Some(packet.clone()),
-            writer: None,
-            contents_policy,
-        });
-        Ok(result)
+    ) -> eyre::Result<(Vec<Self>, MainFacet)> {
+        Ok((
+            side_facets_from(definitions, packet)?,
+            MainFacet {
+                packet: packet.clone(),
+                contents_policy,
+                writer: None,
+            },
+        ))
     }
 
     fn full_debug_name(&self) -> String {
-        let data = self.data.as_ref();
-        let name = data.map_or("<unknown>".to_owned(), |p| p.name.to_string());
-        let facet = self
-            .facet_data
-            .as_ref()
-            .map_or(crate::DEFAULT_FACET_NAME.to_string(), |(n, _)| {
-                n.to_string()
-            });
-        let version = data.map_or("<unknown>".to_owned(), |p| p.version.to_string());
-        format!("{}-{}-{}", &name, &facet, &version,)
+        format!(
+            "{}:{}-{}",
+            &self.packet_name, &self.facet_name, &self.packet_version,
+        )
     }
 
     #[tracing::instrument(level = "trace")]
@@ -166,9 +157,12 @@ impl Facet {
         package_path: &mut gng_shared::packet::Path,
         _mime_type: &str,
     ) -> eyre::Result<()> {
-        let full_name = self.full_debug_name();
+        tracing::info!(
+            "\"{}\": Storing {:?}.",
+            &self.full_debug_name(),
+            &package_path
+        );
         let writer = self.get_or_insert_writer(factory)?;
-        tracing::info!("Packet \"{}\": Storing {:?}.", &full_name, &package_path);
         writer
             .add_path(package_path)
             .wrap_err("Failed to store a path into packet.")
@@ -177,29 +171,20 @@ impl Facet {
     #[tracing::instrument(level = "trace")]
     pub fn finish(
         &mut self,
-    ) -> eyre::Result<Vec<(gng_shared::Packet, std::path::PathBuf, gng_shared::Hash)>> {
-        let has_contents = self.writer.is_some();
-
-        if has_contents && self.contents_policy == crate::ContentsPolicy::Empty {
-            return Err(eyre::eyre!(
-                "Facet \"{}\" contains some data, but it was expected to be empty!",
-                self.full_debug_name()
-            ));
-        }
-        if !has_contents && self.contents_policy == crate::ContentsPolicy::NotEmpty {
-            return Err(eyre::eyre!(
-                "Facet \"{}\" contains no data, but it was expected to have contents!",
-                self.full_debug_name()
-            ));
-        }
+    ) -> eyre::Result<Option<(gng_shared::Name, std::path::PathBuf, gng_shared::Hash)>> {
+        check_contents_policy(
+            self.writer.is_some(),
+            &self.contents_policy,
+            &self.full_debug_name(),
+        )?;
 
         if self.writer.is_some() {
-            let packet = self.write_packet_metadata()?;
+            let facet_name = self.write_facet_metadata()?;
             let (path, hash) = self.get_writer().expect("Was just is_some()!").finish()?;
 
-            Ok(vec![(packet, path, hash)])
+            Ok(Some((facet_name, path, hash)))
         } else {
-            Ok(Vec::new())
+            Ok(None)
         }
     }
 
@@ -215,42 +200,176 @@ impl Facet {
         factory: &super::InternalPacketWriterFactory,
     ) -> eyre::Result<&mut dyn PacketWriter> {
         if self.writer.is_none() {
-            let data = self
-                .data
-                .as_ref()
-                .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
+            self.writer = Some((factory)(
+                &self.packet_name,
+                &Some(self.facet_name.clone()),
+                &self.packet_version,
+            )?);
+            tracing::info!("Facet file for \"{}\" created", &self.full_debug_name());
+        }
 
-            self.writer = Some((factory)(&data.name, &self.facet_data, &data.version)?);
+        self.get_writer()
+    }
+
+    fn write_facet_metadata(&mut self) -> eyre::Result<gng_shared::Name> {
+        let packet_name = self.packet_name.clone();
+        let packet_version = self.packet_version.clone();
+        let facet_name = self.facet_name.clone();
+
+        let writer = self.get_writer()?;
+        let meta_data_directory = create_packet_meta_data_directory(
+            writer,
+            &std::ffi::OsString::from(packet_name.to_string()),
+        )?;
+
+        // Have a facet name: Write facet data!
+        let data = gng_shared::FacetFileDataBuilder::default()
+            .packet_name(packet_name)
+            .name(facet_name.clone())
+            .version(packet_version)
+            .build()?;
+
+        let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
+            expression: "Facet".to_string(),
+            typename: "JSON".to_string(),
+            message: e.to_string(),
+        })?;
+
+        writer
+            .add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
+                buffer,
+                &meta_data_directory,
+                &std::ffi::OsString::from(format!("facet-{}.json", &facet_name)),
+                0o755,
+                0,
+                0,
+            ))
+            .wrap_err("Failed to write facet meta data.")?;
+
+        Ok(facet_name)
+    }
+}
+
+// ----------------------------------------------------------------------
+// - MainFacet:
+// ----------------------------------------------------------------------
+
+pub struct MainFacet {
+    pub packet: gng_shared::PacketFileData,
+
+    pub contents_policy: crate::ContentsPolicy,
+
+    pub writer: Option<Box<dyn gng_shared::packet::PacketWriter>>,
+}
+
+impl std::fmt::Debug for MainFacet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "MainFacet {{ {} }}", &self.packet.name,)
+    }
+}
+
+impl MainFacet {
+    fn full_debug_name(&self) -> String {
+        format!("{}-{}", &self.packet.name, &self.packet.version,)
+    }
+
+    pub fn store_path(
+        &mut self,
+        factory: &super::InternalPacketWriterFactory,
+        package_path: &mut gng_shared::packet::Path,
+        _mime_type: &str,
+    ) -> eyre::Result<()> {
+        tracing::info!(
+            "\"{}\": Storing {:?}.",
+            self.full_debug_name(),
+            &package_path
+        );
+        let writer = self.get_or_insert_writer(factory)?;
+        writer
+            .add_path(package_path)
+            .wrap_err("Failed to store a path into packet.")
+    }
+
+    fn get_writer(&mut self) -> eyre::Result<&mut dyn PacketWriter> {
+        Ok(&mut **(self
+            .writer
+            .as_mut()
+            .ok_or_else(|| eyre::eyre!("No writer found."))?))
+    }
+
+    fn get_or_insert_writer(
+        &mut self,
+        factory: &super::InternalPacketWriterFactory,
+    ) -> eyre::Result<&mut dyn PacketWriter> {
+        if self.writer.is_none() {
+            self.writer = Some((factory)(&self.packet.name, &None, &self.packet.version)?);
             tracing::info!("Packet file for \"{}\" created", &self.full_debug_name());
         }
 
         self.get_writer()
     }
 
-    fn write_packet_metadata(&mut self) -> eyre::Result<gng_shared::Packet> {
-        let mut data = self
-            .data
-            .clone()
-            .ok_or_else(|| eyre::eyre!("No Packet data found: Was this Facet reused?"))?;
+    #[tracing::instrument(level = "trace", skip(factory))]
+    pub fn finish(
+        &mut self,
+        facets: &[(gng_shared::Name, gng_shared::Hash)],
+        factory: &super::InternalPacketWriterFactory,
+    ) -> eyre::Result<(PacketFileData, std::path::PathBuf, gng_shared::Hash)> {
+        check_contents_policy(
+            self.writer.is_some(),
+            &self.contents_policy,
+            &self.full_debug_name(),
+        )?;
 
-        let mut description_suffix = String::new();
+        self.get_or_insert_writer(factory)?;
 
-        if let Some((n, h)) = &self.facet_data {
-            data.dependencies.push(h.clone()); // Depend on base facet
-            description_suffix = n.to_string();
-        }
+        let data = self.write_facet_metadata(facets)?;
+        let (path, hash) = self.get_writer()?.finish()?;
 
-        let facet_name = self
-            .facet_data
-            .as_ref()
-            .map(|(n, _)| std::ffi::OsString::from(n.to_string()));
+        Ok((data, path, hash))
+    }
+
+    fn write_facet_metadata(
+        &mut self,
+        facets: &[(gng_shared::Name, gng_shared::Hash)],
+    ) -> eyre::Result<gng_shared::PacketFileData> {
+        let mut data = self.packet.clone();
+
+        let packet_name = self.packet.name.clone();
+
         let writer = self.get_writer()?;
         let meta_data_directory = create_packet_meta_data_directory(
             writer,
-            &std::ffi::OsString::from(data.name.to_string()),
-            &facet_name,
+            &std::ffi::OsString::from(packet_name.to_string()),
         )?;
 
-        create_packet_meta_data(writer, &meta_data_directory, data, &description_suffix)
+        data.facets.clone_from(
+            &facets
+                .iter()
+                .map(|(n, h)| gng_shared::PacketFacet {
+                    name: n.clone(),
+                    hash: h.clone(),
+                })
+                .collect(),
+        );
+
+        let buffer = serde_json::to_vec(&data).map_err(|e| gng_shared::Error::Conversion {
+            expression: "Packet".to_string(),
+            typename: "JSON".to_string(),
+            message: e.to_string(),
+        })?;
+
+        writer
+            .add_path(&mut gng_shared::packet::Path::new_file_from_buffer(
+                buffer,
+                &meta_data_directory,
+                &std::ffi::OsString::from("info.json"),
+                0o755,
+                0,
+                0,
+            ))
+            .wrap_err("Failed to write facet meta data.")?;
+
+        Ok(data)
     }
 }

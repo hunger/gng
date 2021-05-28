@@ -139,5 +139,8 @@ pub(crate) mod hash;
 pub mod log;
 pub mod packet;
 
-pub use definitions::{Facet, FacetBuilder, GpgKeyId, Name, Names, Packet, PacketBuilder, Version};
+pub use definitions::{
+    FacetDefinition, FacetDefinitionBuilder, FacetFileData, FacetFileDataBuilder, GpgKeyId, Name,
+    Names, PacketFacet, PacketFileData, PacketFileDataBuilder, Version,
+};
 pub use hash::Hash;

@@ -78,7 +78,7 @@ pub struct PacketDefinition {
 
     /// An optional `Facet` that will be used for dependent packages
     #[serde(default)]
-    pub facet: Option<gng_shared::Facet>,
+    pub facet: Option<gng_shared::FacetDefinition>,
 }
 
 // ----------------------------------------------------------------------

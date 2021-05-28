@@ -374,7 +374,7 @@ pub type PacketWriterProduct = crate::Result<Box<dyn PacketWriter>>;
 pub type PacketWriterFactory = dyn Fn(
     &std::path::Path,
     &crate::Name,
-    &Option<(crate::Name, crate::Hash)>,
+    &Option<crate::Name>,
     &crate::Version,
 ) -> crate::Result<Box<dyn PacketWriter>>;
 
@@ -382,11 +382,11 @@ pub type PacketWriterFactory = dyn Fn(
 fn full_packet_path(
     packet_path: &std::path::Path,
     packet_name: &crate::Name,
-    facet_data: &Option<(crate::Name, crate::Hash)>,
+    facet_data: &Option<crate::Name>,
     version: &crate::Version,
 ) -> std::path::PathBuf {
     let facet_name_string = match facet_data {
-        Some((n, _)) => format!("-{}", n),
+        Some(n) => format!(":{}", n),
         None => String::new(),
     };
     let file_name = format!("{}{}-{}.gng", packet_name, facet_name_string, version);
@@ -400,11 +400,11 @@ fn full_packet_path(
 pub fn create_packet_writer(
     packet_path: &std::path::Path,
     packet_name: &crate::Name,
-    facet_data: &Option<(crate::Name, crate::Hash)>,
+    facet_name: &Option<crate::Name>,
     version: &crate::Version,
 ) -> PacketWriterProduct {
     // TODO: Make this configurable to support e.g. different compression formats?
-    let full_name = full_packet_path(packet_path, packet_name, facet_data, version);
+    let full_name = full_packet_path(packet_path, packet_name, facet_name, version);
 
     let writer = std::fs::OpenOptions::new()
         .write(true)

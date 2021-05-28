@@ -70,7 +70,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            locals_dir: cache_path().join("gng/remotes"),
+            locals_dir: data_path().join("gng/locals"),
             packet_db_directory: data_path().join("gng/packets"),
             remotes_dir: cache_path().join("gng/remotes"),
             repository_dir: config_path().join("gng/repositories"),

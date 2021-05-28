@@ -11,14 +11,35 @@ use itertools::Itertools;
 use std::convert::From;
 
 // ----------------------------------------------------------------------
-// - Facet:
+// - FacetFileData:
 // ----------------------------------------------------------------------
 
 /// A `Facet` that (part of) a `Packet` will be split into
 #[derive(
     derive_builder::Builder, Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize,
 )]
-pub struct Facet {
+pub struct FacetFileData {
+    /// The `Facet` `name`
+    pub name: Name,
+    /// The base `Packet` `name`
+    pub packet_name: Name,
+    /// The `Version` of the base `Packet`
+    pub version: Version,
+
+    /// `Hash`es of the `Packet`s this `Packet` depends on when this `Facet` is installed.
+    #[builder(default)]
+    pub dependencies: Vec<Hash>,
+}
+
+// ----------------------------------------------------------------------
+// - FacetDefinition:
+// ----------------------------------------------------------------------
+
+/// A `Facet` that (part of) a `Packet` will be split into
+#[derive(
+    derive_builder::Builder, Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize,
+)]
+pub struct FacetDefinition {
     /// Mime-types that should be added to this `Facet`
     pub mime_types: Vec<String>,
     /// File Glob `patterns` to put into this `Facet`
@@ -291,7 +312,7 @@ impl<'a> IntoIterator for &'a Names {
 // ----------------------------------------------------------------------
 
 /// A `Facet` of a `Packet`
-#[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct PacketFacet {
     /// `Name` of the `Facet`
     pub name: Name,
@@ -301,7 +322,7 @@ pub struct PacketFacet {
 
 /// `Packet` meta data
 #[derive(derive_builder::Builder, Clone, Debug, serde::Deserialize, serde::Serialize)]
-pub struct Packet {
+pub struct PacketFileData {
     /// The source package `name`
     pub source_name: Name,
     /// The package `version`
@@ -328,10 +349,10 @@ pub struct Packet {
 
     /// A `Facet` made available by this `Packet`
     #[builder(default)]
-    pub register_facet: Option<Facet>,
+    pub register_facet: Option<FacetDefinition>,
 }
 
-impl std::cmp::PartialEq for Packet {
+impl std::cmp::PartialEq for PacketFileData {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name && self.version == other.version
     }
