@@ -5,8 +5,8 @@
 
 // Features:
 #![feature(map_try_insert)]
+#![feature(get_mut_unchecked)]
 // Setup warnings/errors:
-#![forbid(unsafe_code)]
 #![deny(
     bare_trait_objects,
     unused_doc_comments,
@@ -73,6 +73,18 @@ pub use repository_db::RepositoryDb;
 // - Repository:
 // ----------------------------------------------------------------------
 
+fn deduplicate(mut uuids: Vec<Uuid>) -> Vec<Uuid> {
+    let mut already_seen = Vec::with_capacity(uuids.len());
+    uuids.retain(|item| match already_seen.contains(item) {
+        true => false,
+        _ => {
+            already_seen.push(item.clone());
+            true
+        }
+    });
+    uuids
+}
+
 /// Data on a `LocalRepository`
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct LocalRepository {
@@ -109,66 +121,51 @@ pub enum RepositorySource {
     Remote(RemoteRepository),
 }
 
-/// The relations between a `Repository` and other `Repository`s.
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-pub enum RepositoryRelation {
-    /// Override another `Repository`
-    #[serde(rename = "override")]
-    Override(Uuid),
-    /// Depend on zero or more other `Repository`s.
-    #[serde(rename = "dependencies")]
-    Dependency(Vec<Uuid>),
-}
+type RepositoryNode = std::rc::Rc<Repository>;
 
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug)]
 /// Data on a repository of `Packet`s.
 pub struct Repository {
     /// The user-visible name of this repository
     pub name: gng_shared::Name,
     /// The repository UUID
     pub uuid: Uuid,
-    /// The priority of this `RepositoryData`
-    #[serde(default)]
+
+    /// The priority of this `Repository`
     pub priority: u32,
 
-    /// `Repository`(s) this one relates to
-    #[serde(flatten)]
-    pub relation: RepositoryRelation,
-
-    /// The `RepositoryConnectivity` we are dealing with plus all
+    /// The `RepositorySource` we are dealing with plus all
     /// the kind-specific data.
     /// Basically: Where does all the data in this `Repository` come from?
-    #[serde(flatten)]
     pub source: RepositorySource,
+
+    /// `Repository`s overriding this one.
+    pub overridden_by: Vec<RepositoryNode>,
+    /// `Repository` overridden by this one.
+    pub overrides: Option<RepositoryNode>,
+    /// `Repository`s this one depends on.
+    pub depends_on: Vec<RepositoryNode>,
+    /// `Repository`s that depend on this one.
+    pub depended_on: Vec<RepositoryNode>,
 }
 
 impl Repository {
-    /// Return a single-line JSON representation of the value
-    ///
-    /// # Errors
-    /// A `gng_shared::Error::Conversion` might be returned.
-    pub fn to_json(&self) -> gng_shared::Result<String> {
-        serde_json::to_string(&self).map_err(|e| gng_shared::Error::Conversion {
-            expression: "Repository".to_string(),
-            typename: "JSON".to_string(),
-            message: e.to_string(),
-        })
-    }
-
     /// Return a multi-line pretty representation of the value for human consumption
     ///
     /// # Errors
     /// A `gng_shared::Error::Conversion` might be returned.
     #[must_use]
     pub fn to_pretty_string(&self) -> String {
-        let relation_str = match &self.relation {
-            RepositoryRelation::Override(o) => {
-                format!("\n    Override {}", o)
-            }
-            RepositoryRelation::Dependency(d) => {
-                format!("\n    Depends on: {:?}", d)
-            }
-        };
+        let relation_str = format!(
+            "\n    Overrides {}, Depends on: {:?}",
+            self.overrides
+                .as_ref()
+                .map_or("<NONE>".to_string(), |r| r.name.to_string()),
+            self.depends_on
+                .iter()
+                .map(|r| r.name.to_string())
+                .collect::<Vec<_>>(),
+        );
 
         let sources_str = match &self.source {
             RepositorySource::Local(lr) => {
@@ -191,8 +188,8 @@ impl Repository {
             }
         };
         format!(
-            "{}: {} [{}]{}{}",
-            &self.priority, &self.name, &self.uuid, relation_str, sources_str,
+            "{} [{}]{}{}",
+            &self.name, &self.uuid, relation_str, sources_str,
         )
     }
 
@@ -205,30 +202,40 @@ impl Repository {
     /// Does this repository override some other repository?
     #[must_use]
     pub const fn is_override(&self) -> bool {
-        matches!(self.relation, crate::RepositoryRelation::Override(_))
+        self.overrides.is_some()
+    }
+
+    pub(crate) fn depends_on_repository(&self, repo_uuid: &Uuid) -> bool {
+        if self.uuid == *repo_uuid {
+            return true;
+        }
+        self.depends_on
+            .iter()
+            .any(|d| d.depends_on_repository(repo_uuid))
+    }
+
+    /// Get search path to look up `Packet`s with starting with this `Repository`
+    #[must_use]
+    pub fn search_path(&self) -> Vec<Uuid> {
+        deduplicate(self.raw_search_path())
+    }
+
+    fn raw_search_path(&self) -> Vec<Uuid> {
+        if let Some(overrides) = &self.overrides {
+            overrides.raw_search_path()
+        } else {
+            let mut result: Vec<_> = self.overridden_by.iter().map(|r| r.uuid).collect();
+            result.push(self.uuid); // Add self after overrides
+            for d in &self.depends_on {
+                result.append(&mut d.raw_search_path());
+            }
+            result
+        }
     }
 }
 
 impl PartialEq for Repository {
     fn eq(&self, other: &Self) -> bool {
         self.uuid == other.uuid
-    }
-}
-
-impl Eq for Repository {}
-
-impl PartialOrd for Repository {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Repository {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        match self.priority.cmp(&other.priority) {
-            std::cmp::Ordering::Less => std::cmp::Ordering::Greater,
-            std::cmp::Ordering::Equal => self.uuid.cmp(&other.uuid),
-            std::cmp::Ordering::Greater => std::cmp::Ordering::Less,
-        }
     }
 }
