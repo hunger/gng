@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use super::facet::{Facet, MainFacet};
+use super::{
+    facet::{Facet, MainFacet},
+    PacketFiles,
+};
 
 // - Helper:
 // ----------------------------------------------------------------------
@@ -137,10 +140,7 @@ impl Packet {
     pub fn finish(
         &mut self,
         factory: &super::InternalPacketWriterFactory,
-    ) -> eyre::Result<(
-        gng_shared::PacketFileData,
-        Vec<(std::path::PathBuf, gng_shared::Hash)>,
-    )> {
+    ) -> eyre::Result<PacketFiles> {
         let facets: Vec<Option<(gng_shared::Name, std::path::PathBuf, gng_shared::Hash)>> = self
             .facets
             .iter_mut()
@@ -159,7 +159,7 @@ impl Packet {
         let (packet, path, hash) = self.main_facet.finish(&facets[..], factory)?;
         files.push((path, hash));
 
-        let result = (packet, files);
+        let result = PacketFiles { packet, files };
 
         Ok(result)
     }

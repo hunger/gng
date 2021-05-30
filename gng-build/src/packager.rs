@@ -40,6 +40,14 @@ pub struct NamedFacet {
 }
 
 // ----------------------------------------------------------------------
+// - PacketFiles:
+// ----------------------------------------------------------------------
+pub struct PacketFiles {
+    pub packet: gng_shared::PacketFileData,
+    pub files: Vec<(std::path::PathBuf, gng_shared::Hash)>,
+}
+
+// ----------------------------------------------------------------------
 // - PackagerBuilder:
 // ----------------------------------------------------------------------
 
@@ -180,7 +188,7 @@ impl Packager {
         &mut self,
         package_directory: &std::path::Path,
         packet_directory: &std::path::Path,
-    ) -> eyre::Result<Vec<(PacketFileData, Vec<(std::path::PathBuf, Hash)>)>> {
+    ) -> eyre::Result<Vec<PacketFiles>> {
         let package_directory = package_directory.canonicalize()?;
         let packet_directory = packet_directory.canonicalize()?;
 

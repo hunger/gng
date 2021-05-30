@@ -24,12 +24,7 @@ fn packet_from(
 fn package(
     source_package: &gng_build_shared::SourcePacket,
     ctx: &crate::handler::Context,
-) -> Result<
-    Vec<(
-        gng_shared::PacketFileData,
-        Vec<(std::path::PathBuf, gng_shared::Hash)>,
-    )>,
-> {
+) -> Result<Vec<crate::packager::PacketFiles>> {
     let mut packager = crate::PackagerBuilder::default();
 
     let mut has_base_packet = false;
@@ -365,8 +360,8 @@ impl Handler for PackagingHandler {
         let source_packet = self.source_packet_info.get()?;
         let result = package(&source_packet, ctx)?;
         for r in &result {
-            let packet_name = &r.0.name;
-            for f in &r.1 {
+            let packet_name = &r.packet.name;
+            for f in &r.files {
                 println!("{}: {} - {}", packet_name, &f.0.display(), &f.1);
             }
         }
