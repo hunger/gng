@@ -32,20 +32,6 @@ struct Args {
     #[clap(long, parse(from_os_str), value_name = "FILE")]
     config: Option<PathBuf>,
 
-    /// the directory containing the Lua runtime environment
-    #[clap(
-        long,
-        parse(from_os_str),
-        env = "GNG_DB_DIR",
-        value_name = "DIR",
-        default_value("/var/cache/gng/packets")
-    )]
-    db_dir: PathBuf,
-
-    /// the repository configuration directory
-    #[clap(long, parse(from_os_str), env = "GNG_CONFIG_FILE", value_name = "FILE")]
-    config_file: Option<PathBuf>,
-
     /// the repository to use
     #[clap(long, value_name = "REPO")]
     repository: Option<String>,
@@ -85,6 +71,9 @@ struct Args {
 
     #[clap(flatten)]
     logging: gng_shared::log::LogArgs,
+
+    #[clap(flatten)]
+    gng: gng_shared::gng::GngArgs,
 }
 
 // ----------------------------------------------------------------------
@@ -100,13 +89,13 @@ fn main() -> Result<()> {
         .setup_logging()
         .wrap_err("Failed to set up logging.")?;
 
+    let config = args.gng.create_gng()?;
+
     tracing::debug!("Command line arguments: {:#?}", args);
 
     let pkgsrc_dir = std::env::current_dir()
         .wrap_err("Failed to get current work directory.")?
         .join(args.pkgsrc_dir);
-
-    let config = gng_shared::Gng::new(&args.config_file)?;
 
     let repo_db = config.repository_db()?;
 

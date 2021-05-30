@@ -25,10 +25,6 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     /// A generic `Error` about the `RepositoryDb`.
-    #[error("Configuration error: {}", .0)]
-    Config(String),
-
-    /// A generic `Error` about the `RepositoryDb`.
     #[error("General repository DB error: {}", .0)]
     Db(String),
 

@@ -5,6 +5,8 @@
 
 use crate::{Error, Result};
 
+use clap::Clap;
+
 use std::path::PathBuf;
 
 // ----------------------------------------------------------------------
@@ -99,5 +101,27 @@ impl Gng {
         } else {
             Ok(Self::default())
         }
+    }
+}
+
+// ----------------------------------------------------------------------
+// - GngArgs:
+// ----------------------------------------------------------------------
+
+/// Logging related arguments for command line parsing
+#[derive(Debug, Clap)]
+pub struct GngArgs {
+    /// Set the output format for
+    #[clap(long, display_order = 10000, env = "GNG_CONFIG_FILE")]
+    config_file: Option<std::path::PathBuf>,
+}
+
+impl GngArgs {
+    /// Install a default tracing subscriber
+    ///
+    /// # Errors
+    /// a `crate::Error::Runtime` is returned if the setup fails
+    pub fn create_gng(&self) -> crate::Result<Gng> {
+        Gng::new(&self.config_file)
     }
 }
