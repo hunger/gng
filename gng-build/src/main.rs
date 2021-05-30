@@ -36,6 +36,15 @@ struct Args {
     #[clap(long, value_name = "REPO")]
     repository: Option<String>,
 
+    /// The build agent to use
+    #[clap(
+        long,
+        parse(from_os_str),
+        value_name = "EXECUTABLE",
+        env = "GNG_AGENT_EXECUTABLE"
+    )]
+    agent: Option<PathBuf>,
+
     /// the directory containing the Lua runtime environment
     #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
     lua_dir: Option<PathBuf>,
@@ -51,15 +60,6 @@ struct Args {
     /// the directory the build agent script will install into [DEBUG OPTION]
     #[clap(long, parse(from_os_str), value_name = "DIR")]
     install_dir: Option<PathBuf>,
-
-    /// The build agent to use
-    #[clap(
-        long,
-        parse(from_os_str),
-        value_name = "EXECUTABLE",
-        env = "GNG_AGENT_EXECUTABLE"
-    )]
-    agent: Option<PathBuf>,
 
     /// The directory with the build information
     #[clap(parse(from_os_str), value_name = "DIR")]
