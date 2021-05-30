@@ -507,6 +507,7 @@ dependencies = [
  "itertools",
  "nix",
  "serde",
+ "serde_json",
  "sha3",
  "tar",
  "thiserror",

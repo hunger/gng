@@ -15,6 +15,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
+use gng_db::GngDbExt;
+
 use std::path::PathBuf;
 
 use clap::Clap;
@@ -104,7 +106,7 @@ fn main() -> Result<()> {
         .wrap_err("Failed to get current work directory.")?
         .join(args.pkgsrc_dir);
 
-    let config = gng_db::Config::new(&args.config_file)?;
+    let config = gng_shared::Gng::new(&args.config_file)?;
 
     let repo_db = config.repository_db()?;
 

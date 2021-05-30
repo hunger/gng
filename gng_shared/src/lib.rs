@@ -24,6 +24,10 @@ use std::os::unix::fs::PermissionsExt;
 /// `Error` type for the `gng_shared` library
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    /// Configuration Error
+    #[error("Configuration Error: {}", .0)]
+    Config(String),
+
     /// Conversion error.
     #[error("Conversion error: Can not convert \"{expression}\" to {typename}: {message}.")]
     Conversion {
@@ -133,8 +137,8 @@ pub fn start_alnum_char(input: &str) -> bool {
 // - Sub-Modules:
 // ----------------------------------------------------------------------
 
-pub mod config;
 mod definitions;
+pub mod gng;
 pub(crate) mod hash;
 pub mod log;
 pub mod packet;
@@ -143,4 +147,5 @@ pub use definitions::{
     FacetDefinition, FacetDefinitionBuilder, FacetFileData, FacetFileDataBuilder, GpgKeyId, Name,
     Names, PacketFacet, PacketFileData, PacketFileDataBuilder, Version,
 };
+pub use gng::Gng;
 pub use hash::Hash;

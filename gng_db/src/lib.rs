@@ -56,7 +56,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 // - Modules:
 // ----------------------------------------------------------------------
 
-pub mod config;
+pub mod gng_ext;
 pub mod packet_db;
 pub mod repository_db;
 
@@ -66,8 +66,7 @@ pub mod repository_db;
 
 pub use uuid::Uuid; // Reexport Uuid from uuid crate!
 
-pub use config::Config;
-// FIXME: Are the following needed?
+pub use gng_ext::GngDbExt;
 pub use packet_db::PacketDb;
 pub use repository_db::RepositoryDb;
 
