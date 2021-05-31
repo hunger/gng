@@ -140,7 +140,7 @@ impl Packet {
     pub fn finish(
         &mut self,
         factory: &super::InternalPacketWriterFactory,
-    ) -> eyre::Result<PacketFiles> {
+    ) -> eyre::Result<Option<PacketFiles>> {
         let facets: Vec<Option<(gng_shared::Name, std::path::PathBuf, gng_shared::Hash)>> = self
             .facets
             .iter_mut()
@@ -156,11 +156,12 @@ impl Packet {
             .filter_map(|f| f.as_ref().map(|(n, _, h)| (n.clone(), h.clone())))
             .collect::<Vec<_>>();
 
-        let (packet, path, hash) = self.main_facet.finish(&facets[..], factory)?;
-        files.push((path, hash));
+        if let Some((packet, path, hash)) = self.main_facet.finish(&facets[..], factory)? {
+            files.push((path, hash));
 
-        let result = PacketFiles { packet, files };
-
-        Ok(result)
+            Ok(Some(PacketFiles { packet, files }))
+        } else {
+            Ok(None)
+        }
     }
 }

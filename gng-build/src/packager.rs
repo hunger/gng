@@ -247,6 +247,7 @@ impl Packager {
         packets
             .iter_mut()
             .map(|p| p.finish(&factory))
+            .filter_map(Result::transpose)
             .collect::<eyre::Result<Vec<_>>>()
     }
 }
@@ -476,21 +477,8 @@ mod tests {
                 0
             )
         );
-        assert_eq!(
-            it.next().unwrap().1,
-            Path::new_directory(
-                std::path::Path::new(".gng/foo"),
-                &std::ffi::OsString::from("_MAIN_"),
-                0o755,
-                0,
-                0
-            )
-        );
         let meta = &it.next().unwrap().1;
-        assert_eq!(
-            meta.path(),
-            std::path::Path::new(".gng/foo/_MAIN_/info.json")
-        );
+        assert_eq!(meta.path(), std::path::Path::new(".gng/foo/info.json"));
         assert_eq!(meta.mode(), 0o755);
         assert_eq!(meta.user_id(), 0);
         assert_eq!(meta.group_id(), 0);
@@ -564,7 +552,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(result.len(), 2);
+        assert_eq!(result.len(), 1);
 
         let results = results.replace(Vec::new());
         for p in &results {

@@ -75,10 +75,11 @@ pub use repository_db::RepositoryDb;
 
 fn deduplicate(mut uuids: Vec<Uuid>) -> Vec<Uuid> {
     let mut already_seen = Vec::with_capacity(uuids.len());
-    uuids.retain(|item| match already_seen.contains(item) {
-        true => false,
-        _ => {
-            already_seen.push(item.clone());
+    uuids.retain(|item| {
+        if already_seen.contains(item) {
+            false
+        } else {
+            already_seen.push(*item);
             true
         }
     });
@@ -157,11 +158,19 @@ impl Repository {
     #[must_use]
     pub fn to_pretty_string(&self) -> String {
         let relation_str = format!(
-            "\n    Overrides {}, Depends on: {:?}",
+            "\n    Overrides {} ({:?}), Depends on: {:?} ({:?})",
             self.overrides
                 .as_ref()
                 .map_or("<NONE>".to_string(), |r| r.name.to_string()),
+            self.overridden_by
+                .iter()
+                .map(|r| r.name.to_string())
+                .collect::<Vec<_>>(),
             self.depends_on
+                .iter()
+                .map(|r| r.name.to_string())
+                .collect::<Vec<_>>(),
+            self.depended_on
                 .iter()
                 .map(|r| r.name.to_string())
                 .collect::<Vec<_>>(),

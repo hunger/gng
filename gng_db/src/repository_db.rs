@@ -3,7 +3,7 @@
 
 //! A object representing a `Repository`
 
-use crate::{Error, LocalRepository, Repository, Result, Uuid};
+use crate::{deduplicate, Error, LocalRepository, Repository, RepositoryNode, Result, Uuid};
 
 use gng_shared::Name;
 
@@ -92,6 +92,16 @@ fn validate_repositories(repositories: &[RepositoryData]) -> Result<()> {
     Ok(())
 }
 
+fn compare_repositories(a: &Repository, b: &Repository) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+
+    match a.priority.cmp(&b.priority) {
+        Ordering::Less => Ordering::Greater,
+        Ordering::Equal => a.uuid.cmp(&b.uuid),
+        Ordering::Greater => Ordering::Less,
+    }
+}
+
 fn create_placeholder_repository() -> crate::RepositoryNode {
     std::rc::Rc::new(Repository {
         name: Name::try_from("placeholder").expect("Name was valid."),
@@ -108,12 +118,12 @@ fn create_placeholder_repository() -> crate::RepositoryNode {
     })
 }
 
-fn generate_repository_tree(repositories: &[RepositoryData]) -> Result<Vec<crate::RepositoryNode>> {
-    // 0. run: Create empty Repositories (mapped by UUID)
+fn generate_uuid_repository_map(
+    repositories: &[RepositoryData],
+) -> std::collections::HashMap<Uuid, RepositoryNode> {
     let placeholder = create_placeholder_repository();
-    let placeholder_uuid = placeholder.uuid;
 
-    let uuid_to_repository: std::collections::HashMap<Uuid, crate::RepositoryNode> = repositories
+    repositories
         .iter()
         .map(|r| {
             let repo = std::rc::Rc::new(Repository {
@@ -133,10 +143,14 @@ fn generate_repository_tree(repositories: &[RepositoryData]) -> Result<Vec<crate
 
             (r.uuid, repo)
         })
-        .collect::<std::collections::HashMap<_, _, _>>();
+        .collect::<std::collections::HashMap<_, _, _>>()
+}
 
-    // 1. run: Fill information from RepositoryData into Repositories:
-    let mut repository_nodes = repositories
+fn generate_repository_nodes_with_relations(
+    repositories: &[RepositoryData],
+    uuid_to_repository: &std::collections::HashMap<Uuid, RepositoryNode>,
+) -> Result<Vec<RepositoryNode>> {
+    repositories
         .iter()
         .map(|r| {
             let mut repo = uuid_to_repository[&r.uuid].clone();
@@ -191,7 +205,7 @@ fn generate_repository_tree(repositories: &[RepositoryData]) -> Result<Vec<crate
                             );
                         }
 
-                        unsafe { std::rc::Rc::get_mut_unchecked(&mut other_repo).depends_on.push(repo.clone()); }
+                        unsafe { std::rc::Rc::get_mut_unchecked(&mut other_repo).depended_on.push(repo.clone()); }
 
                         Ok(other_repo)
                     })
@@ -204,25 +218,55 @@ fn generate_repository_tree(repositories: &[RepositoryData]) -> Result<Vec<crate
 
             Ok(repo)
         })
-        .collect::<Result<Vec<_>>>()?;
+        .collect()
+}
+
+fn find_leaf_repository_nodes(repository_nodes: &[RepositoryNode]) -> Vec<RepositoryNode> {
+    let mut leaves: Vec<_> = repository_nodes
+        .iter()
+        .filter(|r| !r.is_override() && r.depended_on.is_empty())
+        .cloned()
+        .collect();
+
+    leaves.sort_by(|a, b| compare_repositories(a, b));
+
+    leaves
+}
+
+fn generate_repository_tree(repositories: &[RepositoryData]) -> Result<Vec<crate::RepositoryNode>> {
+    validate_repositories(repositories)?;
+
+    // 0. run: Create empty Repositories (mapped by UUID)
+    let uuid_to_repository = generate_uuid_repository_map(repositories);
+
+    // 1. run: Fill information from RepositoryData into Repositories:
+    let mut repository_nodes =
+        generate_repository_nodes_with_relations(repositories, &uuid_to_repository)?;
 
     // 2. step: Sort overrides and depends_on based on priority:
     for rn in &mut repository_nodes {
         unsafe {
             std::rc::Rc::get_mut_unchecked(rn)
                 .overridden_by
-                .sort_by(|a, b| a.priority.cmp(&b.priority));
+                .sort_by(|a, b| compare_repositories(a, b));
         }
         unsafe {
             std::rc::Rc::get_mut_unchecked(rn)
                 .depends_on
-                .sort_by(|a, b| a.priority.cmp(&b.priority));
+                .sort_by(|a, b| compare_repositories(a, b));
         }
-
-        assert_ne!(placeholder_uuid, rn.uuid); // placeholder did not leak into result
+        unsafe {
+            // This is not required, but makes sure our nodes are more stable:
+            std::rc::Rc::get_mut_unchecked(rn)
+                .depended_on
+                .sort_by(|a, b| compare_repositories(a, b));
+        }
     }
 
     assert_eq!(repository_nodes.len(), repositories.len());
+
+    // Make sure to return results in a defined order:
+    repository_nodes.sort_by(|a, b| compare_repositories(a, b));
 
     Ok(repository_nodes)
 }
@@ -294,6 +338,7 @@ impl Eq for RepositoryData {}
 #[derive(Clone, Debug)]
 pub struct RepositoryDb {
     repositories: Vec<crate::RepositoryNode>,
+    leaves: Vec<crate::RepositoryNode>,
 }
 
 impl RepositoryDb {
@@ -303,8 +348,6 @@ impl RepositoryDb {
     /// Return `Error::Repository` if there are inconsistencies discovered while loading the repositories
     pub fn open(repository_directory: &std::path::Path) -> Result<Self> {
         let repositories = backend::read_repositories(repository_directory)?;
-        validate_repositories(&repositories)?;
-
         let repositories = generate_repository_tree(&repositories[..])?;
 
         tracing::info!(
@@ -313,69 +356,49 @@ impl RepositoryDb {
             repository_directory.display(),
         );
 
-        Ok(Self { repositories })
+        let leaves = find_leaf_repository_nodes(&repositories);
+
+        Ok(Self {
+            repositories,
+            leaves,
+        })
     }
 
     /// Resolve some user provided `&str` to an `Repository` `Uuid`.
     #[must_use]
-    pub fn resolve_repository(&self, input: &str) -> Option<Uuid> {
+    pub fn resolve_repository(&self, input: &str) -> Option<RepositoryNode> {
         if let Ok(uuid) = Uuid::parse_str(input) {
-            self.repositories
-                .iter()
-                .find(|r| r.uuid == uuid)
-                .map(|r| r.uuid)
-        } else if let Ok(name) = Name::try_from(input) {
-            self.repositories
-                .iter()
-                .find(|r| r.name == name)
-                .map(|r| r.uuid)
-        } else {
-            None
+            if let Some(r) = self.repositories.iter().find(|r| r.uuid == uuid).cloned() {
+                return Some(r);
+            }
         }
+        if let Ok(name) = Name::try_from(input) {
+            return self.repositories.iter().find(|r| r.name == name).cloned();
+        }
+        None
     }
 
     /// Find a `Repository` that will adopt packets from a specific `Packet` source directory.
     #[must_use]
-    pub fn repository_for_packet_source_path(&self, input: &std::path::Path) -> Option<Uuid> {
+    pub fn repository_for_packet_source_path(
+        &self,
+        input: &std::path::Path,
+    ) -> Option<RepositoryNode> {
         self.repositories
             .iter()
             .find(|r| match &r.source {
                 crate::RepositorySource::Local(lr) => input.starts_with(&lr.sources_base_directory),
                 crate::RepositorySource::Remote(_) => false,
             })
-            .map(|r| r.uuid)
+            .cloned()
     }
 
-    // /// Get the search path for a `Repository`.
-    // /// A `uuid` of `None` will return the global search path
-    // #[must_use]
-    // pub fn search_path(&self, uuid: Option<&Uuid>) -> Vec<Uuid> {
-    //     match uuid {
-    //         None => self.global_repository_search_path.clone(),
-    //         Some(uuid) => find_repository_by_uuid(&self.repositories, uuid)
-    //             .map_or(Vec::new(), |r| r.search_paths.clone()),
-    //     }
-    // }
-
-    // /// Get a `Repository`.
-    // #[must_use]
-    // pub fn repository(&self, uuid: &Uuid) -> Option<RepositoryData> {
-    //     find_repository_by_uuid(&self.repositories, uuid).map(|r| r.repository().clone())
-    // }
-
-    // /// Get all repositories
-    // #[must_use]
-    // pub fn all_repositories(&self) -> Vec<RepositoryData> {
-    //     self.global_repository_search_path
-    //         .iter()
-    //         .map(|u| {
-    //             find_repository_by_uuid(&self.repositories, u)
-    //                 .expect("Must exists!")
-    //                 .repository()
-    //                 .clone()
-    //         })
-    //         .collect()
-    // }
+    /// Get the search path for a `Repository`.
+    /// A `uuid` of `None` will return the global search path
+    #[must_use]
+    pub fn search_path(&self) -> Vec<Uuid> {
+        deduplicate(self.leaves.iter().flat_map(|r| r.search_path()).collect())
+    }
 
     // /// Sanity check all known repositories
     // ///
@@ -396,6 +419,7 @@ impl Default for RepositoryDb {
 
         Self {
             repositories: Vec::new(),
+            leaves: Vec::new(),
         }
     }
 }
@@ -632,11 +656,16 @@ mod tests {
         assert!(generate_repository_tree(&repositories).is_err());
     }
 
-    fn create_dependent_repo(name: &str, uuid: &Uuid, dependencies: Vec<Uuid>) -> RepositoryData {
+    fn create_dependent_repo(
+        name: &str,
+        uuid: &Uuid,
+        dependencies: Vec<Uuid>,
+        priority: u32,
+    ) -> RepositoryData {
         RepositoryData {
             name: Name::try_from(name).expect("Name was valid!"),
             uuid: *uuid,
-            priority: 1500,
+            priority,
             source: crate::RepositorySource::Local(crate::LocalRepository {
                 sources_base_directory: std::path::PathBuf::from(format!(
                     "file:///tmp/sources/{}",
@@ -678,27 +707,31 @@ mod tests {
         let uuid_2o0 = Uuid::new_v4();
         let uuid_2o1 = Uuid::new_v4();
         let uuid_3 = Uuid::new_v4();
+        let uuid_3o0 = Uuid::new_v4();
 
         let repositories = [
-            create_dependent_repo("r3", &uuid_3, vec![uuid_2]),
+            create_dependent_repo("r3", &uuid_3, vec![uuid_2], 1500),
             create_override_repo("r1o0", &uuid_1o0, uuid_1, 10000),
             create_override_repo("r2o1", &uuid_2o1, uuid_2, 2000),
-            create_dependent_repo("r1", &uuid_1, vec![uuid_0]),
+            create_dependent_repo("r1", &uuid_1, vec![uuid_0], 1500),
             create_override_repo("r2o0", &uuid_2o0, uuid_2, 15000),
-            create_dependent_repo("r0", &uuid_0, vec![]),
-            create_dependent_repo("r2", &uuid_2, vec![uuid_1]),
+            create_dependent_repo("r0", &uuid_0, vec![], 1500),
+            create_dependent_repo("r2", &uuid_2, vec![uuid_1], 1500),
+            create_override_repo("r3o0", &uuid_3o0, uuid_3, 150),
         ];
 
-        let global_search_path =
+        let repository_nodes =
             generate_repository_tree(&repositories).expect("Input was supposed to be correct");
 
+        let leaves = find_leaf_repository_nodes(&repository_nodes);
         assert_eq!(
-            global_search_path
-                .iter()
-                .map(|r| r.uuid)
-                .collect::<Vec<_>>(),
-            vec![uuid_3, uuid_2o0, uuid_2o1, uuid_2, uuid_1o0, uuid_1, uuid_0]
-        )
+            leaves.iter().map(|r| r.uuid).collect::<Vec<_>>(),
+            vec![uuid_3]
+        );
+        assert_eq!(
+            leaves[0].search_path(),
+            vec![uuid_3o0, uuid_3, uuid_2o0, uuid_2o1, uuid_2, uuid_1o0, uuid_1, uuid_0]
+        );
     }
 
     #[test]
@@ -712,31 +745,38 @@ mod tests {
         let uuid_3 = Uuid::new_v4();
 
         let repositories = [
-            create_dependent_repo("r0", &uuid_0, vec![]),
-            create_dependent_repo("r1", &uuid_1, vec![uuid_0]),
-            create_dependent_repo("r2l0", &uuid_2left0, vec![uuid_1]),
-            create_dependent_repo("r2l1", &uuid_2left1, vec![uuid_2left0]),
-            create_dependent_repo("r2r0", &uuid_2right0, vec![uuid_1]),
+            create_dependent_repo("r0", &uuid_0, vec![], 1500),
+            create_dependent_repo("r1", &uuid_1, vec![uuid_0], 1500),
+            create_dependent_repo("r2l0", &uuid_2left0, vec![uuid_1], 1500),
+            create_dependent_repo("r2l1", &uuid_2left1, vec![uuid_2left0], 5100),
+            create_dependent_repo("r2r0", &uuid_2right0, vec![uuid_1], 1500),
             create_override_repo("r2r0o0", &uuid_2right0o0, uuid_2right0, 99),
-            create_dependent_repo("r3", &uuid_3, vec![uuid_2left1, uuid_2right0]),
+            create_dependent_repo("r3", &uuid_3, vec![uuid_2left1, uuid_2right0], 1500),
         ];
 
-        let global_search_path =
+        let repository_nodes =
             generate_repository_tree(&repositories).expect("Input was supposed to be correct");
 
+        for rn in &repository_nodes {
+            println!("{}", rn.to_pretty_string());
+        }
+
+        let leaves = find_leaf_repository_nodes(&repository_nodes);
         assert_eq!(
-            global_search_path
-                .iter()
-                .map(|r| r.uuid)
-                .collect::<Vec<_>>(),
+            leaves.iter().map(|r| r.uuid).collect::<Vec<_>>(),
+            vec![uuid_3]
+        );
+
+        assert_eq!(
+            leaves[0].search_path(),
             vec![
                 uuid_3,
                 uuid_2left1,
                 uuid_2left0,
-                uuid_2right0o0,
-                uuid_2right0,
                 uuid_1,
                 uuid_0,
+                uuid_2right0o0,
+                uuid_2right0,
             ]
         )
     }

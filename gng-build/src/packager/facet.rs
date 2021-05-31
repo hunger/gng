@@ -314,19 +314,26 @@ impl MainFacet {
         &mut self,
         facets: &[(gng_shared::Name, gng_shared::Hash)],
         factory: &super::InternalPacketWriterFactory,
-    ) -> eyre::Result<(PacketFileData, std::path::PathBuf, gng_shared::Hash)> {
+    ) -> eyre::Result<Option<(PacketFileData, std::path::PathBuf, gng_shared::Hash)>> {
         check_contents_policy(
             self.writer.is_some(),
             &self.contents_policy,
             &self.full_debug_name(),
         )?;
 
-        self.get_or_insert_writer(factory)?;
+        if !facets.is_empty() {
+            // Always write main file if facets were created!
+            self.get_or_insert_writer(factory)?;
+        }
 
-        let data = self.write_facet_metadata(facets)?;
-        let (path, hash) = self.get_writer()?.finish()?;
+        if self.writer.is_some() {
+            let data = self.write_facet_metadata(facets)?;
+            let (path, hash) = self.get_writer()?.finish()?;
 
-        Ok((data, path, hash))
+            Ok(Some((data, path, hash)))
+        } else {
+            Ok(None)
+        }
     }
 
     fn write_facet_metadata(
