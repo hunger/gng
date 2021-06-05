@@ -215,7 +215,6 @@ fn generate_repository_nodes_with_relations(
             };
             unsafe { std::rc::Rc::get_mut_unchecked(&mut repo).depends_on = depends_on; }
 
-
             Ok(repo)
         })
         .collect()
@@ -398,6 +397,18 @@ impl RepositoryDb {
     #[must_use]
     pub fn search_path(&self) -> Vec<Uuid> {
         deduplicate(self.leaves.iter().flat_map(|r| r.search_path()).collect())
+    }
+
+    /// List all repositories
+    #[must_use]
+    pub fn all_repositories(&self) -> Vec<RepositoryNode> {
+        self.repositories.clone()
+    }
+
+    /// List leaf repositories
+    #[must_use]
+    pub fn leaf_repositories(&self) -> Vec<RepositoryNode> {
+        self.leaves.clone()
     }
 
     // /// Sanity check all known repositories
