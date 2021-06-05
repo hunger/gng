@@ -44,8 +44,6 @@ fn from_hex(input: &str, output: &mut [u8]) -> crate::Result<()> {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(try_from = "String", into = "String")]
 pub enum Hash {
-    /// No hash validation needed
-    None(),
     /// SHA 256
     Sha256([u8; 32]),
     /// SHA 512
@@ -53,18 +51,6 @@ pub enum Hash {
 }
 
 impl Hash {
-    /// Create a `NONE` hash
-    #[must_use]
-    pub const fn none() -> Self {
-        Self::None()
-    }
-
-    /// Check whether there is no real hash.
-    #[must_use]
-    pub const fn is_none(&self) -> bool {
-        matches!(self, Self::None())
-    }
-
     /// Create a `SHA256` hash
     ///
     /// # Errors
@@ -132,9 +118,8 @@ impl Hash {
     #[must_use]
     pub const fn algorithm(&self) -> &'static str {
         match self {
-            Self::None() => "none",
-            Self::Sha256(_) => "sha256",
-            Self::Sha512(_) => "sha512",
+            Self::Sha256(_) => "sha3_256",
+            Self::Sha512(_) => "sha3_512",
         }
     }
 
@@ -142,7 +127,6 @@ impl Hash {
     #[must_use]
     pub fn value(&self) -> String {
         match self {
-            Self::None() => String::new(),
             Self::Sha256(v) => to_hex(&v[..]),
             Self::Sha512(v) => to_hex(&v[..]),
         }
@@ -152,7 +136,6 @@ impl Hash {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         match self {
-            Self::None() => &[],
             Self::Sha256(v) => &v[..],
             Self::Sha512(v) => &v[..],
         }
@@ -170,13 +153,10 @@ impl std::convert::TryFrom<&str> for Hash {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.to_lowercase();
-        if value == "none" {
-            return Ok(Self::none());
-        }
-        if let Some(v) = value.strip_prefix("sha256:") {
+        if let Some(v) = value.strip_prefix("sha3_256:") {
             return Self::sha256(v);
         }
-        if let Some(v) = value.strip_prefix("sha512:") {
+        if let Some(v) = value.strip_prefix("sha3_512:") {
             return Self::sha512(v);
         }
         Err(crate::Error::Conversion {
@@ -195,18 +175,9 @@ impl std::convert::TryFrom<String> for Hash {
     }
 }
 
-impl Default for Hash {
-    fn default() -> Self {
-        Self::None()
-    }
-}
-
 impl std::fmt::Display for Hash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Self::None() => write!(f, "{}", self.algorithm()),
-            _ => write!(f, "{}:{}", self.algorithm(), self.value()),
-        }
+        write!(f, "{}:{}", self.algorithm(), self.value())
     }
 }
 
@@ -219,18 +190,13 @@ impl std::cmp::PartialOrd for Hash {
 impl std::cmp::Ord for Hash {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match self {
-            Self::None() => match other {
-                Self::None() => std::cmp::Ordering::Equal,
-                _ => std::cmp::Ordering::Greater,
-            },
             Self::Sha256(sv) => match other {
-                Self::None() => std::cmp::Ordering::Greater,
                 Self::Sha256(ov) => sv.cmp(ov),
                 Self::Sha512(_) => std::cmp::Ordering::Less,
             },
             Self::Sha512(sv) => match other {
+                Self::Sha256(_) => std::cmp::Ordering::Greater,
                 Self::Sha512(ov) => sv.cmp(ov),
-                _ => std::cmp::Ordering::Greater,
             },
         }
     }

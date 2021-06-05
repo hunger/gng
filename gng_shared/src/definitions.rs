@@ -535,7 +535,7 @@ mod tests {
         assert_eq!(
             GpgKeyId::try_from("aB-c D1---23   4EFAB5678").unwrap(),
             GpgKeyId::new("ABCD1234EFAB5678").unwrap()
-        )
+        );
     }
 
     #[test]
@@ -547,30 +547,28 @@ mod tests {
 
     #[test]
     fn package_hash_ok() {
-        assert_eq!(Hash::none(), Hash::None());
-
         assert_eq!(
             Hash::sha256("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
                 .unwrap()
                 .to_string(),
-            "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
+            "sha3_256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
         );
 
         assert_eq!(
             Hash::sha512("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
                 .unwrap()
                 .to_string(),
-            "sha512:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
+            "sha3_512:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
         );
 
         assert_eq!(
             Hash::try_from(
-                "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+                "sha3_256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
             )
             .unwrap()
             .to_string(),
-            "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
-        )
+            "sha3_256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".to_string()
+        );
     }
 
     #[test]
@@ -580,11 +578,11 @@ mod tests {
         assert!(Hash::try_from("sha256:").is_err()); // No hex
         assert!(Hash::try_from("sha256:0123424").is_err()); // too short
         assert!(Hash::try_from(
-            "sha256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0"
+            "sha3_256:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f0"
         )
         .is_err()); // too long
         assert!(Hash::try_from(
-            "sha256:000102030405060708090a0b0cXd0e0f101112131415161718191a1b1c1d1e1f"
+            "sha3_256:000102030405060708090a0b0cXd0e0f101112131415161718191a1b1c1d1e1f"
         )
         .is_err()); // not hex
     }

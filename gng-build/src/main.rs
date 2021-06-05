@@ -97,14 +97,14 @@ fn main() -> Result<()> {
         .wrap_err("Failed to get current work directory.")?
         .join(args.pkgsrc_dir);
 
-    let repo_db = config.repository_db()?;
+    let db = config.db()?;
 
-    let repo = match &args.repository {
-        Some(rin) => repo_db.resolve_repository(rin),
-        None => repo_db.repository_for_packet_source_path(&pkgsrc_dir),
-    }
-    .ok_or_else(|| eyre::eyre!("Could not find repository to adopt the build result into."))?;
-    tracing::debug!("Inserting packets into repository {}.", repo.name);
+    // let repo = match &args.repository {
+    //     Some(rin) => repo_db.resolve_repository(rin),
+    //     None => repo_db.repository_for_packet_source_path(&pkgsrc_dir),
+    // }
+    // .ok_or_else(|| eyre::eyre!("Could not find repository to adopt the build result into."))?;
+    // tracing::debug!("Inserting packets into repository {}.", repo.name);
 
     let source_packet_info = std::rc::Rc::new(gng_build::handler::SourcePacketInfo::default());
 

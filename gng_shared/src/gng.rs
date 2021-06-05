@@ -62,20 +62,17 @@ pub struct Gng {
     /// The directory containing all data from local repositories
     pub locals_dir: PathBuf,
     /// The directory holding the packet DB
-    pub packet_db_directory: PathBuf,
+    pub db_directory: PathBuf,
     /// The directory holding cached data from remote repositories
     pub remotes_dir: PathBuf,
-    /// The directory holding repository definition files
-    pub repository_dir: PathBuf,
 }
 
 impl Default for Gng {
     fn default() -> Self {
         Self {
             locals_dir: data_path().join("gng/locals"),
-            packet_db_directory: data_path().join("gng/packets"),
+            db_directory: data_path().join("gng/packets"),
             remotes_dir: cache_path().join("gng/remotes"),
-            repository_dir: config_path().join("gng/repositories"),
         }
     }
 }

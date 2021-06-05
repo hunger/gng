@@ -34,9 +34,9 @@ fn create_header(packet_path: &Path) -> crate::Result<tar::Header> {
     }
 
     if packet_path.is_dir() {
-        header.set_entry_type(tar::EntryType::Directory)
+        header.set_entry_type(tar::EntryType::Directory);
     } else if packet_path.is_file() {
-        header.set_entry_type(tar::EntryType::Regular)
+        header.set_entry_type(tar::EntryType::Regular);
     } else if packet_path.is_link() {
         header.set_entry_type(tar::EntryType::Symlink);
     } else {

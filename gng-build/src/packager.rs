@@ -298,7 +298,8 @@ mod tests {
         fn finish(&mut self) -> gng_shared::Result<(std::path::PathBuf, Hash)> {
             Ok((
                 std::path::PathBuf::from(format!("{}.gng", self.packet_info)),
-                Hash::default(),
+                Hash::sha256("df149f5e5785caba34bd92373278e7f88cfcf292459e7e3929c03b68fbf0d6bb")
+                    .unwrap(),
             ))
         }
     }
@@ -515,7 +516,8 @@ mod tests {
             .unwrap()
             .add_facet(
                 &Name::try_from("f1").unwrap(),
-                &Hash::default(),
+                &Hash::sha256("df149f5e5785caba34bd92373278e7f88cfcf292459e7e3929c03b68fbf0d6bb")
+                    .unwrap(),
                 &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["f1".to_string(), "f1/**".to_string()],
@@ -525,7 +527,8 @@ mod tests {
             .unwrap()
             .add_facet(
                 &Name::try_from("unused").unwrap(),
-                &Hash::default(),
+                &Hash::sha256("ef149f5e5785caba34bd92373278e7f88cfcf292459e7e3929c03b68fbf0d6bb")
+                    .unwrap(),
                 &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["unused".to_string(), "unused/**".to_string()],
@@ -535,7 +538,8 @@ mod tests {
             .unwrap()
             .add_facet(
                 &Name::try_from("f2").unwrap(),
-                &Hash::default(),
+                &Hash::sha256("ff149f5e5785caba34bd92373278e7f88cfcf292459e7e3929c03b68fbf0d6bb")
+                    .unwrap(),
                 &FacetDefinition {
                     mime_types: vec![],
                     patterns: vec!["f2".to_string(), "f2/**".to_string()],
