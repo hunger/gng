@@ -1,3 +1,3 @@
 [workspace]
-members = ["gng-build", "gng-build-agent", "gng_build_shared", "gng_db", "gng_shared", ]
+members = ["crates/*", "commands/*"]
 resolver = "2"

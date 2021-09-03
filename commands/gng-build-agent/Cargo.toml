@@ -1,0 +1,24 @@
+[package]
+name = "gng-build-agent"
+version = "0.1.0"
+edition = "2018"
+authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
+license = "GPL-3.0-or-later"
+categories = ["tool", "packaging", "distribution", "linux", "cleanroom"]
+keywords = ["tool", "packaging", "distribution", "linux", "cleanroom"]
+repository = "https://github.com/hunger/gng"
+
+[dependencies]
+gng_build_shared = { path = "../../crates/gng_build_shared" }
+gng_core = { path = "../../crates/gng_core" }
+
+clap = { version = "3.0.0-beta.2" }
+eyre = { version = "0.6" }
+glob = { version = "0.3" }
+rlua = { version = "0.17" }
+rlua_serde = { version = "0.4" }
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+thiserror = { version = "1.0" }
+tracing = { version = "0.1" }
+url = { version = "2.2" }

@@ -1,0 +1,11 @@
+[package]
+name = "gng_contained_command"
+version = "0.1.0"
+authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+gng_core = { path = "../gng_core" }
+
+thiserror = { version = "1.0" }
+tracing = { version = "0.1" }
