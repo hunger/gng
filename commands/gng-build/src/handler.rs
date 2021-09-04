@@ -3,7 +3,11 @@
 
 //! A object used to handle events from `gng-build-agent` received via the `CaseOfficer`
 
+mod query_handler;
+
 use eyre::Result;
+
+use query_handler::QueryHandler;
 
 // ----------------------------------------------------------------------
 // - Handler:
@@ -98,8 +102,9 @@ pub struct HandlerManager {
 
 impl Default for HandlerManager {
     fn default() -> Self {
+        let query_handler = Box::new(QueryHandler::default());
         Self {
-            handlers: std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
+            handlers: std::rc::Rc::new(std::cell::RefCell::new(vec![query_handler])),
         }
     }
 }
