@@ -1,13 +1,18 @@
 local startup = {}
 
+local inspect = require("inspect")
+
 function startup.init(pkg_definition)
     pkg_defaults = {
         bootstrap = false,
 
+        url = "",
+        bug_url = "",
+
         build_dependencies = {},
         check_dependencies = {},
 
-        packets = {},
+        -- packets = {},
     }
 
     PKG_func, err = loadfile(pkg_definition)
@@ -24,13 +29,15 @@ function startup.init(pkg_definition)
         end
     end
 
-    for _, f in ipairs({ "prepare", "build", "check", "install", "polish", }) do
-        local func = PKG[f]
-        if func == nil then
-            func = function() end
+    -- Move functions out of PKG so that we can move it into Rust:
+    for _, v in pairs({ "prepare", "build", "check", "install", "polish" }) do
+        f = PKG[v]
+        if f == nil then
+            f = function() end
         end
-        _G[f] = func
-        PKG[f] = nil
+
+        PKG[v] = nil
+        _G[v] = f
     end
 end
 

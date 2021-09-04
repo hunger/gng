@@ -38,6 +38,8 @@ enum SubCommand {
     Install,
     /// polish up the filesystem before putting all the files into a packet
     Polish,
+    /// package up the filesystem [NOOP on agent side]
+    Package,
 }
 
 impl std::str::FromStr for SubCommand {
@@ -52,6 +54,7 @@ impl std::str::FromStr for SubCommand {
             "check" => Ok(Self::Check),
             "install" => Ok(Self::Install),
             "polish" => Ok(Self::Polish),
+            "package" => Ok(Self::Package),
             _ => Err(eyre::eyre!("Invalid subcommand given")),
         }
     }
@@ -92,7 +95,7 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 
 fn run_subcommand(script_support: &mut impl ScriptSupport, subcommand: &SubCommand) -> Result<()> {
     match subcommand {
-        SubCommand::Query => Ok(()),
+        SubCommand::Query | SubCommand::Package => Ok(()),
         SubCommand::Prepare => script_support.prepare(),
         SubCommand::Build => script_support.build(),
         SubCommand::Check => script_support.check(),

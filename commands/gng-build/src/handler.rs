@@ -65,6 +65,8 @@ fn handle(
     message_type: &gng_build_shared::MessageType,
     contents: &str,
 ) -> eyre::Result<()> {
+    tracing::debug!("Handling \"{:?}\": \"{}\".", message_type, contents);
+
     let mut handlers = handlers.borrow_mut();
     for h in &mut *handlers {
         if h.handle(mode, message_type, contents)? {
