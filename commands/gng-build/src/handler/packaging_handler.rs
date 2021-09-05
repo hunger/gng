@@ -10,32 +10,35 @@ use gng_build_shared::SourcePacket;
 use eyre::Result;
 
 // ----------------------------------------------------------------------
-// - SourcesHandler:
+// - PackagingHandler:
 // ----------------------------------------------------------------------
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
-pub struct SourcesHandler {
+pub struct PackagingHandler {
     source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
-    work_directory: std::path::PathBuf,
+    root_directory: std::path::PathBuf,
+    install_directory: std::path::PathBuf,
 }
 
-impl SourcesHandler {
-    /// Return the `SourcePacketInfo`
+impl PackagingHandler {
+    /// Create a new `PackagingHandler`
     pub fn new(
         source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
-        work_directory: &std::path::Path,
+        root_directory: &std::path::Path,
+        install_directory: &std::path::Path,
     ) -> Self {
         Self {
             source_packet,
-            work_directory: work_directory.to_path_buf(),
+            root_directory: root_directory.to_path_buf(),
+            install_directory: install_directory.to_path_buf(),
         }
     }
 }
 
-impl Handler for SourcesHandler {
+impl Handler for PackagingHandler {
     #[tracing::instrument(level = "trace", skip(self))]
-    fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
-        if *mode != crate::Mode::Build {
+    fn clean_up(&mut self, mode: &crate::Mode) -> Result<()> {
+        if *mode != crate::Mode::Package {
             return Ok(());
         }
 
@@ -44,18 +47,12 @@ impl Handler for SourcesHandler {
             .as_ref()
             .expect("SourcePacket should be defined here.");
 
-        let to_install = source_packet.sources.clone();
-
-        if to_install.is_empty() {
-            return Ok(());
-        }
-
         tracing::info!(
-            "Fetching sources into \"{}\".",
-            &self.work_directory.to_string_lossy()
+            "Packaging files in  \"{}\".",
+            &self.install_directory.to_string_lossy(),
         );
 
-        // FIXME: Actually fetch sources;-)
+        // FIXME: Actually install packets
 
         Ok(())
     }

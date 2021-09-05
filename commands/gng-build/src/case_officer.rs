@@ -31,7 +31,6 @@ fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
 fn path_buf_or_tempdir(
     path: &Option<PathBuf>,
     prefix: &str,
-    scratch_directory: &Path,
     temp_dirs: &mut Vec<tempfile::TempDir>,
 ) -> Result<PathBuf> {
     if let Some(p) = path {
@@ -41,11 +40,8 @@ fn path_buf_or_tempdir(
     let tmp = tempfile::Builder::new()
         .prefix(prefix)
         .rand_bytes(8)
-        .tempdir_in(scratch_directory)
-        .wrap_err(format!(
-            "Failed to create temporary directory in \"{}\".",
-            scratch_directory.to_string_lossy()
-        ))?;
+        .tempdir()
+        .wrap_err("Failed to create temporary directory.")?;
     let path = tmp.path().to_owned();
 
     temp_dirs.push(tmp);
@@ -135,9 +131,7 @@ pub struct CaseOfficerBuilder {
     nspawn_binary: PathBuf,
 
     lua_directory: Option<PathBuf>,
-    scratch_directory: PathBuf,
-    work_directory: Option<PathBuf>,
-    install_directory: Option<PathBuf>,
+    scratch_directory: Option<PathBuf>,
 }
 
 impl Default for CaseOfficerBuilder {
@@ -147,9 +141,7 @@ impl Default for CaseOfficerBuilder {
             nspawn_binary: PathBuf::from("/usr/bin/systemd-nspawn"),
 
             lua_directory: None,
-            scratch_directory: std::env::temp_dir(),
-            work_directory: None,
-            install_directory: None,
+            scratch_directory: None,
         }
     }
 }
@@ -163,19 +155,7 @@ impl CaseOfficerBuilder {
 
     /// Set the `scratch_directory` to use
     pub fn set_scratch_directory(&mut self, directory: &Path) -> &mut Self {
-        self.scratch_directory = directory.to_owned();
-        self
-    }
-
-    /// Set the `work_directory` to use
-    pub fn set_work_directory(&mut self, directory: &Path) -> &mut Self {
-        self.work_directory = Some(directory.to_owned());
-        self
-    }
-
-    /// Set the `install_directory` to use
-    pub fn set_install_directory(&mut self, directory: &Path) -> &mut Self {
-        self.install_directory = Some(directory.to_owned());
+        self.scratch_directory = Some(directory.to_owned());
         self
     }
 
@@ -196,43 +176,10 @@ impl CaseOfficerBuilder {
     /// # Errors
     /// Generic Error
     pub fn build(&mut self, pkgsrc_directory: &Path) -> Result<CaseOfficer> {
-        let mut temp_dirs = Vec::with_capacity(3);
+        let mut temp_dirs = Vec::with_capacity(1);
 
-        let root_directory =
-            path_buf_or_tempdir(&None, "root-", &self.scratch_directory, &mut temp_dirs)?;
-
-        if !root_directory.is_dir() {
-            return Err(eyre!(
-                "Root directory \"{}\" is not a directory.",
-                root_directory.to_string_lossy(),
-            ));
-        }
-
-        let work_directory = path_buf_or_tempdir(
-            &self.work_directory,
-            "work-",
-            &self.scratch_directory,
-            &mut temp_dirs,
-        )?;
-        if !work_directory.is_dir() {
-            return Err(eyre!(
-                "work directory \"{}\" is not a directory.",
-                work_directory.to_string_lossy(),
-            ));
-        }
-
-        let install_directory = path_buf_or_tempdir(
-            &self.install_directory,
-            "inst-",
-            &self.scratch_directory,
-            &mut temp_dirs,
-        )?;
-        if !install_directory.is_dir() {
-            return Err(eyre!(
-                "Install directory \"{}\" is not a directory.",
-                install_directory.to_string_lossy(),
-            ));
-        }
+        let scratch_directory =
+            path_buf_or_tempdir(&self.scratch_directory, "gng-build-", &mut temp_dirs)?;
 
         let agent = if let Some(a) = &self.agent {
             tracing::debug!(
@@ -255,9 +202,7 @@ impl CaseOfficerBuilder {
         };
 
         let agent_runner = AgentRunner::new(
-            &root_directory,
-            &work_directory,
-            &install_directory,
+            &scratch_directory,
             &agent,
             &lua_directory,
             &build_script(pkgsrc_directory)?,
@@ -266,7 +211,6 @@ impl CaseOfficerBuilder {
 
         Ok(CaseOfficer {
             agent_runner,
-
             temporary_directories: temp_dirs,
         })
     }
@@ -342,5 +286,23 @@ impl CaseOfficer {
         }
 
         Ok(())
+    }
+
+    /// Get the root directory used in the container
+    #[must_use]
+    pub fn root_directory(&self) -> std::path::PathBuf {
+        self.agent_runner.root_directory()
+    }
+
+    /// Get the work directory used in the container
+    #[must_use]
+    pub fn work_directory(&self) -> std::path::PathBuf {
+        self.agent_runner.work_directory()
+    }
+
+    /// Get the install directory used in the container
+    #[must_use]
+    pub fn install_directory(&self) -> std::path::PathBuf {
+        self.agent_runner.install_directory()
     }
 }

@@ -152,6 +152,26 @@ fn process_line(
     Ok(())
 }
 
+fn root_directory(scratch: &std::path::Path) -> std::path::PathBuf {
+    scratch.join("rootfs")
+}
+fn work_directory(scratch: &std::path::Path) -> std::path::PathBuf {
+    scratch.join("work")
+}
+
+fn install_directory(scratch: &std::path::Path) -> std::path::PathBuf {
+    scratch.join("install")
+}
+
+fn create_directory_tree(scratch: &std::path::Path) -> Result<()> {
+    std::fs::create_dir(&root_directory(scratch))?;
+    std::fs::create_dir(&root_directory(scratch).join("usr"))?;
+    std::fs::create_dir(&work_directory(scratch))?;
+    std::fs::create_dir(&install_directory(scratch))?;
+
+    Ok(())
+}
+
 // ----------------------------------------------------------------------
 // - AgentRunner:
 // ----------------------------------------------------------------------
@@ -159,9 +179,7 @@ fn process_line(
 /// A Specialized `Runner` to run `gng-build-agent`
 pub struct AgentRunner {
     runner: Runner,
-    usr_directory: PathBuf,
-    work_directory: PathBuf,
-    install_directory: PathBuf,
+    scratch_directory: PathBuf,
 }
 
 impl AgentRunner {
@@ -170,15 +188,24 @@ impl AgentRunner {
     /// # Errors
     /// May return an `Error` when some of the provided directories are not found
     pub fn new(
-        root_directory: &Path,
-        work_directory: &Path,
-        install_directory: &Path,
+        scratch_directory: &Path,
         agent_binary: &Path,
         lua_directory: &Path,
         build_script: &Path,
         nspawn_binary: &Path,
     ) -> Result<Self> {
-        let mut builder = RunnerBuilder::new(root_directory)
+        let scratch_directory = scratch_directory.to_path_buf();
+
+        if !scratch_directory.is_dir() {
+            return Err(eyre::eyre!(
+                "Scratch directory \"{}\" does not exist",
+                scratch_directory.to_string_lossy()
+            ));
+        }
+
+        create_directory_tree(&scratch_directory)?;
+
+        let mut builder = RunnerBuilder::new(root_directory(&scratch_directory))
             .systemd_nspawn(&gng_core::validate_executable(nspawn_binary)?)
             .add_binding(Binding::tmpfs(&cc::GNG_DIR))
             .add_binding(Binding::ro(
@@ -230,10 +257,26 @@ impl AgentRunner {
 
         Ok(Self {
             runner: builder.build(),
-            usr_directory: root_directory.join("usr"),
-            work_directory: work_directory.to_path_buf(),
-            install_directory: install_directory.to_path_buf(),
+            scratch_directory,
         })
+    }
+
+    /// Get the root directory used in the container
+    #[must_use]
+    pub fn root_directory(&self) -> std::path::PathBuf {
+        root_directory(&self.scratch_directory)
+    }
+
+    /// Get the work directory used in the container
+    #[must_use]
+    pub fn work_directory(&self) -> std::path::PathBuf {
+        work_directory(&self.scratch_directory)
+    }
+
+    /// Get the install directory used in the container
+    #[must_use]
+    pub fn install_directory(&self) -> std::path::PathBuf {
+        install_directory(&self.scratch_directory)
     }
 
     fn create_command(
@@ -248,35 +291,37 @@ impl AgentRunner {
                 message_prefix
             ));
 
+        let usr_directory = self.root_directory().join("usr");
+
         let builder = match mode {
             crate::Mode::Query => builder
                 .add_argument(&"query")
-                .add_binding(Binding::ro(&self.work_directory, &cc::GNG_WORK_DIR))
+                .add_binding(Binding::ro(&self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Prepare => builder
                 .add_argument(&"prepare")
-                .add_binding(Binding::rw(&self.work_directory, &cc::GNG_WORK_DIR))
+                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Build => builder
                 .add_argument(&"build")
-                .add_binding(Binding::rw(&self.work_directory, &cc::GNG_WORK_DIR))
+                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Check => builder
                 .add_argument(&"check")
-                .add_binding(Binding::rw(&self.work_directory, &cc::GNG_WORK_DIR))
+                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Install => builder
                 .add_argument(&"install")
-                .add_binding(Binding::ro(&self.work_directory, &cc::GNG_WORK_DIR))
+                .add_binding(Binding::ro(&self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR))
                 .add_binding(Binding::overlay(
-                    &[&self.usr_directory, &self.install_directory],
+                    &[&usr_directory, &self.install_directory()],
                     &PathBuf::from("/usr"),
                 )),
             crate::Mode::Package => builder
                 .add_argument(&"package")
-                .add_binding(Binding::rw(&self.work_directory, &cc::GNG_WORK_DIR))
-                .add_binding(Binding::rw(&self.install_directory, &cc::GNG_INST_DIR)),
+                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_binding(Binding::rw(&self.install_directory(), &cc::GNG_INST_DIR)),
         };
         builder.build()
     }

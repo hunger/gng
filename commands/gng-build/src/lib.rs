@@ -71,5 +71,4 @@ pub mod handler;
 // ----------------------------------------------------------------------
 
 pub use case_officer::{CaseOfficer, CaseOfficerBuilder};
-pub use handler::HandlerManager;
 // pub use packager::{Packager, PackagerBuilder};

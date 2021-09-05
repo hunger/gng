@@ -30,12 +30,12 @@ fn verify_source_packet(source_packet: &SourcePacket) -> Result<()> {
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct VerifySourcePacketHandler {
-    source_packet: std::rc::Rc<Option<SourcePacket>>,
+    source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
 }
 
 impl VerifySourcePacketHandler {
     /// Create a new `VerifySourcePacketHandler`
-    pub fn new(source_packet: std::rc::Rc<Option<SourcePacket>>) -> Self {
+    pub fn new(source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>) -> Self {
         Self { source_packet }
     }
 }
@@ -49,12 +49,15 @@ impl Handler for VerifySourcePacketHandler {
         message: &str,
     ) -> Result<bool> {
         if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
-            let source_packet = &(*self.source_packet).as_ref().expect(
-                "VerifySourcePacketHandler let this go through, so there is a source_packet set",
-            );
-            verify_source_packet(source_packet).map(|_| true)
-        } else {
-            Ok(true)
+            tracing::debug!("Verifying source packet info.");
+            let source_packet = self.source_packet.borrow();
+            let source_packet = source_packet
+                .as_ref()
+                .expect("SourcePacket should be defined here.");
+
+            verify_source_packet(source_packet)?;
         }
+
+        Ok(*mode == crate::Mode::Query)
     }
 }

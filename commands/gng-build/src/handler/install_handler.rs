@@ -15,19 +15,19 @@ use eyre::Result;
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct InstallHandler {
-    source_packet: std::rc::Rc<Option<SourcePacket>>,
-    install_directory: std::path::PathBuf,
+    source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
+    root_directory: std::path::PathBuf,
 }
 
 impl InstallHandler {
     /// Create a new `InstallHandler`
     pub fn new(
-        source_packet: std::rc::Rc<Option<SourcePacket>>,
-        install_directory: &std::path::Path,
+        source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
+        root_directory: &std::path::Path,
     ) -> Self {
         Self {
             source_packet,
-            install_directory: install_directory.to_path_buf(),
+            root_directory: root_directory.to_path_buf(),
         }
     }
 }
@@ -35,11 +35,14 @@ impl InstallHandler {
 impl Handler for InstallHandler {
     #[tracing::instrument(level = "trace", skip(self))]
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
-        assert_ne!(*mode, crate::Mode::Query); // QueryHandler makes sure we do not end up here!
+        if *mode == crate::Mode::Query {
+            return Ok(());
+        }
 
-        let source_packet = &(*self.source_packet)
+        let source_packet = self.source_packet.borrow();
+        let source_packet = source_packet
             .as_ref()
-            .expect("QueryHandler let this go through, so there is a source_packet set");
+            .expect("SourcePacket should be defined here.");
 
         let to_install = match *mode {
             crate::Mode::Build => {
@@ -61,7 +64,7 @@ impl Handler for InstallHandler {
         tracing::info!(
             "Installing \"{}\" into {}.",
             &to_install,
-            &self.install_directory.to_string_lossy(),
+            &self.root_directory.to_string_lossy(),
         );
 
         // FIXME: Actually install packets

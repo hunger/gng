@@ -35,7 +35,7 @@ pub mod constants {
             /// The `src` folder inside the build container
             pub static ref GNG_WORK_DIR: PathBuf = GNG_DIR.join("work");
             /// The `inst` folder inside the build container
-            pub static ref GNG_INST_DIR: PathBuf = GNG_DIR.join("inst");
+            pub static ref GNG_INST_DIR: PathBuf = GNG_DIR.join("install");
             /// The `lua` folder inside the build container
             pub static ref GNG_LUA_DIR: PathBuf = GNG_DIR.join("lua");
         }

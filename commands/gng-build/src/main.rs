@@ -97,12 +97,6 @@ fn main() -> Result<()> {
     if let Some(tmp) = &args.scratch_dir {
         case_officer.set_scratch_directory(tmp);
     }
-    if let Some(tmp) = &args.work_dir {
-        case_officer.set_work_directory(tmp);
-    }
-    if let Some(tmp) = &args.install_dir {
-        case_officer.set_install_directory(tmp);
-    }
     if let Some(tmp) = &args.agent {
         case_officer.set_agent(tmp);
     }
@@ -111,7 +105,5 @@ fn main() -> Result<()> {
         .build(&pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
-    let mut handler_manager = gng_build::HandlerManager::new(&std::path::PathBuf::from("/foo/bar"));
-
-    handler_manager.run(&mut case_officer)
+    gng_build::handler::run(&mut case_officer)
 }
