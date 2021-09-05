@@ -43,7 +43,7 @@ impl Handler for PackagingHandler {
         }
 
         let source_packet = self.source_packet.borrow();
-        let source_packet = source_packet
+        let _source_packet = source_packet
             .as_ref()
             .expect("SourcePacket should be defined here.");
 

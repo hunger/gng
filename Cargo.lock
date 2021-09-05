@@ -454,6 +454,7 @@ dependencies = [
  "gng_contained_command",
  "gng_core",
  "lazy_static",
+ "nix",
  "rand",
  "serde",
  "serde_json",

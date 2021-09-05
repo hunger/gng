@@ -63,12 +63,12 @@ impl Mode {
 
 pub mod agent_runner;
 mod case_officer;
+pub(crate) mod filter;
 pub mod handler;
-// pub(crate) mod packager;
+pub(crate) mod packager;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
 pub use case_officer::{CaseOfficer, CaseOfficerBuilder};
-// pub use packager::{Packager, PackagerBuilder};

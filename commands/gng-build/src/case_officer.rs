@@ -19,11 +19,11 @@ use eyre::{eyre, Result, WrapErr};
 fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
     let build_file = pkgsrc_directory.join(gng_build_shared::BUILD_SCRIPT);
     if !build_file.is_file() {
-        return Err(eyre!(format!(
+        return Err(eyre!(
             "No {} file found in {}.",
             cc::GNG_BUILD_SCRIPT.to_str().unwrap(),
             pkgsrc_directory.to_string_lossy()
-        )));
+        ));
     }
     Ok(build_file)
 }

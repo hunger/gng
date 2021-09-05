@@ -123,10 +123,7 @@ fn handle_agent_output(
 
     match exit_status.code() {
         Some(0) => Ok(()),
-        Some(exit_code) => Err(eyre!(format!(
-            "Agent failed with exit-status: {}.",
-            exit_code
-        ))),
+        Some(exit_code) => Err(eyre!("Agent failed with exit-status: {}.", exit_code)),
         None => Err(eyre!("Agent killed by signal.")),
     }
 }

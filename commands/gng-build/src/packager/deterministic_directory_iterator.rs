@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
+use super::path::Path;
+
 use std::os::unix::fs::MetadataExt;
 
 // - Helper:
@@ -24,22 +26,23 @@ fn collect_contents(directory: &std::path::Path) -> eyre::Result<Vec<std::fs::Di
 }
 
 fn dir_entry_for_path(path: &std::path::Path) -> eyre::Result<std::fs::DirEntry> {
-    let search_name = path.file_name().ok_or(eyre::eyre!(format!(
-        "\"{}\" does not exist: No file name part was found.",
-        path.to_string_lossy()
-    ),))?;
+    let search_name = path.file_name().ok_or_else(|| {
+        eyre::eyre!(
+            "\"{}\" does not exist: No file name part was found.",
+            path.to_string_lossy()
+        )
+    })?;
 
-    let parent = path.parent().ok_or(eyre::eyre!(format!(
-        "\"{}\" does not exist: Parent is not valid.",
-        path.to_string_lossy()
-    ),))?;
+    let parent = path.parent().ok_or_else(|| {
+        eyre::eyre!(
+            "\"{}\" does not exist: Parent is not valid.",
+            path.to_string_lossy()
+        )
+    })?;
     collect_contents(parent)?
         .into_iter()
         .find(|d| d.file_name() == search_name)
-        .ok_or(eyre::eyre!(format!(
-            "\"{}\" not found.",
-            path.to_string_lossy()
-        )))
+        .ok_or_else(|| eyre::eyre!("\"{}\" not found.", path.to_string_lossy()))
 }
 
 fn populate_directory_stack(
@@ -49,6 +52,15 @@ fn populate_directory_stack(
     let contents = collect_contents(directory)?;
     Ok((contents, name.to_owned()))
 }
+
+// ----------------------------------------------------------------------
+// - Helper Types:
+// ----------------------------------------------------------------------
+
+pub type PackagingIteration = eyre::Result<Path>;
+pub type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
+pub type PackagingIteratorFactory =
+    dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
 
 // ----------------------------------------------------------------------
 // - DeterministicDirectoryIterator:
@@ -68,10 +80,10 @@ impl DeterministicDirectoryIterator {
                 stack: vec![stack_element],
             })
         } else {
-            Err(eyre::eyre!(format!(
+            Err(eyre::eyre!(
                 "\"{}\" is not a directory.",
                 directory.to_string_lossy()
-            )))
+            ))
         }
     }
 
@@ -79,7 +91,7 @@ impl DeterministicDirectoryIterator {
         self.stack.is_empty()
     }
 
-    fn find_iterator_value(&mut self) -> crate::packager::PackagingIteration {
+    fn find_iterator_value(&mut self) -> PackagingIteration {
         let stack_frame = self.stack.last_mut().expect("Can not be empty!");
         let entry = stack_frame.0.pop().expect("Can not be empty");
         let directory = stack_frame.1.clone();
@@ -95,25 +107,19 @@ impl DeterministicDirectoryIterator {
         if file_type.is_symlink() {
             let target = entry.path().read_link()?;
 
-            Ok(crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_link(
-                    &directory, &name, &target, user_id, group_id,
-                ),
-                classification: String::new(),
-            })
+            Ok(Path::new_link(
+                &directory, &name, &target, user_id, group_id,
+            ))
         } else if file_type.is_file() {
-            Ok(crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_file_from_disk(
-                    &entry.path(),
-                    &directory,
-                    &name,
-                    mode,
-                    user_id,
-                    group_id,
-                    size,
-                )?,
-                classification: String::new(),
-            })
+            Ok(Path::new_file_from_disk(
+                &entry.path(),
+                &directory,
+                &name,
+                mode,
+                user_id,
+                group_id,
+                size,
+            ))
         } else if file_type.is_dir() {
             let new_directory = if directory.as_os_str().is_empty() {
                 std::path::PathBuf::from(&name)
@@ -124,18 +130,15 @@ impl DeterministicDirectoryIterator {
             self.stack
                 .push(populate_directory_stack(&entry.path(), &new_directory)?);
 
-            Ok(crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_directory(
-                    &directory, &name, mode, user_id, group_id,
-                ),
-                classification: String::new(),
-            })
+            Ok(Path::new_directory(
+                &directory, &name, mode, user_id, group_id,
+            ))
         } else {
-            Err(eyre::eyre!(format!(
+            Err(eyre::eyre!(
                 "Unsupported file type {:?} found in {}.",
                 &file_type,
                 &entry.path().to_string_lossy()
-            ),))
+            ))
         }
     }
 
@@ -154,7 +157,7 @@ impl DeterministicDirectoryIterator {
 }
 
 impl Iterator for DeterministicDirectoryIterator {
-    type Item = crate::packager::PackagingIteration;
+    type Item = PackagingIteration;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.clean_up();
@@ -187,7 +190,7 @@ mod tests {
     }
 
     fn link(origin: &std::path::Path, target: &std::path::Path) {
-        std::os::unix::fs::symlink(target, origin).unwrap()
+        std::os::unix::fs::symlink(target, origin).unwrap();
     }
 
     #[test]
@@ -214,75 +217,58 @@ mod tests {
         let mut it = DeterministicDirectoryIterator::new(tmp.path()).unwrap();
         assert_eq!(
             it.next().unwrap().unwrap(),
-            crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_file_from_disk(
-                    &tmp.path().join("aaa_foo.txt"),
-                    &std::path::PathBuf::new(),
-                    &std::ffi::OsString::from("aaa_foo.txt"),
-                    0o644,
-                    tmp_meta.uid(),
-                    tmp_meta.gid(),
-                    0,
-                )
-                .unwrap(),
-                classification: String::new(),
-            }
+            Path::new_file_from_disk(
+                &tmp.path().join("aaa_foo.txt"),
+                &std::path::PathBuf::new(),
+                &std::ffi::OsString::from("aaa_foo.txt"),
+                0o644,
+                tmp_meta.uid(),
+                tmp_meta.gid(),
+                0,
+            )
         );
         assert_eq!(
             it.next().unwrap().unwrap(),
-            crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_directory(
-                    &std::path::PathBuf::new(),
-                    &std::ffi::OsString::from("bar_dir"),
-                    0o755,
-                    tmp_meta.uid(),
-                    tmp_meta.gid(),
-                ),
-                classification: String::new(),
-            }
+            Path::new_directory(
+                &std::path::PathBuf::new(),
+                &std::ffi::OsString::from("bar_dir"),
+                0o755,
+                tmp_meta.uid(),
+                tmp_meta.gid(),
+            )
         );
         assert_eq!(
             it.next().unwrap().unwrap(),
-            crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_file_from_disk(
-                    &tmp.path().join("bar_dir/aaa_bar.txt"),
-                    &std::path::PathBuf::from("bar_dir"),
-                    &std::ffi::OsString::from("aaa_bar.txt"),
-                    0o644,
-                    tmp_meta.uid(),
-                    tmp_meta.gid(),
-                    0,
-                )
-                .unwrap(),
-                classification: String::new(),
-            }
+            Path::new_file_from_disk(
+                &tmp.path().join("bar_dir/aaa_bar.txt"),
+                &std::path::PathBuf::from("bar_dir"),
+                &std::ffi::OsString::from("aaa_bar.txt"),
+                0o644,
+                tmp_meta.uid(),
+                tmp_meta.gid(),
+                0,
+            )
         );
         assert_eq!(
             it.next().unwrap().unwrap(),
-            crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_directory(
-                    &std::path::PathBuf::new(),
-                    &std::ffi::OsString::from("empty_dir"),
-                    0o755,
-                    tmp_meta.uid(),
-                    tmp_meta.gid(),
-                ),
-                classification: String::new(),
-            }
+            Path::new_directory(
+                &std::path::PathBuf::new(),
+                &std::ffi::OsString::from("empty_dir"),
+                0o755,
+                tmp_meta.uid(),
+                tmp_meta.gid(),
+            )
         );
         assert_eq!(
             it.next().unwrap().unwrap(),
-            crate::packager::PacketPath {
-                in_packet: gng_core::packet::Path::new_link(
-                    &std::path::PathBuf::new(),
-                    &std::ffi::OsString::from("zzz_link"),
-                    &std::path::PathBuf::from("bar_dir"),
-                    tmp_meta.uid(),
-                    tmp_meta.gid(),
-                ),
-                classification: String::new(),
-            }
+            Path::new_link(
+                &std::path::PathBuf::new(),
+                &std::ffi::OsString::from("zzz_link"),
+                &std::path::PathBuf::from("bar_dir"),
+                tmp_meta.uid(),
+                tmp_meta.gid(),
+            )
         );
-        assert!(it.next().is_none())
+        assert!(it.next().is_none());
     }
 }
