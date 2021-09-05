@@ -111,7 +111,7 @@ fn main() -> Result<()> {
         .build(&pkgsrc_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
-    let mut handler_manager = gng_build::HandlerManager::default();
+    let mut handler_manager = gng_build::HandlerManager::new(&std::path::PathBuf::from("/foo/bar"));
 
     handler_manager.run(&mut case_officer)
 }

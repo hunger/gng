@@ -78,10 +78,10 @@ pub struct SourcePacket {
     pub build_dependencies: Names,
     /// `check_dependencies` of the source packet.
     pub check_dependencies: Names,
-    // /// The `sources` to build.
-    // pub sources: Vec<Source>,
-    // /// The different `packets` to generate from the sources.
-    // pub packets: Vec<PacketDefinition>,
+    /// The `sources` to build.
+    pub sources: Vec<Source>,
+    /// The different `packets` to generate from the sources.
+    pub packets: Vec<PacketDefinition>,
 }
 
 impl std::fmt::Display for SourcePacket {

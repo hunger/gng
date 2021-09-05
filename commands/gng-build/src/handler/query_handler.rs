@@ -46,6 +46,6 @@ impl Handler for QueryHandler {
             *std::rc::Rc::make_mut(&mut self.source_packet) = Some(serde_json::from_str(message)?);
         }
 
-        Ok(true)
+        Ok(false)
     }
 }

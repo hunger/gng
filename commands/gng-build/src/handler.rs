@@ -3,11 +3,17 @@
 
 //! A object used to handle events from `gng-build-agent` received via the `CaseOfficer`
 
+mod install_handler;
 mod query_handler;
+mod sources_handler;
+mod verify_source_packet_handler;
 
 use eyre::Result;
 
+use install_handler::InstallHandler;
 use query_handler::QueryHandler;
+use sources_handler::SourcesHandler;
+use verify_source_packet_handler::VerifySourcePacketHandler;
 
 // ----------------------------------------------------------------------
 // - Handler:
@@ -100,16 +106,29 @@ pub struct HandlerManager {
     handlers: std::rc::Rc<std::cell::RefCell<Vec<Box<dyn Handler>>>>,
 }
 
-impl Default for HandlerManager {
-    fn default() -> Self {
+impl HandlerManager {
+    /// Constructor
+    #[must_use]
+    pub fn new(root_directory: &std::path::Path) -> Self {
         let query_handler = Box::new(QueryHandler::default());
+        let verify_source_packet_handler = Box::new(VerifySourcePacketHandler::new(
+            query_handler.source_packet(),
+        ));
+        let install_handler = Box::new(InstallHandler::new(
+            query_handler.source_packet(),
+            root_directory,
+        ));
+        let sources_handler = Box::new(SourcesHandler::new(query_handler.source_packet()));
         Self {
-            handlers: std::rc::Rc::new(std::cell::RefCell::new(vec![query_handler])),
+            handlers: std::rc::Rc::new(std::cell::RefCell::new(vec![
+                query_handler,
+                verify_source_packet_handler,
+                install_handler,
+                sources_handler,
+            ])),
         }
     }
-}
 
-impl HandlerManager {
     /// Run `Handler`s using a `CaseOfficer`
     ///
     /// # Errors
