@@ -63,9 +63,7 @@ impl Mode {
 
 pub mod agent_runner;
 mod case_officer;
-pub(crate) mod filter;
 pub mod handler;
-pub(crate) mod packager;
 
 // ----------------------------------------------------------------------
 // - Exports:

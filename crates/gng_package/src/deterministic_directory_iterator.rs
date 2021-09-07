@@ -58,9 +58,10 @@ fn populate_directory_stack(
 // ----------------------------------------------------------------------
 
 pub type PackagingIteration = eyre::Result<Path>;
-pub type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
-pub type PackagingIteratorFactory =
-    dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
+// FIXME: Remove this!
+// pub type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
+// pub type PackagingIteratorFactory =
+//     dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
 
 // ----------------------------------------------------------------------
 // - DeterministicDirectoryIterator:
@@ -71,6 +72,7 @@ pub struct DeterministicDirectoryIterator {
 }
 
 impl DeterministicDirectoryIterator {
+    /// Constructor
     pub fn new(directory: &std::path::Path) -> eyre::Result<Self> {
         let base_dir_entry = dir_entry_for_path(directory)?;
 
@@ -108,13 +110,15 @@ impl DeterministicDirectoryIterator {
             let target = entry.path().read_link()?;
 
             Ok(Path::new_link(
-                &directory, &name, &target, user_id, group_id,
+                &directory.join(name),
+                &target,
+                user_id,
+                group_id,
             ))
         } else if file_type.is_file() {
             Ok(Path::new_file_from_disk(
                 &entry.path(),
-                &directory,
-                &name,
+                &directory.join(name),
                 mode,
                 user_id,
                 group_id,
@@ -131,7 +135,10 @@ impl DeterministicDirectoryIterator {
                 .push(populate_directory_stack(&entry.path(), &new_directory)?);
 
             Ok(Path::new_directory(
-                &directory, &name, mode, user_id, group_id,
+                &directory.join(name),
+                mode,
+                user_id,
+                group_id,
             ))
         } else {
             Err(eyre::eyre!(
@@ -219,8 +226,7 @@ mod tests {
             it.next().unwrap().unwrap(),
             Path::new_file_from_disk(
                 &tmp.path().join("aaa_foo.txt"),
-                &std::path::PathBuf::new(),
-                &std::ffi::OsString::from("aaa_foo.txt"),
+                &std::path::PathBuf::from("aaa_foo.txt"),
                 0o644,
                 tmp_meta.uid(),
                 tmp_meta.gid(),
@@ -230,8 +236,7 @@ mod tests {
         assert_eq!(
             it.next().unwrap().unwrap(),
             Path::new_directory(
-                &std::path::PathBuf::new(),
-                &std::ffi::OsString::from("bar_dir"),
+                &std::path::PathBuf::from("bar_dir"),
                 0o755,
                 tmp_meta.uid(),
                 tmp_meta.gid(),
@@ -241,8 +246,7 @@ mod tests {
             it.next().unwrap().unwrap(),
             Path::new_file_from_disk(
                 &tmp.path().join("bar_dir/aaa_bar.txt"),
-                &std::path::PathBuf::from("bar_dir"),
-                &std::ffi::OsString::from("aaa_bar.txt"),
+                &std::path::PathBuf::from("bar_dir/aaa_bar.txt"),
                 0o644,
                 tmp_meta.uid(),
                 tmp_meta.gid(),
@@ -252,8 +256,7 @@ mod tests {
         assert_eq!(
             it.next().unwrap().unwrap(),
             Path::new_directory(
-                &std::path::PathBuf::new(),
-                &std::ffi::OsString::from("empty_dir"),
+                &std::path::PathBuf::from("empty_dir"),
                 0o755,
                 tmp_meta.uid(),
                 tmp_meta.gid(),
@@ -262,8 +265,7 @@ mod tests {
         assert_eq!(
             it.next().unwrap().unwrap(),
             Path::new_link(
-                &std::path::PathBuf::new(),
-                &std::ffi::OsString::from("zzz_link"),
+                &std::path::PathBuf::from("zzz_link"),
                 &std::path::PathBuf::from("bar_dir"),
                 tmp_meta.uid(),
                 tmp_meta.gid(),

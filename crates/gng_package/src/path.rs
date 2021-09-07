@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use nix::NixPath;
-
 // ----------------------------------------------------------------------
 // - Helper:
 // ----------------------------------------------------------------------
@@ -109,6 +107,7 @@ impl PathLeaf {
             Self::Directory {} => "d",
         }
     }
+
     const fn is_dir(&self) -> bool {
         matches!(&self, Self::Directory {})
     }
@@ -135,9 +134,12 @@ impl PathLeaf {
         }
     }
 
-    fn file_contents(&mut self) -> Option<&mut FileContents> {
+    const fn file_contents(&self) -> Option<&FileContents> {
         match self {
-            Self::File { contents, size: _ } => Some(contents),
+            Self::File {
+                contents: c,
+                size: _,
+            } => Some(c),
             _ => None,
         }
     }
@@ -165,10 +167,8 @@ impl std::fmt::Debug for PathLeaf {
 /// A full path
 #[derive(Clone, PartialEq)]
 pub struct Path {
-    /// The directories up to the leaf
-    directory: std::path::PathBuf,
-    /// The `File` name with extension, etc. but without the base directory part
-    name: std::ffi::OsString,
+    /// The full path
+    full_path: std::path::PathBuf,
     /// The permissions on the `File`
     mode: u32,
     /// The uid of the `File`
@@ -185,16 +185,14 @@ impl Path {
     /// Create a new Path for a file.
     pub fn new_file_from_disk(
         on_disk: &std::path::Path,
-        directory: &std::path::Path,
-        name: &std::ffi::OsString,
+        full_path: &std::path::Path,
         mode: u32,
         user_id: u32,
         group_id: u32,
         size: u64,
     ) -> Self {
         Self {
-            directory: directory.to_path_buf(),
-            name: name.clone(),
+            full_path: full_path.to_path_buf(),
             mode,
             user_id,
             group_id,
@@ -210,16 +208,14 @@ impl Path {
     #[must_use]
     pub fn new_file_from_buffer(
         buffer: Vec<u8>,
-        directory: &std::path::Path,
-        name: &std::ffi::OsString,
+        full_path: &std::path::Path,
         mode: u32,
         user_id: u32,
         group_id: u32,
     ) -> Self {
         let size = buffer.len() as u64;
         Self {
-            directory: directory.to_path_buf(),
-            name: name.clone(),
+            full_path: full_path.to_path_buf(),
             mode,
             user_id,
             group_id,
@@ -234,15 +230,13 @@ impl Path {
     /// Create a new Path for a link.
     #[must_use]
     pub fn new_link(
-        directory: &std::path::Path,
-        name: &std::ffi::OsString,
+        full_path: &std::path::Path,
         target: &std::path::Path,
         user_id: u32,
         group_id: u32,
     ) -> Self {
         Self {
-            directory: directory.to_path_buf(),
-            name: name.clone(),
+            full_path: full_path.to_path_buf(),
             user_id,
             group_id,
             mode: 0x777,
@@ -256,15 +250,13 @@ impl Path {
     /// Create a new Path for a file.
     #[must_use]
     pub fn new_directory(
-        directory: &std::path::Path,
-        name: &std::ffi::OsString,
+        full_path: &std::path::Path,
         mode: u32,
         user_id: u32,
         group_id: u32,
     ) -> Self {
         Self {
-            directory: directory.to_path_buf(),
-            name: name.clone(),
+            full_path: full_path.to_path_buf(),
             mode,
             user_id,
             group_id,
@@ -273,22 +265,22 @@ impl Path {
         }
     }
 
-    /// Get the full path (abs or relative) stored in `Path`
+    /// The last part of the `Path`
     #[must_use]
-    pub fn path(&self) -> std::path::PathBuf {
-        let mut path = self.directory.clone();
-        if path.is_empty() {
-            path = std::path::PathBuf::from(self.leaf_name());
-        } else {
-            path.push(self.leaf_name());
-        }
-        path
+    pub fn leaf_name(&self) -> &std::ffi::OsStr {
+        self.full_path
+            .file_name()
+            .expect("Path was invalid and had no leaf_name")
     }
 
     /// The last part of the `Path`
     #[must_use]
-    pub fn leaf_name(&self) -> std::ffi::OsString {
-        self.name.clone()
+    pub fn directory_path(&self) -> &std::path::Path {
+        lazy_static::lazy_static! {
+            static ref DEFAULT_PATH: std::path::PathBuf = std::path::PathBuf::from(".");
+
+        }
+        self.full_path.parent().unwrap_or(&DEFAULT_PATH)
     }
 
     /// A `&'static str` describing the type of `Path`
@@ -347,7 +339,7 @@ impl Path {
 
     /// Get the file data source
     #[must_use]
-    pub fn file_contents(&mut self) -> Option<&mut FileContents> {
+    pub const fn file_contents(&self) -> Option<&FileContents> {
         self.leaf_type.file_contents()
     }
 
@@ -358,16 +350,19 @@ impl Path {
         }
         Ok(self.magic.as_ref().expect("Magic was just set.").clone())
     }
+
+    /// Turn the `Path` into a String
+    pub fn as_path(&self) -> &std::path::Path {
+        &self.full_path
+    }
 }
 
 impl std::fmt::Debug for Path {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         write!(
             fmt,
-            "{}:{} ({}) [m:{:#o},u:{},g{}], {:?}",
-            self.leaf_type(),
-            self.path().to_string_lossy().to_string(),
-            self.leaf_name().to_string_lossy(),
+            "{} [m:{:#o},u:{},g{}], {:?}",
+            self.as_path().to_string_lossy(),
             self.mode(),
             self.user_id(),
             self.group_id(),

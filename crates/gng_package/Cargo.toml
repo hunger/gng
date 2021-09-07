@@ -1,0 +1,20 @@
+[package]
+name = "gng_package"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gng_core = { path = "../gng_core" }
+gng_packet_writer = { path = "../gng_packet_writer" }
+
+eyre = { version = "0.6" }
+filemagic = { version = "0.12" }
+glob = { version = "0.3" }
+lazy_static = { version = "1.4" }
+nix = { version = "0.22" }
+tracing = { version = "0.1" }
+
+[dev-dependencies]
+temp-dir = { version = "0.1" }

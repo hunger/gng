@@ -1,50 +1,35 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-use std::path::Path;
-
-use eyre::Result;
-
-// ----------------------------------------------------------------------
-// - Helper:
-// ----------------------------------------------------------------------
-
-pub fn strings_to_globs(globs: &[&str]) -> Result<Vec<glob::Pattern>> {
-    globs
-        .iter()
-        .map(|s| glob::Pattern::new(s))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| eyre::eyre!("Failed to  create GLOB pattern: {}", e))
-}
+use crate::path::Path;
 
 // ----------------------------------------------------------------------
 // - Filter:
 // ----------------------------------------------------------------------
 
 pub trait Filter {
-    fn filter(&self, path: &Path) -> bool;
+    fn matches(&self, path: &Path) -> bool;
 }
 
 // ----------------------------------------------------------------------
 // - GlobFilter:
 // ----------------------------------------------------------------------
 
-struct GlobFilter {
+pub struct GlobFilter {
     globs: Vec<glob::Pattern>,
 }
 
 impl GlobFilter {
-    pub fn new(globs: &[&str]) -> Result<Self> {
-        Ok(Self {
-            globs: strings_to_globs(globs)?,
-        })
+    pub fn new(globs: Vec<glob::Pattern>) -> Self {
+        Self { globs }
     }
 }
 
 impl Filter for GlobFilter {
-    fn filter(&self, path: &Path) -> bool {
-        let path = path.to_string_lossy();
-        self.globs.iter().any(|p| p.matches(&path))
+    fn matches(&self, path: &Path) -> bool {
+        path.as_path()
+            .to_str()
+            .map_or(false, |path| self.globs.iter().any(|p| p.matches(path)))
     }
 }
 
@@ -52,7 +37,7 @@ impl Filter for GlobFilter {
 // - AndFilter:
 // ----------------------------------------------------------------------
 
-struct AndFilter<L: Filter, R: Filter> {
+pub struct AndFilter<L: Filter, R: Filter> {
     left: L,
     right: R,
 }
@@ -64,8 +49,8 @@ impl<L: Filter, R: Filter> AndFilter<L, R> {
 }
 
 impl<L: Filter, R: Filter> Filter for AndFilter<L, R> {
-    fn filter(&self, path: &Path) -> bool {
-        self.left.filter(path) && self.right.filter(path)
+    fn matches(&self, path: &Path) -> bool {
+        self.left.matches(path) && self.right.matches(path)
     }
 }
 
@@ -73,7 +58,7 @@ impl<L: Filter, R: Filter> Filter for AndFilter<L, R> {
 // - OrFilter:
 // ----------------------------------------------------------------------
 
-struct OrFilter<L: Filter, R: Filter> {
+pub struct OrFilter<L: Filter, R: Filter> {
     left: L,
     right: R,
 }
@@ -85,8 +70,8 @@ impl<L: Filter, R: Filter> OrFilter<L, R> {
 }
 
 impl<L: Filter, R: Filter> Filter for OrFilter<L, R> {
-    fn filter(&self, path: &Path) -> bool {
-        self.left.filter(path) || self.right.filter(path)
+    fn matches(&self, path: &Path) -> bool {
+        self.left.matches(path) || self.right.matches(path)
     }
 }
 
@@ -94,7 +79,7 @@ impl<L: Filter, R: Filter> Filter for OrFilter<L, R> {
 // - AlwaysTrue:
 // ----------------------------------------------------------------------
 
-struct AlwaysTrue {}
+pub struct AlwaysTrue {}
 
 impl Default for AlwaysTrue {
     fn default() -> Self {
@@ -103,7 +88,7 @@ impl Default for AlwaysTrue {
 }
 
 impl Filter for AlwaysTrue {
-    fn filter(&self, _path: &Path) -> bool {
+    fn matches(&self, _path: &Path) -> bool {
         true
     }
 }
@@ -112,7 +97,7 @@ impl Filter for AlwaysTrue {
 // - AlwaysFalse:
 // ----------------------------------------------------------------------
 
-struct AlwaysFalse {}
+pub struct AlwaysFalse {}
 
 impl Default for AlwaysFalse {
     fn default() -> Self {
@@ -121,7 +106,7 @@ impl Default for AlwaysFalse {
 }
 
 impl Filter for AlwaysFalse {
-    fn filter(&self, _path: &Path) -> bool {
+    fn matches(&self, _path: &Path) -> bool {
         false
     }
 }
@@ -132,31 +117,43 @@ impl Filter for AlwaysFalse {
 
 #[cfg(test)]
 mod tests {
-    use super::{AlwaysFalse, AlwaysTrue, AndFilter, Filter, GlobFilter, OrFilter};
+    use super::{AlwaysFalse, AlwaysTrue, AndFilter, Filter, OrFilter};
 
-    use std::path::Path;
+    use crate::path::Path;
 
     // ----------------------------------------------------------------------
     // - Tests:
     // ----------------------------------------------------------------------
+
+    fn path(input: &str) -> Path {
+        Path::new_file_from_disk(
+            std::path::Path::new("/tmp/foo"),
+            std::path::Path::new(input),
+            0o755,
+            0,
+            0,
+            42,
+        )
+    }
 
     // Name:
     #[test]
     fn and_filter() {
         assert!(
             !AndFilter::new(AlwaysFalse::default(), AlwaysFalse::default())
-                .filter(&Path::new("/usr/foo"))
+                .matches(&path("/usr/foo"))
         );
         assert!(
             !AndFilter::new(AlwaysFalse::default(), AlwaysTrue::default())
-                .filter(&Path::new("/usr/foo"))
+                .matches(&path("/usr/foo"))
         );
         assert!(
             !AndFilter::new(AlwaysTrue::default(), AlwaysFalse::default())
-                .filter(&Path::new("/usr/foo"))
+                .matches(&path("/usr/foo"))
         );
-        assert!(AndFilter::new(AlwaysTrue::default(), AlwaysTrue::default())
-            .filter(&Path::new("/usr/foo")));
+        assert!(
+            AndFilter::new(AlwaysTrue::default(), AlwaysTrue::default()).matches(&path("/usr/foo"))
+        );
     }
 
     // Name:
@@ -164,13 +161,16 @@ mod tests {
     fn or_filter() {
         assert!(
             !OrFilter::new(AlwaysFalse::default(), AlwaysFalse::default())
-                .filter(&Path::new("/usr/foo"))
+                .matches(&path("/usr/foo"))
         );
-        assert!(OrFilter::new(AlwaysFalse::default(), AlwaysTrue::default())
-            .filter(&Path::new("/usr/foo")));
-        assert!(OrFilter::new(AlwaysTrue::default(), AlwaysFalse::default())
-            .filter(&Path::new("/usr/foo")));
-        assert!(OrFilter::new(AlwaysTrue::default(), AlwaysTrue::default())
-            .filter(&Path::new("/usr/foo")));
+        assert!(
+            OrFilter::new(AlwaysFalse::default(), AlwaysTrue::default()).matches(&path("/usr/foo"))
+        );
+        assert!(
+            OrFilter::new(AlwaysTrue::default(), AlwaysFalse::default()).matches(&path("/usr/foo"))
+        );
+        assert!(
+            OrFilter::new(AlwaysTrue::default(), AlwaysTrue::default()).matches(&path("/usr/foo"))
+        );
     }
 }
