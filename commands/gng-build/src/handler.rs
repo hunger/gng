@@ -116,7 +116,6 @@ fn create_handlers(case_officer: &crate::case_officer::CaseOfficer) -> HandlerLi
     ));
     let packaging_handler = Box::new(PackagingHandler::new(
         query_handler.source_packet(),
-        &case_officer.root_directory(),
         &case_officer.install_directory(),
     ));
 

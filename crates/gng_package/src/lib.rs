@@ -20,8 +20,8 @@
 // ----------------------------------------------------------------------
 
 pub(crate) mod deterministic_directory_iterator;
-pub(crate) mod filter;
-pub mod packager;
+pub mod filter;
+pub(crate) mod packager;
 pub(crate) mod path;
 pub(crate) mod storage_function;
 
@@ -30,7 +30,6 @@ pub(crate) mod storage_function;
 // ----------------------------------------------------------------------
 
 pub use gng_core::{Name, Names, Version};
-use packager::BoxedPackager;
 
 use std::rc::Rc;
 

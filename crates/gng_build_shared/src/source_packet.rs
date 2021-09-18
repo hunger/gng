@@ -9,7 +9,7 @@ use gng_core::{Name, Names, Version};
 
 /// A `Source` that needs building
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct Source {
+pub struct SourceDefinition {
     /// A `Url` To get the `Source` from
     pub source: String,
     /// A list of possible mirrors to download from
@@ -26,7 +26,7 @@ pub struct Source {
     // pub hash: Hash,
 }
 
-impl std::fmt::Display for Source {
+impl std::fmt::Display for SourceDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Source @\"{}\" -> \"{}\"", self.source, self.destination)
     }
@@ -79,7 +79,7 @@ pub struct SourcePacket {
     /// `check_dependencies` of the source packet.
     pub check_dependencies: Names,
     /// The `sources` to build.
-    pub sources: Vec<Source>,
+    pub sources: Vec<SourceDefinition>,
     /// The different `packets` to generate from the sources.
     pub packets: Vec<PacketDefinition>,
 }

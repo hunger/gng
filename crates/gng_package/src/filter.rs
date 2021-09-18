@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
+//! `Filter` objects used to find the right package for a file to be stored in.
+
 use crate::path::Path;
 
 // ----------------------------------------------------------------------
 // - Filter:
 // ----------------------------------------------------------------------
 
+/// The `Filter` trait
 pub trait Filter {
+    /// Check whether a `path` matches and should thus go into the `Packet`
+    /// or not.
     fn matches(&self, path: &Path) -> bool;
 }
 
@@ -15,11 +20,14 @@ pub trait Filter {
 // - GlobFilter:
 // ----------------------------------------------------------------------
 
+/// A Filter that applies a set of `glob::Pattern`
 pub struct GlobFilter {
     globs: Vec<glob::Pattern>,
 }
 
 impl GlobFilter {
+    /// Constructor
+    #[must_use]
     pub fn new(globs: Vec<glob::Pattern>) -> Self {
         Self { globs }
     }
@@ -37,12 +45,15 @@ impl Filter for GlobFilter {
 // - AndFilter:
 // ----------------------------------------------------------------------
 
+/// Requires both `left` and `right` to match
 pub struct AndFilter<L: Filter, R: Filter> {
     left: L,
     right: R,
 }
 
 impl<L: Filter, R: Filter> AndFilter<L, R> {
+    /// Constructor
+    #[must_use]
     pub fn new(left: L, right: R) -> Self {
         Self { left, right }
     }
@@ -58,12 +69,15 @@ impl<L: Filter, R: Filter> Filter for AndFilter<L, R> {
 // - OrFilter:
 // ----------------------------------------------------------------------
 
+/// A `Filter` that matches when `left` or `right` matches.
 pub struct OrFilter<L: Filter, R: Filter> {
     left: L,
     right: R,
 }
 
 impl<L: Filter, R: Filter> OrFilter<L, R> {
+    /// Constructor
+    #[must_use]
     pub fn new(left: L, right: R) -> Self {
         Self { left, right }
     }
@@ -79,6 +93,7 @@ impl<L: Filter, R: Filter> Filter for OrFilter<L, R> {
 // - AlwaysTrue:
 // ----------------------------------------------------------------------
 
+/// A `Filter` that always matches.
 pub struct AlwaysTrue {}
 
 impl Default for AlwaysTrue {
@@ -97,6 +112,7 @@ impl Filter for AlwaysTrue {
 // - AlwaysFalse:
 // ----------------------------------------------------------------------
 
+/// A `Filter` that never matches
 pub struct AlwaysFalse {}
 
 impl Default for AlwaysFalse {

@@ -16,7 +16,6 @@ use eyre::Result;
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct PackagingHandler {
     source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
-    root_directory: std::path::PathBuf,
     install_directory: std::path::PathBuf,
 }
 
@@ -24,12 +23,10 @@ impl PackagingHandler {
     /// Create a new `PackagingHandler`
     pub fn new(
         source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
-        root_directory: &std::path::Path,
         install_directory: &std::path::Path,
     ) -> Self {
         Self {
             source_packet,
-            root_directory: root_directory.to_path_buf(),
             install_directory: install_directory.to_path_buf(),
         }
     }
