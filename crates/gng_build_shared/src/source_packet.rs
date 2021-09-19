@@ -33,6 +33,23 @@ impl std::fmt::Display for SourceDefinition {
 }
 
 // ----------------------------------------------------------------------
+// - FacetDefinition:
+// ----------------------------------------------------------------------
+
+/// A definition for `Packet` that should get built
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+pub struct FacetDefinition {
+    /// The `description_suffix` appended to packet descriptions
+    pub description_suffix: String,
+    /// The packet description
+    #[serde(default)]
+    pub mime_types: Vec<String>,
+    /// Glob-patterns for `files` to include in the `Packet`
+    #[serde(default)]
+    pub files: Vec<String>,
+}
+
+// ----------------------------------------------------------------------
 // - PacketDefinition:
 // ----------------------------------------------------------------------
 
@@ -48,7 +65,11 @@ pub struct PacketDefinition {
     pub dependencies: Names,
 
     /// Glob-patterns for `files` to include in the `Packet`
+    #[serde(default)]
     pub files: Vec<String>,
+
+    /// The `FacetDefinition`
+    pub facet: Option<FacetDefinition>,
 }
 
 // ----------------------------------------------------------------------

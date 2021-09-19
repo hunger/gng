@@ -3,9 +3,8 @@
 
 //! A `Handler` for `query` Mode
 
+use super::query_handler::SourcePacketHandle;
 use crate::handler::Handler;
-
-use gng_build_shared::SourcePacket;
 
 use eyre::Result;
 
@@ -15,16 +14,13 @@ use eyre::Result;
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct InstallHandler {
-    source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
+    source_packet: SourcePacketHandle,
     root_directory: std::path::PathBuf,
 }
 
 impl InstallHandler {
     /// Create a new `InstallHandler`
-    pub fn new(
-        source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
-        root_directory: &std::path::Path,
-    ) -> Self {
+    pub fn new(source_packet: SourcePacketHandle, root_directory: &std::path::Path) -> Self {
         Self {
             source_packet,
             root_directory: root_directory.to_path_buf(),

@@ -3,9 +3,10 @@
 
 //! A `Handler` for `query` Mode
 
+use super::query_handler::SourcePacketHandle;
 use crate::handler::Handler;
 
-use gng_build_shared::{PacketDefinition, SourceDefinition, SourcePacket};
+use gng_build_shared::{FacetDefinition, PacketDefinition, SourceDefinition, SourcePacket};
 
 use eyre::{eyre, Result, WrapErr};
 
@@ -13,20 +14,51 @@ use eyre::{eyre, Result, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
+// pub struct FacetDefinition {
+//     /// The `description_suffix` appended to packet descriptions
+//     pub description_suffix: String,
+//     /// The packet description
+//     #[serde(default)]
+//     pub mime_types: Vec<String>,
+//     /// Glob-patterns for `files` to include in the `Packet`
+//     #[serde(default)]
+//     pub files: Vec<String>,
+// }
+fn verify_facet(facet: &Option<FacetDefinition>) -> Result<()> {
+    if let Some(facet) = &facet {
+        if facet.description_suffix.is_empty() {
+            return Err(eyre!("Facet has an empty `description_facet`."));
+        }
+
+        gng_package::strings_to_globs(&facet.files).wrap_err(eyre!(
+            "The `files` of facet contains an invalid glob pattern."
+        ))?;
+
+        gng_package::strings_to_regex(&facet.mime_types).wrap_err(eyre!(
+            "The `mime_type` of facet contains an invalid regex pattern."
+        ))?;
+    }
+    Ok(())
+}
+
 fn verify_packet(packet: &PacketDefinition) -> Result<()> {
     if packet.description.is_empty() {
-        Err(eyre!(
+        return Err(eyre!(
             "The packet \"{}\" needs a `description`.",
             &packet.name,
-        ))
-    } else {
-        let files: Vec<_> = packet.files.iter().map(String::as_str).collect();
-        gng_package::strings_to_globs(&files[..]).wrap_err(eyre!(
-            "The `files` of packet \"{}\" contains an invalid glob pattern.",
-            &packet.name,
-        ))?;
-        Ok(())
+        ));
     }
+    gng_package::strings_to_globs(&packet.files).wrap_err(eyre!(
+        "The `files` of packet \"{}\" contains an invalid glob pattern.",
+        &packet.name,
+    ))?;
+
+    verify_facet(&packet.facet).wrap_err(eyre!(
+        "Facet definition of packet \"{}\" is invalid.",
+        &packet.name
+    ))?;
+
+    Ok(())
 }
 
 fn verify_packets(packets: &[gng_build_shared::PacketDefinition]) -> Result<()> {
@@ -110,12 +142,12 @@ fn verify_source_packet(source_packet: &SourcePacket) -> Result<()> {
 
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct VerifySourcePacketHandler {
-    source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
+    source_packet: SourcePacketHandle,
 }
 
 impl VerifySourcePacketHandler {
     /// Create a new `VerifySourcePacketHandler`
-    pub fn new(source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>) -> Self {
+    pub fn new(source_packet: SourcePacketHandle) -> Self {
         Self { source_packet }
     }
 }
@@ -129,7 +161,7 @@ impl Handler for VerifySourcePacketHandler {
         message: &str,
     ) -> Result<bool> {
         if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
-            tracing::debug!("Verifying source packet info.");
+            tracing::trace!("Verifying source packet info.");
             let source_packet = self.source_packet.borrow();
             let source_packet = source_packet
                 .as_ref()

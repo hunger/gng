@@ -32,7 +32,9 @@ impl FilteredPackager {
 }
 
 impl Packager for FilteredPackager {
+    #[tracing::instrument(level = "trace", skip(self))]
     fn package(&mut self, path: &crate::path::Path) -> eyre::Result<bool> {
+        tracing::trace!("Packaging in {}", self.debug_name());
         if self.filter.matches(path) {
             self.packager.package(path)
         } else {
@@ -40,7 +42,13 @@ impl Packager for FilteredPackager {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
+        tracing::trace!("Finishing in {}", self.debug_name());
         self.packager.finish()
+    }
+
+    fn debug_name(&self) -> String {
+        format!("[ Filtering {} ]", self.debug)
     }
 }

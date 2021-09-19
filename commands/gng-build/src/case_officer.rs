@@ -75,7 +75,7 @@ fn find_gng_build_agent() -> eyre::Result<PathBuf> {
         find_development_agent(&exe_directory),
     ] {
         if gng_core::validate_executable(i).is_ok() {
-            tracing::debug!("Using agent: \"{}\".", i.to_string_lossy());
+            tracing::info!("Using agent: \"{}\".", i.to_string_lossy());
             return Ok(i.clone());
         }
     }
@@ -113,7 +113,7 @@ fn find_lua_directory(agent: &std::path::Path) -> eyre::Result<std::path::PathBu
         find_development_lua_directory(agent_dir),
     ] {
         if is_lua_directory(i) {
-            tracing::debug!("Found Lua directory: \"{}\".", i.to_string_lossy());
+            tracing::info!("Found Lua directory: \"{}\".", i.to_string_lossy());
             return Ok(i.clone());
         }
     }
@@ -237,7 +237,7 @@ impl CaseOfficer {
         message_callback: &impl Fn(&Mode, &gng_build_shared::MessageType, &str) -> eyre::Result<()>,
         clean_up: &impl Fn(&Mode) -> eyre::Result<()>,
     ) -> Result<()> {
-        tracing::debug!("Switching to mode {:?}", new_mode);
+        tracing::trace!("Switching to mode {:?}", new_mode);
 
         preparer(new_mode)?;
 
@@ -247,7 +247,7 @@ impl CaseOfficer {
 
         clean_up(new_mode)?;
 
-        tracing::debug!("Switching back out of Mode {:?}.", new_mode);
+        tracing::trace!("Switching back out of Mode {:?}.", new_mode);
 
         Ok(())
     }
@@ -260,7 +260,7 @@ impl CaseOfficer {
         message_callback: &impl Fn(&Mode, &gng_build_shared::MessageType, &str) -> eyre::Result<()>,
         clean_up: &impl Fn(&Mode) -> eyre::Result<()>,
     ) -> Result<()> {
-        tracing::debug!("Processing starts now.");
+        tracing::trace!("Processing starts now.");
 
         let mut mode = Some(Mode::default());
 
@@ -270,7 +270,7 @@ impl CaseOfficer {
             mode = m.next();
         }
 
-        tracing::debug!("Processing done.");
+        tracing::trace!("Processing done.");
         Ok(())
     }
 

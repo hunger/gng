@@ -1,9 +1,7 @@
 local startup = {}
 
-local inspect = require("inspect")
-
 function startup.init(pkg_definition)
-    pkg_defaults = {
+    local pkg_defaults = {
         bootstrap = false,
 
         url = "",
@@ -11,11 +9,9 @@ function startup.init(pkg_definition)
 
         build_dependencies = {},
         check_dependencies = {},
-
-        -- packets = {},
     }
 
-    PKG_func, err = loadfile(pkg_definition)
+    local PKG_func, err = loadfile(pkg_definition)
 
     if PKG_func == nil then
         error("Failed to load \"" .. pkg_definition .. "\" in gng-build-agent: "..err)
@@ -31,7 +27,7 @@ function startup.init(pkg_definition)
 
     -- Move functions out of PKG so that we can move it into Rust:
     for _, v in pairs({ "prepare", "build", "check", "install", "polish" }) do
-        f = PKG[v]
+        local f = PKG[v]
         if f == nil then
             f = function() end
         end

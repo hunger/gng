@@ -83,6 +83,7 @@ pub fn create_packet_writer(
     facet_name: &Option<Name>,
     version: &Version,
     metadata: Vec<u8>,
+    policy: crate::PacketPolicy,
 ) -> eyre::Result<BoxedPacketWriter> {
     Ok(Box::new(crate::packet_writer_impl::PacketWriterImpl::new(
         packet_path,
@@ -90,5 +91,6 @@ pub fn create_packet_writer(
         facet_name,
         version,
         metadata,
+        policy,
     )))
 }

@@ -16,6 +16,20 @@
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
 // ----------------------------------------------------------------------
+// - Enums:
+// ----------------------------------------------------------------------
+
+/// A policy for contents in a packet
+pub enum PacketPolicy {
+    /// The packet must have contents when packaging is done
+    MustHaveContents,
+    /// The packet may have contents or might be empty
+    MayHaveContents,
+    /// The packet must be empty
+    MustStayEmpty,
+}
+
+// ----------------------------------------------------------------------
 // - Modules:
 // ----------------------------------------------------------------------
 

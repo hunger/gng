@@ -27,6 +27,9 @@ fn storage_packager(
 
 /// The `Packager` structure
 pub trait Packager {
+    /// A name used during debugging.
+    fn debug_name(&self) -> String;
+
     /// Package a `Path`
     ///
     /// # Errors
@@ -51,7 +54,7 @@ pub type PackagerFactory =
 // - Helper:
 // ----------------------------------------------------------------------
 
-#[tracing::instrument(level = "trace", skip(packet, facets, packager_factory))]
+#[tracing::instrument(level = "debug", skip(packet, facets, packager_factory))]
 fn setup_faceted_action(
     packet: &PacketDefinition,
     facets: &[FacetDefinition],
@@ -62,7 +65,7 @@ fn setup_faceted_action(
         .filter(|f| {
             f.name
                 .as_ref()
-                .map_or(false, |n| !packet.merged_facets.contains(n))
+                .map_or(true, |n| !packet.merged_facets.contains(n))
         })
         .map(|f| {
             let facet_pretty_name = if let Some(n) = &f.name {
@@ -79,6 +82,12 @@ fn setup_faceted_action(
             )) as BoxedPackager)
         })
         .collect::<eyre::Result<Vec<_>>>()?;
+    tracing::trace!(
+        "Packager created for packet \"{}\" -- using {} facets.",
+        &packet.name,
+        children.len(),
+    );
+    assert!(!children.is_empty());
     Ok(Box::new(switching::SwitchingPackager::new(children)))
 }
 
@@ -90,6 +99,7 @@ fn setup_faceted_action(
 ///
 /// # Errors
 /// Returns an `eyre::Result` when something goes wrong.
+#[tracing::instrument(level = "trace", skip(packets, facets))]
 pub fn create_packager(
     packets: &[PacketDefinition],
     facets: &[FacetDefinition],
@@ -101,11 +111,18 @@ pub fn create_packager(
 ///
 /// # Errors
 /// Returns an `eyre::Result` when something goes wrong.
+#[tracing::instrument(level = "debug", skip(packets, facets, packager_factory))]
 fn create_packager_with_factory(
     packets: &[PacketDefinition],
     facets: &[FacetDefinition],
     packager_factory: &PackagerFactory,
 ) -> eyre::Result<BoxedPackager> {
+    tracing::debug!(
+        "Creating packagers for {} packets and {} facets.",
+        packets.len(),
+        facets.len()
+    );
+
     let children = packets
         .iter()
         .map(|p| {
@@ -120,5 +137,6 @@ fn create_packager_with_factory(
         })
         .collect::<eyre::Result<Vec<_>>>()?;
 
+    tracing::trace!("Master packager created for {} packets.", children.len());
     Ok(Box::new(switching::SwitchingPackager::new(children)))
 }

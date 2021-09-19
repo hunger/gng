@@ -13,9 +13,10 @@ use eyre::Result;
 // - QueryHandler:
 // ----------------------------------------------------------------------
 
+pub type SourcePacketHandle = std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>;
 /// Make sure the source as seen by the `gng-build-agent` stays constant
 pub struct QueryHandler {
-    source_packet: std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>>,
+    source_packet: SourcePacketHandle,
 }
 
 impl Default for QueryHandler {
@@ -28,7 +29,7 @@ impl Default for QueryHandler {
 
 impl QueryHandler {
     /// Return the `SourcePacketInfo`
-    pub fn source_packet(&self) -> std::rc::Rc<std::cell::RefCell<Option<SourcePacket>>> {
+    pub fn source_packet(&self) -> SourcePacketHandle {
         self.source_packet.clone()
     }
 }
@@ -42,7 +43,7 @@ impl Handler for QueryHandler {
         message: &str,
     ) -> Result<bool> {
         if *mode == crate::Mode::Query && message_type == &gng_build_shared::MessageType::Data {
-            tracing::debug!("Setting source packet info in QueryHandler.");
+            tracing::trace!("Setting source packet info in QueryHandler.");
             self.source_packet
                 .replace(Some(serde_json::from_str(message)?));
         }

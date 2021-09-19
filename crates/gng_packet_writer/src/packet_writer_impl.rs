@@ -5,7 +5,7 @@
 
 use gng_core::{Name, Version};
 
-use eyre::WrapErr;
+use eyre::{eyre, WrapErr};
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -110,16 +110,54 @@ fn add_link_raw(
         .wrap_err("Failed to package a symlink.")
 }
 
+fn persist(
+    full_packet_path: &std::path::Path,
+    full_packet_name: &str,
+    metadata: &[u8],
+) -> eyre::Result<TarBall> {
+    let tarball = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(full_packet_path)?;
+    let tarball = zstd::Encoder::new(tarball, 21)?;
+
+    let mut tarball = tar::Builder::new(tarball);
+
+    add_directory_raw(&mut tarball, std::path::Path::new(".gng"), 0o700, 0, 0)?;
+
+    let metadata_path = {
+        let mut tmp = std::path::PathBuf::from(".gng").join(&full_packet_name);
+        tmp.set_extension("meta");
+        tmp
+    };
+    add_buffer_raw(&mut tarball, &metadata_path, metadata, 0o600, 0, 0)?;
+
+    Ok(tarball)
+}
+
+fn close(
+    tarball: TarBall,
+    full_packet_path: &std::path::Path,
+) -> eyre::Result<Option<std::path::PathBuf>> {
+    let inner = tarball.into_inner()?;
+    inner
+        .finish()
+        .map(|_| Some(full_packet_path.to_path_buf()))
+        .wrap_err("Failed to finish ZSTD compression")
+}
+
 // ----------------------------------------------------------------------
 // - PacketWriterImplState:
 // ----------------------------------------------------------------------
+
+type TarBall = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
 
 enum PacketWriterImplState {
     Empty {
         full_packet_name: String,
         metadata: Vec<u8>,
     },
-    Writing(tar::Builder<zstd::Encoder<'static, std::fs::File>>),
+    Writing(TarBall),
     Done,
 }
 
@@ -130,6 +168,7 @@ enum PacketWriterImplState {
 /// Write files and directories into a packet file
 pub struct PacketWriterImpl {
     full_packet_path: std::path::PathBuf,
+    policy: crate::PacketPolicy,
     state: PacketWriterImplState,
 }
 
@@ -140,15 +179,17 @@ impl PacketWriterImpl {
         facet_name: &Option<Name>,
         version: &Version,
         metadata: Vec<u8>,
+        policy: crate::PacketPolicy,
     ) -> Self {
         // TODO: Make this configurable to support e.g. different compression formats?
         let full_packet_name = full_packet_name(packet_name, facet_name, version);
 
         let mut full_packet_path = packet_path.join(&full_packet_name);
-        full_packet_path.set_extension(&".gng");
+        full_packet_path.set_extension(&"gng");
 
         Self {
             full_packet_path,
+            policy,
             state: PacketWriterImplState::Empty {
                 full_packet_name,
                 metadata,
@@ -165,20 +206,11 @@ impl PacketWriterImpl {
                 full_packet_name,
                 metadata,
             } => {
-                let tarball = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&self.full_packet_path)?;
-                let tarball = zstd::Encoder::new(tarball, 21)?;
-
-                let mut tarball = tar::Builder::new(tarball);
-
-                add_directory_raw(&mut tarball, std::path::Path::new(".gng"), 0o700, 0, 0)?;
-
-                let metadata_path = std::path::PathBuf::from(".gng").join(&full_packet_name);
-                add_buffer_raw(&mut tarball, &metadata_path, metadata, 0x600, 0, 0)?;
-
-                self.state = PacketWriterImplState::Writing(tarball);
+                self.state = PacketWriterImplState::Writing(persist(
+                    &self.full_packet_path,
+                    full_packet_name,
+                    metadata,
+                )?);
                 Ok(())
             }
             PacketWriterImplState::Writing(tarball) => func(tarball),
@@ -188,6 +220,7 @@ impl PacketWriterImpl {
 }
 
 impl crate::PacketWriter for PacketWriterImpl {
+    #[tracing::instrument(level = "trace", skip(self))]
     fn add_directory(
         &mut self,
         packet_path: &std::path::Path,
@@ -195,11 +228,17 @@ impl crate::PacketWriter for PacketWriterImpl {
         user_id: u64,
         group_id: u64,
     ) -> eyre::Result<()> {
+        tracing::debug!(
+            "Adding directory \"{}\" to packet \"{}\".",
+            packet_path.to_string_lossy(),
+            &self.full_packet_path.to_string_lossy(),
+        );
         self.open_packet_file(&|writer| {
             add_directory_raw(writer, packet_path, mode, user_id, group_id)
         })
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn add_buffer(
         &mut self,
         packet_path: &std::path::Path,
@@ -208,11 +247,17 @@ impl crate::PacketWriter for PacketWriterImpl {
         user_id: u64,
         group_id: u64,
     ) -> eyre::Result<()> {
+        tracing::debug!(
+            "Adding buffer into \"{}\" to packet \"{}\".",
+            packet_path.to_string_lossy(),
+            &self.full_packet_path.to_string_lossy(),
+        );
         self.open_packet_file(&|writer| {
             add_buffer_raw(writer, packet_path, data, mode, user_id, group_id)
         })
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn add_file(
         &mut self,
         packet_path: &std::path::Path,
@@ -222,6 +267,11 @@ impl crate::PacketWriter for PacketWriterImpl {
         user_id: u64,
         group_id: u64,
     ) -> eyre::Result<()> {
+        tracing::debug!(
+            "Adding file as \"{}\" to packet \"{}\".",
+            packet_path.to_string_lossy(),
+            &self.full_packet_path.to_string_lossy(),
+        );
         self.open_packet_file(&|writer| {
             add_file_raw(
                 writer,
@@ -235,14 +285,22 @@ impl crate::PacketWriter for PacketWriterImpl {
         })
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn add_link(
         &mut self,
         packet_path: &std::path::Path,
         target_path: &std::path::Path,
     ) -> eyre::Result<()> {
+        tracing::debug!(
+            "Adding link as \"{}\" to packet \"{}\".",
+            packet_path.to_string_lossy(),
+            &self.full_packet_path.to_string_lossy(),
+        );
+
         self.open_packet_file(&|writer| add_link_raw(writer, packet_path, target_path))
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn finish(&mut self) -> eyre::Result<Option<std::path::PathBuf>> {
         let state = {
             let mut state = PacketWriterImplState::Done;
@@ -252,15 +310,46 @@ impl crate::PacketWriter for PacketWriterImpl {
 
         match state {
             PacketWriterImplState::Empty {
-                full_packet_name: _,
-                metadata: _,
-            } => Ok(None),
+                full_packet_name: fpn,
+                metadata: md,
+            } => {
+                if matches!(&self.policy, crate::PacketPolicy::MustStayEmpty) {
+                    tracing::debug!(
+                        "Packet \"{}\" stayed empty as requested!",
+                        &self.full_packet_path.to_string_lossy(),
+                    );
+
+                    let tb = persist(&self.full_packet_path, &fpn, &md).wrap_err(eyre!(
+                        "Failed to persist \"{}\".",
+                        self.full_packet_path.to_string_lossy(),
+                    ))?;
+                    close(tb, &self.full_packet_path)
+                } else {
+                    tracing::debug!(
+                        "Packet \"{}\" stayed empty! SKIPPING",
+                        &self.full_packet_path.to_string_lossy(),
+                    );
+
+                    if matches!(&self.policy, crate::PacketPolicy::MustHaveContents) {
+                        Err(eyre!("Packet \"{}\" stayed empty, but must have contents."))
+                    } else {
+                        Ok(None)
+                    }
+                }
+            }
             PacketWriterImplState::Writing(tarball) => {
-                let inner = tarball.into_inner()?;
-                inner
-                    .finish()
-                    .map(|_| Some(self.full_packet_path.clone()))
-                    .wrap_err("Failed to finish ZSTD compression")
+                tracing::debug!(
+                    "Packet \"{}\" is getting flushed to disk.",
+                    &self.full_packet_path.to_string_lossy(),
+                );
+
+                if matches!(&self.policy, crate::PacketPolicy::MustStayEmpty) {
+                    Err(eyre!(
+                        "Packet \"{}\" has contents, but should have stayed empty."
+                    ))
+                } else {
+                    close(tarball, &self.full_packet_path)
+                }
             }
             PacketWriterImplState::Done => Err(eyre::eyre!("Packet has already been closed.")),
         }

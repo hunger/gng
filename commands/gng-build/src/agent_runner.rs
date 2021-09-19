@@ -63,7 +63,7 @@ fn handle_agent_output(
     message_prefix: &str,
     message_callback: &impl Fn(&gng_build_shared::MessageType, &str) -> eyre::Result<()>,
 ) -> Result<()> {
-    tracing::debug!("Handling output of build-agent");
+    tracing::trace!("Handling output of build-agent");
 
     let stderr = BufReader::new(
         child
@@ -78,7 +78,7 @@ fn handle_agent_output(
                 std::env::var(ce::GNG_AGENT_ERROR_PREFIX).unwrap_or_else(|_| String::from("AGENT[stderr]> "));
         }
 
-        tracing::debug!("STDERR handler thread is up");
+        tracing::trace!("STDERR handler thread is up");
 
         for line in stderr.lines() {
             match line {
@@ -87,10 +87,10 @@ fn handle_agent_output(
             }
         }
 
-        tracing::debug!("STDERR handler thread is done");
+        tracing::trace!("STDERR handler thread is done");
     });
 
-    tracing::debug!("Processing STDOUT  in main thread.");
+    tracing::trace!("Processing STDOUT  in main thread.");
 
     let reader = BufReader::new(
         child
@@ -106,17 +106,17 @@ fn handle_agent_output(
         }
     }
 
-    tracing::debug!("STDOUT handling done.");
+    tracing::trace!("STDOUT handling done.");
 
     stderr_thread
         .join()
         .expect("Failed to join stderr handler thread.");
 
-    tracing::debug!("STDERR thread was joined.");
+    tracing::trace!("STDERR thread was joined.");
 
     let exit_status = child.wait()?;
 
-    tracing::debug!(
+    tracing::info!(
         "build-agent has finished with exit status {:?}",
         exit_status
     );
@@ -330,11 +330,11 @@ impl AgentRunner {
         mode: &crate::Mode,
         message_callback: &impl Fn(&gng_build_shared::MessageType, &str) -> eyre::Result<()>,
     ) -> Result<()> {
-        tracing::debug!("Running in mode {:?}.", mode);
+        tracing::trace!("Running in mode {:?}.", mode);
         let message_prefix = random_string(MESSAGE_PREFIX_LEN);
         let command = self.create_command(mode, &message_prefix);
 
-        tracing::debug!("Running container");
+        tracing::trace!("Running container");
         let child = self.runner.run(&command)?;
 
         handle_agent_output(child, &message_prefix, message_callback)

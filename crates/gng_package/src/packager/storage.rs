@@ -9,11 +9,29 @@ use crate::{packager::Packager, FacetDefinition, PacketDefinition};
 use gng_packet_writer::{create_packet_writer, packet_writer::BoxedPacketWriter};
 
 // ----------------------------------------------------------------------
+// - Helper:
+// ----------------------------------------------------------------------
+
+const fn find_policy(
+    packet: &PacketDefinition,
+    facet: &FacetDefinition,
+) -> gng_packet_writer::PacketPolicy {
+    if packet.is_empty {
+        gng_packet_writer::PacketPolicy::MustStayEmpty
+    } else if facet.name.is_some() {
+        gng_packet_writer::PacketPolicy::MayHaveContents
+    } else {
+        gng_packet_writer::PacketPolicy::MustHaveContents
+    }
+}
+
+// ----------------------------------------------------------------------
 // - StoragePackager:
 // ----------------------------------------------------------------------
 
 /// A `Packager` that can select between a set of `children` `Packager`
 pub struct StoragePackager {
+    debug: String,
     writer: BoxedPacketWriter,
 }
 
@@ -25,19 +43,31 @@ impl StoragePackager {
     /// Returns an error if one happens.
     pub fn new(packet: &PacketDefinition, facet: &FacetDefinition) -> eyre::Result<Self> {
         Ok(Self {
+            debug: format!(
+                "{}{}",
+                &packet.name,
+                if let Some(n) = &facet.name {
+                    format!("-{}", n)
+                } else {
+                    String::new()
+                },
+            ),
             writer: create_packet_writer(
                 std::path::Path::new("."),
                 &packet.name,
                 &facet.name,
                 &packet.version,
                 packet.metadata.clone(),
+                find_policy(packet, facet),
             )?,
         })
     }
 }
 
 impl Packager for StoragePackager {
+    #[tracing::instrument(level = "trace", skip(self))]
     fn package(&mut self, path: &Path) -> eyre::Result<bool> {
+        tracing::trace!("Packaging in {}.", &self.debug_name());
         let size = path.size();
         let mode = path.mode();
         let user_id = u64::from(path.user_id());
@@ -69,8 +99,17 @@ impl Packager for StoragePackager {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
-        // FIXME: Implement this!
-        Ok(Vec::new())
+        tracing::trace!("Finishing in {}.", &self.debug_name());
+        if let Some(path) = self.writer.finish()? {
+            Ok(vec![path])
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn debug_name(&self) -> String {
+        format!("[ Storage {} ]", &self.debug)
     }
 }

@@ -122,7 +122,7 @@ impl Runner {
     /// Run a `Command`
     #[tracing::instrument(level = "debug")]
     pub fn run(&self, command: &crate::Command) -> Result<std::process::Child> {
-        tracing::debug!("running...");
+        tracing::trace!("running...");
 
         if !self.root_directory.is_dir() {
             return Err(Error::Config(format!(

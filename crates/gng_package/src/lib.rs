@@ -15,6 +15,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
+use eyre::{eyre, WrapErr};
+
 // ----------------------------------------------------------------------
 // - Modules:
 // ----------------------------------------------------------------------
@@ -40,6 +42,7 @@ pub struct PacketDefinition {
     merged_facets: Names,
     metadata: Vec<u8>,
     filter: Rc<dyn filter::Filter>,
+    is_empty: bool,
 }
 
 impl PacketDefinition {
@@ -50,6 +53,7 @@ impl PacketDefinition {
         merged_facets: Names,
         metadata: Vec<u8>,
         filter: Rc<dyn filter::Filter>,
+        is_empty: bool,
     ) -> Self {
         Self {
             name,
@@ -57,6 +61,7 @@ impl PacketDefinition {
             merged_facets,
             metadata,
             filter,
+            is_empty,
         }
     }
 }
@@ -83,17 +88,24 @@ impl FacetDefinition {
 /// Error out if the `package_root` is not a directory.
 #[tracing::instrument(level = "debug", skip(packets, facets))]
 pub fn package(
-    package_root_directory: &std::path::Path,
+    package_usr_directory: &std::path::Path,
     packets: &[PacketDefinition],
     facets: &[FacetDefinition],
 ) -> eyre::Result<Vec<std::path::PathBuf>> {
-    let usr_directory = package_root_directory.join("usr");
-    tracing::info!("Packaging \"{}\".", &usr_directory.to_string_lossy());
+    if packets.is_empty() || facets.is_empty() {
+        tracing::warn!("Packet generation SKIPPED: No packets/facets, so nothing to do.");
+        return Ok(Vec::new());
+    }
+
+    tracing::info!(
+        "Packaging \"{}\".",
+        &package_usr_directory.to_string_lossy()
+    );
 
     let mut packager = crate::packager::create_packager(packets, facets)?;
 
     for it in crate::deterministic_directory_iterator::DeterministicDirectoryIterator::new(
-        &usr_directory,
+        package_usr_directory,
     )? {
         packager.package(&it?)?;
     }
@@ -101,15 +113,28 @@ pub fn package(
     packager.finish()
 }
 
-/// Turn a `&str` slice into a `Vec<glob::Pattern>`
+/// Turn a `String` slice into a `Vec<glob::Pattern>`
 ///
 /// # Errors
 ///
-/// Return an error if one of the input `str` was not a valid pattern.
-pub fn strings_to_globs(globs: &[&str]) -> eyre::Result<Vec<glob::Pattern>> {
+/// Return an error if one of the input `String`s was not a valid pattern.
+pub fn strings_to_globs(globs: &[String]) -> eyre::Result<Vec<glob::Pattern>> {
     globs
         .iter()
         .map(|s| glob::Pattern::new(s))
         .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| eyre::eyre!("Failed to  create GLOB pattern: {}", e))
+        .map_err(|e| eyre!("Failed to create GLOB pattern: {}", e))
+}
+
+/// Turn a `String` slice into a `Vec<regex::RegEx>`
+///
+/// # Errors
+///
+/// Return an error if one of the input `String`s was not a valid pattern.
+pub fn strings_to_regex(regex: &[String]) -> eyre::Result<Vec<regex::Regex>> {
+    regex
+        .iter()
+        .map(|s| regex::Regex::new(s))
+        .collect::<Result<Vec<_>, _>>()
+        .wrap_err("Failed to create RegEx.")
 }

@@ -19,6 +19,7 @@ downloader = { version = "0.2", default-features = false, features = [ "tui", "v
 eyre = { version = "0.6" }
 lazy_static = { version = "1.4" }
 rand = { version = "0.8" }
+regex = { version = "1.5" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 spdx = { version = "0.6" }
