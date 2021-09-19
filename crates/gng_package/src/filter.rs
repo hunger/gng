@@ -94,13 +94,8 @@ impl<L: Filter, R: Filter> Filter for OrFilter<L, R> {
 // ----------------------------------------------------------------------
 
 /// A `Filter` that always matches.
+#[derive(Default)]
 pub struct AlwaysTrue {}
-
-impl Default for AlwaysTrue {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl Filter for AlwaysTrue {
     fn matches(&self, _path: &Path) -> bool {
@@ -113,13 +108,8 @@ impl Filter for AlwaysTrue {
 // ----------------------------------------------------------------------
 
 /// A `Filter` that never matches
+#[derive(Default)]
 pub struct AlwaysFalse {}
-
-impl Default for AlwaysFalse {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl Filter for AlwaysFalse {
     fn matches(&self, _path: &Path) -> bool {

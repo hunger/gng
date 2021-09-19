@@ -52,7 +52,7 @@ fn generate_packet_definitions(source_packet: &SourcePacket) -> Vec<gng_package:
 }
 
 fn generate_facet_definitions(_source_packet: &SourcePacket) -> Vec<gng_package::FacetDefinition> {
-    // FIXME: Handle Facets!
+    // FIXME: Handle facets!
     // `source_packet` is probably the wrong thing to pass in: We need the facets that got put there
     // by the install step!
     vec![gng_package::FacetDefinition::new(

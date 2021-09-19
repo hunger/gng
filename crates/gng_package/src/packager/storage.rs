@@ -46,11 +46,7 @@ impl StoragePackager {
             debug: format!(
                 "{}{}",
                 &packet.name,
-                if let Some(n) = &facet.name {
-                    format!("-{}", n)
-                } else {
-                    String::new()
-                },
+                (facet.name.as_ref()).map_or_else(String::new, |n| { format!("-{}", &n) }),
             ),
             writer: create_packet_writer(
                 std::path::Path::new("."),
@@ -102,11 +98,7 @@ impl Packager for StoragePackager {
     #[tracing::instrument(level = "trace", skip(self))]
     fn finish(&mut self) -> eyre::Result<Vec<std::path::PathBuf>> {
         tracing::trace!("Finishing in {}.", &self.debug_name());
-        if let Some(path) = self.writer.finish()? {
-            Ok(vec![path])
-        } else {
-            Ok(Vec::new())
-        }
+        Ok((self.writer.finish()?).map_or_else(Vec::new, |path| vec![path]))
     }
 
     fn debug_name(&self) -> String {
