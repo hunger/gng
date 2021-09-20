@@ -51,6 +51,16 @@ impl Name {
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
     }
+
+    /// Combine a `Name` with an optional other `Name`, e.g. a packet name and a facet
+    #[must_use]
+    pub fn combine(&self, other: &Option<Self>) -> String {
+        format!(
+            "{}{}",
+            &self.0,
+            (other.as_ref()).map_or_else(String::new, |n| { format!("-{}", &n) }),
+        )
+    }
 }
 
 impl std::convert::From<Name> for String {

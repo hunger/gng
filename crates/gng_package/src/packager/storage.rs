@@ -43,11 +43,7 @@ impl StoragePackager {
     /// Returns an error if one happens.
     pub fn new(packet: &PacketDefinition, facet: &FacetDefinition) -> eyre::Result<Self> {
         Ok(Self {
-            debug: format!(
-                "{}{}",
-                &packet.name,
-                (facet.name.as_ref()).map_or_else(String::new, |n| { format!("-{}", &n) }),
-            ),
+            debug: packet.name.combine(&facet.name),
             writer: create_packet_writer(
                 std::path::Path::new("."),
                 &packet.name,

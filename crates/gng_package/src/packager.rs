@@ -68,11 +68,9 @@ fn setup_faceted_action(
                 .map_or(true, |n| !packet.merged_facets.contains(n))
         })
         .map(|f| {
-            let facet_pretty_name =
-                (f.name.as_ref()).map_or_else(String::new, |n| format!("-{}", n));
             let filter = f.filter.clone();
             Ok(Box::new(filtered::FilteredPackager::new(
-                format!("{}{}", packet.name, facet_pretty_name),
+                packet.name.combine(&f.name),
                 filter,
                 packager_factory(packet, f)?,
             )) as BoxedPackager)
