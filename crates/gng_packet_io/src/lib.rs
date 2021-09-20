@@ -34,10 +34,9 @@ pub enum PacketPolicy {
 // ----------------------------------------------------------------------
 
 pub mod packet_writer;
-pub(crate) mod packet_writer_impl;
 
 // ----------------------------------------------------------------------
 // - Exports:
 // ----------------------------------------------------------------------
 
-pub use packet_writer::{create_packet_writer, PacketWriter};
+pub use packet_writer::PacketWriter;

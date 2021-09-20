@@ -6,22 +6,19 @@
 use crate::path::Path;
 use crate::{packager::Packager, FacetDefinition, PacketDefinition};
 
-use gng_packet_writer::{create_packet_writer, packet_writer::BoxedPacketWriter};
+use gng_packet_io::{packet_writer::PacketWriter, PacketPolicy};
 
 // ----------------------------------------------------------------------
 // - Helper:
 // ----------------------------------------------------------------------
 
-const fn find_policy(
-    packet: &PacketDefinition,
-    facet: &FacetDefinition,
-) -> gng_packet_writer::PacketPolicy {
+const fn find_policy(packet: &PacketDefinition, facet: &FacetDefinition) -> PacketPolicy {
     if packet.is_empty {
-        gng_packet_writer::PacketPolicy::MustStayEmpty
+        PacketPolicy::MustStayEmpty
     } else if facet.name.is_some() {
-        gng_packet_writer::PacketPolicy::MayHaveContents
+        PacketPolicy::MayHaveContents
     } else {
-        gng_packet_writer::PacketPolicy::MustHaveContents
+        PacketPolicy::MustHaveContents
     }
 }
 
@@ -32,7 +29,7 @@ const fn find_policy(
 /// A `Packager` that can select between a set of `children` `Packager`
 pub struct StoragePackager {
     debug: String,
-    writer: BoxedPacketWriter,
+    writer: PacketWriter,
 }
 
 impl StoragePackager {
@@ -41,18 +38,18 @@ impl StoragePackager {
     /// # Errors
     ///
     /// Returns an error if one happens.
-    pub fn new(packet: &PacketDefinition, facet: &FacetDefinition) -> eyre::Result<Self> {
-        Ok(Self {
+    pub fn new(packet: &PacketDefinition, facet: &FacetDefinition) -> Self {
+        Self {
             debug: packet.name.combine(&facet.name),
-            writer: create_packet_writer(
+            writer: PacketWriter::new(
                 std::path::Path::new("."),
                 &packet.name,
                 &facet.name,
                 &packet.version,
                 packet.metadata.clone(),
                 find_policy(packet, facet),
-            )?,
-        })
+            ),
+        }
     }
 }
 

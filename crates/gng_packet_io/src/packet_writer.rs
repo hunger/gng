@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2021 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! Implementation of `PackerWriter` trait.
+//! A `PackerWriter`
 
 use gng_core::{Name, Version};
 
@@ -11,7 +11,7 @@ use eyre::{eyre, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
-type PacketWriter = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
+type PacketWriterImpl = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
 
 fn create_header(size: u64, mode: u32, user_id: u64, group_id: u64) -> eyre::Result<tar::Header> {
     let mut header = tar::Header::new_gnu();
@@ -47,7 +47,7 @@ fn full_packet_name(packet_name: &Name, facet_data: &Option<Name>, version: &Ver
 }
 
 fn add_directory_raw(
-    writer: &mut PacketWriter,
+    writer: &mut PacketWriterImpl,
     packet_path: &std::path::Path,
     mode: u32,
     user_id: u64,
@@ -61,7 +61,7 @@ fn add_directory_raw(
         .wrap_err("Failed to package a directory.")
 }
 fn add_buffer_raw(
-    writer: &mut PacketWriter,
+    writer: &mut PacketWriterImpl,
     packet_path: &std::path::Path,
     data: &[u8],
     mode: u32,
@@ -77,7 +77,7 @@ fn add_buffer_raw(
 }
 
 fn add_file_raw(
-    writer: &mut PacketWriter,
+    writer: &mut PacketWriterImpl,
     packet_path: &std::path::Path,
     on_disk_path: &std::path::Path,
     size: u64,
@@ -97,7 +97,7 @@ fn add_file_raw(
 }
 
 fn add_link_raw(
-    writer: &mut PacketWriter,
+    writer: &mut PacketWriterImpl,
     packet_path: &std::path::Path,
     target_path: &std::path::Path,
 ) -> eyre::Result<()> {
@@ -147,12 +147,12 @@ fn close(
 }
 
 // ----------------------------------------------------------------------
-// - PacketWriterImplState:
+// - PacketWriterState:
 // ----------------------------------------------------------------------
 
 type TarBall = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
 
-enum PacketWriterImplState {
+enum PacketWriterState {
     Empty {
         full_packet_name: String,
         metadata: Vec<u8>,
@@ -162,18 +162,20 @@ enum PacketWriterImplState {
 }
 
 // ----------------------------------------------------------------------
-// - PacketWriterImpl:
+// - PacketWriter:
 // ----------------------------------------------------------------------
 
 /// Write files and directories into a packet file
-pub struct PacketWriterImpl {
+pub struct PacketWriter {
     full_packet_path: std::path::PathBuf,
     policy: crate::PacketPolicy,
-    state: PacketWriterImplState,
+    state: PacketWriterState,
 }
 
-impl PacketWriterImpl {
-    pub(crate) fn new(
+impl PacketWriter {
+    /// Constructor
+    #[must_use]
+    pub fn new(
         packet_path: &std::path::Path,
         packet_name: &Name,
         facet_name: &Option<Name>,
@@ -190,7 +192,7 @@ impl PacketWriterImpl {
         Self {
             full_packet_path,
             policy,
-            state: PacketWriterImplState::Empty {
+            state: PacketWriterState::Empty {
                 full_packet_name,
                 metadata,
             },
@@ -199,29 +201,28 @@ impl PacketWriterImpl {
 
     fn open_packet_file(
         &mut self,
-        func: &dyn Fn(&mut PacketWriter) -> eyre::Result<()>,
+        func: &dyn Fn(&mut PacketWriterImpl) -> eyre::Result<()>,
     ) -> eyre::Result<()> {
         match &mut self.state {
-            PacketWriterImplState::Empty {
+            PacketWriterState::Empty {
                 full_packet_name,
                 metadata,
             } => {
-                self.state = PacketWriterImplState::Writing(persist(
+                self.state = PacketWriterState::Writing(persist(
                     &self.full_packet_path,
                     full_packet_name,
                     metadata,
                 )?);
                 Ok(())
             }
-            PacketWriterImplState::Writing(tarball) => func(tarball),
-            PacketWriterImplState::Done => Err(eyre::eyre!("Packet file already closed.")),
+            PacketWriterState::Writing(tarball) => func(tarball),
+            PacketWriterState::Done => Err(eyre::eyre!("Packet file already closed.")),
         }
     }
-}
 
-impl crate::PacketWriter for PacketWriterImpl {
+    /// Add a directory into the packet.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn add_directory(
+    pub fn add_directory(
         &mut self,
         packet_path: &std::path::Path,
         mode: u32,
@@ -238,8 +239,9 @@ impl crate::PacketWriter for PacketWriterImpl {
         })
     }
 
+    /// Add a buffer into the packet.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn add_buffer(
+    pub fn add_buffer(
         &mut self,
         packet_path: &std::path::Path,
         data: &[u8],
@@ -257,8 +259,9 @@ impl crate::PacketWriter for PacketWriterImpl {
         })
     }
 
+    /// Add a file into the packet.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn add_file(
+    pub fn add_file(
         &mut self,
         packet_path: &std::path::Path,
         on_disk_path: &std::path::Path,
@@ -285,8 +288,9 @@ impl crate::PacketWriter for PacketWriterImpl {
         })
     }
 
+    /// Add a link into the packet.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn add_link(
+    pub fn add_link(
         &mut self,
         packet_path: &std::path::Path,
         target_path: &std::path::Path,
@@ -300,16 +304,17 @@ impl crate::PacketWriter for PacketWriterImpl {
         self.open_packet_file(&|writer| add_link_raw(writer, packet_path, target_path))
     }
 
+    /// Finish writing a packet.
     #[tracing::instrument(level = "trace", skip(self))]
-    fn finish(&mut self) -> eyre::Result<Option<std::path::PathBuf>> {
+    pub fn finish(&mut self) -> eyre::Result<Option<std::path::PathBuf>> {
         let state = {
-            let mut state = PacketWriterImplState::Done;
+            let mut state = PacketWriterState::Done;
             std::mem::swap(&mut state, &mut self.state);
             state
         };
 
         match state {
-            PacketWriterImplState::Empty {
+            PacketWriterState::Empty {
                 full_packet_name: fpn,
                 metadata: md,
             } => {
@@ -337,7 +342,7 @@ impl crate::PacketWriter for PacketWriterImpl {
                     }
                 }
             }
-            PacketWriterImplState::Writing(tarball) => {
+            PacketWriterState::Writing(tarball) => {
                 tracing::debug!(
                     "Packet \"{}\" is getting flushed to disk.",
                     &self.full_packet_path.to_string_lossy(),
@@ -351,7 +356,7 @@ impl crate::PacketWriter for PacketWriterImpl {
                     close(tarball, &self.full_packet_path)
                 }
             }
-            PacketWriterImplState::Done => Err(eyre::eyre!("Packet has already been closed.")),
+            PacketWriterState::Done => Err(eyre::eyre!("Packet has already been closed.")),
         }
     }
 }

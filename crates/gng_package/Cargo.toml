@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 gng_core = { path = "../gng_core" }
-gng_packet_writer = { path = "../gng_packet_writer" }
+gng_packet_io = { path = "../gng_packet_io" }
 
 eyre = { version = "0.6" }
 filemagic = { version = "0.12" }

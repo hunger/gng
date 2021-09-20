@@ -14,11 +14,8 @@ pub mod switching;
 // ----------------------------------------------------------------------
 
 #[tracing::instrument(level = "debug", skip(packet, facet))]
-fn storage_packager(
-    packet: &PacketDefinition,
-    facet: &FacetDefinition,
-) -> eyre::Result<BoxedPackager> {
-    Ok(Box::new(storage::StoragePackager::new(packet, facet)?))
+fn storage_packager(packet: &PacketDefinition, facet: &FacetDefinition) -> BoxedPackager {
+    Box::new(storage::StoragePackager::new(packet, facet))
 }
 
 // ----------------------------------------------------------------------
@@ -47,8 +44,7 @@ pub trait Packager {
 pub type BoxedPackager = Box<dyn Packager>;
 
 /// A factory for a `Packager`
-pub type PackagerFactory =
-    dyn Fn(&PacketDefinition, &FacetDefinition) -> eyre::Result<BoxedPackager>;
+pub type PackagerFactory = dyn Fn(&PacketDefinition, &FacetDefinition) -> BoxedPackager;
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -72,7 +68,7 @@ fn setup_faceted_action(
             Ok(Box::new(filtered::FilteredPackager::new(
                 packet.name.combine(&f.name),
                 filter,
-                packager_factory(packet, f)?,
+                packager_factory(packet, f),
             )) as BoxedPackager)
         })
         .collect::<eyre::Result<Vec<_>>>()?;
