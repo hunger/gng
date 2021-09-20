@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
-//! Write gng packages
+//! Write gng packets
 
 // Setup warnings/errors:
 #![forbid(unsafe_code)]
