@@ -6,7 +6,7 @@
 use crate::path::Path;
 use crate::{packager::Packager, FacetDefinition, PacketDefinition};
 
-use gng_packet_io::{packet_writer::PacketWriter, PacketPolicy};
+use gng_packet_io::{PacketPolicy, PacketWriter};
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -63,6 +63,7 @@ impl Packager for StoragePackager {
         let group_id = u64::from(path.group_id());
 
         match path.leaf_type() {
+            // FIXME: Only store directories that were created in this run!
             "d" => self
                 .writer
                 .add_directory(path.as_path(), mode, user_id, group_id)

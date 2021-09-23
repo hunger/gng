@@ -11,7 +11,7 @@ use eyre::{eyre, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
-type PacketWriterImpl = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
+type TarBall = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
 
 fn create_header(size: u64, mode: u32, user_id: u64, group_id: u64) -> eyre::Result<tar::Header> {
     let mut header = tar::Header::new_gnu();
@@ -37,7 +37,11 @@ fn create_header(size: u64, mode: u32, user_id: u64, group_id: u64) -> eyre::Res
 }
 
 /// Create the full packet name from the base name.
-fn full_packet_name(packet_name: &Name, facet_data: &Option<Name>, version: &Version) -> String {
+fn versioned_full_packet_name(
+    packet_name: &Name,
+    facet_data: &Option<Name>,
+    version: &Version,
+) -> String {
     let facet_name_string = match facet_data {
         Some(n) => format!(":{}", n),
         None => String::new(),
@@ -47,7 +51,7 @@ fn full_packet_name(packet_name: &Name, facet_data: &Option<Name>, version: &Ver
 }
 
 fn add_directory_raw(
-    writer: &mut PacketWriterImpl,
+    writer: &mut TarBall,
     packet_path: &std::path::Path,
     mode: u32,
     user_id: u64,
@@ -61,7 +65,7 @@ fn add_directory_raw(
         .wrap_err("Failed to package a directory.")
 }
 fn add_buffer_raw(
-    writer: &mut PacketWriterImpl,
+    writer: &mut TarBall,
     packet_path: &std::path::Path,
     data: &[u8],
     mode: u32,
@@ -77,7 +81,7 @@ fn add_buffer_raw(
 }
 
 fn add_file_raw(
-    writer: &mut PacketWriterImpl,
+    writer: &mut TarBall,
     packet_path: &std::path::Path,
     on_disk_path: &std::path::Path,
     size: u64,
@@ -97,7 +101,7 @@ fn add_file_raw(
 }
 
 fn add_link_raw(
-    writer: &mut PacketWriterImpl,
+    writer: &mut TarBall,
     packet_path: &std::path::Path,
     target_path: &std::path::Path,
 ) -> eyre::Result<()> {
@@ -123,8 +127,6 @@ fn persist(
 
     let mut tarball = tar::Builder::new(tarball);
 
-    add_directory_raw(&mut tarball, std::path::Path::new(".gng"), 0o700, 0, 0)?;
-
     let metadata_path = {
         let mut tmp = std::path::PathBuf::from(".gng").join(&full_packet_name);
         tmp.set_extension("meta");
@@ -149,8 +151,6 @@ fn close(
 // ----------------------------------------------------------------------
 // - PacketWriterState:
 // ----------------------------------------------------------------------
-
-type TarBall = tar::Builder<zstd::Encoder<'static, std::fs::File>>;
 
 enum PacketWriterState {
     Empty {
@@ -184,16 +184,16 @@ impl PacketWriter {
         policy: crate::PacketPolicy,
     ) -> Self {
         // TODO: Make this configurable to support e.g. different compression formats?
-        let full_packet_name = full_packet_name(packet_name, facet_name, version);
+        let file_name = versioned_full_packet_name(packet_name, facet_name, version);
 
-        let mut full_packet_path = packet_path.join(&full_packet_name);
+        let mut full_packet_path = packet_path.join(&file_name);
         full_packet_path.set_extension(&"gng");
 
         Self {
             full_packet_path,
             policy,
             state: PacketWriterState::Empty {
-                full_packet_name,
+                full_packet_name: packet_name.combine(facet_name),
                 metadata,
             },
         }
@@ -201,7 +201,7 @@ impl PacketWriter {
 
     fn open_packet_file(
         &mut self,
-        func: &dyn Fn(&mut PacketWriterImpl) -> eyre::Result<()>,
+        func: &dyn Fn(&mut TarBall) -> eyre::Result<()>,
     ) -> eyre::Result<()> {
         match &mut self.state {
             PacketWriterState::Empty {
@@ -213,7 +213,7 @@ impl PacketWriter {
                     full_packet_name,
                     metadata,
                 )?);
-                Ok(())
+                self.open_packet_file(func)
             }
             PacketWriterState::Writing(tarball) => func(tarball),
             PacketWriterState::Done => Err(eyre::eyre!("Packet file already closed.")),

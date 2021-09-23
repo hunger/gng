@@ -186,8 +186,6 @@ impl Iterator for DeterministicDirectoryIterator {
 mod tests {
     use super::*;
 
-    use temp_dir::TempDir;
-
     fn touch(path: &std::path::Path) {
         std::fs::OpenOptions::new()
             .create(true)
@@ -202,14 +200,22 @@ mod tests {
 
     #[test]
     fn deterministic_iterator_empty_top_dir() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = tempfile::Builder::new()
+            .prefix("dirit-et-")
+            .rand_bytes(8)
+            .tempdir()
+            .expect("Failed to create temporary directory.");
         let mut it = DeterministicDirectoryIterator::new(tmp.path()).unwrap();
         assert!(it.next().is_none());
     }
 
     #[test]
     fn deterministic_iterator_sort_order() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = tempfile::Builder::new()
+            .prefix("dirit-so-")
+            .rand_bytes(8)
+            .tempdir()
+            .expect("Failed to create temporary directory.");
         let tmp_meta = std::fs::metadata(tmp.path()).unwrap();
 
         std::fs::create_dir(tmp.path().join("bar_dir")).unwrap();

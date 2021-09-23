@@ -12,3 +12,6 @@ nix = { version = "0.22" }
 tar = { version = "0.4" }
 tracing = { version = "0.1" }
 zstd = { version = "0.9" }
+
+[dev-dependencies]
+tempfile = { version = "3.2" }

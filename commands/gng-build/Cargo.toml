@@ -26,6 +26,3 @@ spdx = { version = "0.6" }
 tempfile = { version = "3.2" }
 tracing = { version = "0.1" }
 url = { version = "2.2" }
-
-[dev-dependencies]
-temp-dir = { version = "0.1" }
