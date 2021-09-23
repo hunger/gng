@@ -30,6 +30,42 @@ pub enum PacketPolicy {
 }
 
 // ----------------------------------------------------------------------
+// - ContentInfo:
+// ----------------------------------------------------------------------
+
+/// The type of content that is reported
+#[derive(Debug, PartialEq)]
+pub enum ContentType {
+    /// A file
+    File {
+        /// The size of the file
+        size: u64,
+    },
+    /// A directory
+    Directory {},
+    /// A symbolic link
+    Link {
+        /// The link target
+        target: std::path::PathBuf,
+    },
+}
+
+/// A piece of Contents of the packet
+#[derive(Debug, PartialEq)]
+pub struct ContentInfo {
+    /// The path
+    pub path: std::path::PathBuf,
+    /// The mode
+    pub mode: u32,
+    /// The user id
+    pub user_id: u64,
+    /// The group id
+    pub group_id: u64,
+    /// The type of contents
+    pub content_type: ContentType,
+}
+
+// ----------------------------------------------------------------------
 // - Modules:
 // ----------------------------------------------------------------------
 
@@ -53,15 +89,47 @@ mod tests {
 
     use std::{convert::TryFrom, io::Read};
 
+    use crate::ContentInfo;
+
+    fn create_packet(
+        directory: &std::path::Path,
+        metadata: Vec<u8>,
+        test_data: &[u8],
+    ) -> std::path::PathBuf {
+        let mut writer = crate::PacketWriter::new(
+            directory,
+            &Name::new("packet").unwrap(),
+            &None,
+            &Version::try_from("1.0").unwrap(),
+            metadata,
+            crate::PacketPolicy::MustHaveContents,
+        );
+        writer
+            .add_directory(std::path::Path::new("foo"), 0o755, 0, 0)
+            .expect("Failed to write folder information into packet");
+        writer
+            .add_buffer(
+                std::path::Path::new("foo/test.data"),
+                test_data,
+                0o644,
+                0,
+                0,
+            )
+            .expect("Failed to write data into packet");
+        let packet_path = writer.finish().expect("Failed to write packet");
+        assert!(packet_path.is_some());
+        packet_path.unwrap()
+    }
+
     #[test]
-    fn integration_packet_io() {
+    fn integration_packet_io_metadata() {
         let tmp = tempfile::Builder::new()
-            .prefix("packet-io-")
+            .prefix("packet-io-md-")
             .rand_bytes(8)
             .tempdir()
             .expect("Failed to create temporary directory");
 
-        let metadata: Vec<u8> = {
+        let meta_data: Vec<u8> = {
             let mut tmp = Vec::new();
             tmp.extend_from_slice(b"Metadata");
             tmp
@@ -69,49 +137,97 @@ mod tests {
 
         let test_data = b"test data\n";
 
-        // write packet:
-        let packet_path = {
-            let mut writer = crate::PacketWriter::new(
-                tmp.path(),
-                &Name::new("packet").unwrap(),
-                &None,
-                &Version::try_from("1.0").unwrap(),
-                metadata.clone(),
-                crate::PacketPolicy::MustHaveContents,
-            );
-            writer
-                .add_directory(std::path::Path::new("foo"), 0o755, 0, 0)
-                .expect("Failed to write folder information into packet");
-            writer
-                .add_buffer(
-                    std::path::Path::new("foo/test.data"),
-                    test_data,
-                    0o644,
-                    0,
-                    0,
-                )
-                .expect("Failed to write data into packet");
-            let packet_path = writer.finish().expect("Failed to write packet");
-            assert!(packet_path.is_some());
-            packet_path.unwrap()
+        let packet_path = create_packet(tmp.path(), meta_data.clone(), test_data);
+
+        // Test metadata extraction:
+        let mut reader = crate::PacketReader::new(&packet_path);
+        assert_eq!(
+            reader.metadata().expect("Failed to get metadata"),
+            meta_data
+        );
+    }
+
+    #[test]
+    fn integration_packet_io_contents() {
+        let tmp = tempfile::Builder::new()
+            .prefix("packet-io-md-")
+            .rand_bytes(8)
+            .tempdir()
+            .expect("Failed to create temporary directory");
+
+        let meta_data: Vec<u8> = {
+            let mut tmp = Vec::new();
+            tmp.extend_from_slice(b"Metadata");
+            tmp
         };
+
+        let test_data = b"test data\n";
+
+        let packet_path = create_packet(tmp.path(), meta_data.clone(), test_data);
+
+        // Test metadata extraction:
+        let mut reader = crate::PacketReader::new(&packet_path);
+        let (actual_meta_data, actual_contents) =
+            reader.contents().expect("Failed to get metadata");
+        assert_eq!(&actual_meta_data, &meta_data);
+        assert_eq!(
+            &actual_contents,
+            &[
+                ContentInfo {
+                    path: std::path::PathBuf::from(".gng/packet.meta"),
+                    mode: 0o600,
+                    group_id: 0,
+                    user_id: 0,
+                    content_type: crate::ContentType::File { size: 8 }
+                },
+                ContentInfo {
+                    path: std::path::PathBuf::from("foo"),
+                    mode: 493,
+                    user_id: 0,
+                    group_id: 0,
+                    content_type: crate::ContentType::Directory {},
+                },
+                ContentInfo {
+                    path: std::path::PathBuf::from("foo/test.data"),
+                    mode: 420,
+                    user_id: 0,
+                    group_id: 0,
+                    content_type: crate::ContentType::File { size: 10 }
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn integration_packet_io_extract() {
+        let tmp = tempfile::Builder::new()
+            .prefix("packet-io-extract-")
+            .rand_bytes(8)
+            .tempdir()
+            .expect("Failed to create temporary directory");
+
+        let meta_data: Vec<u8> = {
+            let mut tmp = Vec::new();
+            tmp.extend_from_slice(b"Metadata");
+            tmp
+        };
+
+        let test_data = b"test data\n";
+
+        let packet_path = create_packet(tmp.path(), meta_data.clone(), test_data);
 
         let extract_dir = tmp.path().join("extract");
         // extract packet again:
         std::fs::create_dir_all(extract_dir.join("usr/.gng"))
             .expect("Failed to set up extraction directory");
 
-        let mut reader = crate::PacketReader::new(&packet_path);
-
-        // Test metadata extraction only:
-        assert_eq!(reader.metadata().expect("Failed to get metadata"), metadata);
-
         // Test full extraction incl. metadata and all file data.
+        let mut reader = crate::PacketReader::new(&packet_path);
         assert_eq!(
             reader
                 .extract(&extract_dir)
                 .expect("Failed to extract packet"),
-            metadata
+            meta_data
         );
 
         let mut buf = Vec::new();
@@ -123,7 +239,7 @@ mod tests {
             .unwrap()
             .read_to_end(&mut buf)
             .expect("Failed to read metadata from disk");
-        assert!(buf == metadata);
+        assert!(buf == meta_data);
 
         // validate actual file contents
         buf.clear();
