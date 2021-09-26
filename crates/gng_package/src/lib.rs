@@ -27,6 +27,9 @@ pub(crate) mod packager;
 pub(crate) mod path;
 pub(crate) mod storage_function;
 
+// Re-export:
+pub use gng_packet_io::{BinaryFacetDefinition, BinaryPacketDefinition};
+
 // ----------------------------------------------------------------------
 // - Structures:
 // ----------------------------------------------------------------------
@@ -37,10 +40,9 @@ use std::rc::Rc;
 
 /// A definition of one `Packet`
 pub struct PacketDefinition {
-    name: Name,
-    version: Version,
+    data: gng_packet_io::BinaryPacketDefinition,
+
     merged_facets: Names,
-    metadata: Vec<u8>,
     filter: Rc<dyn filter::Filter>,
     is_empty: bool,
 }
@@ -48,18 +50,14 @@ pub struct PacketDefinition {
 impl PacketDefinition {
     /// Constructor
     pub fn new(
-        name: Name,
-        version: Version,
+        data: gng_packet_io::BinaryPacketDefinition,
         merged_facets: Names,
-        metadata: Vec<u8>,
         filter: Rc<dyn filter::Filter>,
         is_empty: bool,
     ) -> Self {
         Self {
-            name,
-            version,
+            data,
             merged_facets,
-            metadata,
             filter,
             is_empty,
         }

@@ -47,6 +47,12 @@ pub struct FacetDefinition {
     /// Glob-patterns for `files` to include in the `Packet`
     #[serde(default)]
     pub files: Vec<String>,
+    /// The `Face` that is extended by this one
+    #[serde(default)]
+    pub extends: Option<Name>,
+    /// `true` if this facet must stay empty at all times
+    #[serde(default)]
+    pub is_forbidden: bool,
 }
 
 // ----------------------------------------------------------------------

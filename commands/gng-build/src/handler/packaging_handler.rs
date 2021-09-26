@@ -23,25 +23,43 @@ fn calculate_merged_facets(
     Names::default()
 }
 
-fn generate_meta_data(packet: &gng_build_shared::PacketDefinition) -> Vec<u8> {
-    serde_json::ser::to_vec(packet).expect("Failed to serialize packet data!")
+fn generate_data(
+    source: &SourcePacket,
+    packet: &gng_build_shared::PacketDefinition,
+) -> gng_package::BinaryPacketDefinition {
+    let facet = packet
+        .facet
+        .as_ref()
+        .map(|f| gng_package::BinaryFacetDefinition {
+            mime_types: f.mime_types.clone(),
+            files: f.files.clone(),
+            extends: f.extends.clone(),
+            is_forbidden: f.is_forbidden,
+        });
+
+    gng_package::BinaryPacketDefinition {
+        name: packet.name.clone(),
+        facet_name: None,
+        version: source.version.clone(),
+        description: packet.description.clone(),
+        url: source.url.clone(),
+        bug_url: source.bug_url.clone(),
+        dependencies: packet.dependencies.clone(),
+        facet,
+    }
 }
 
 fn generate_packet_definitions(source_packet: &SourcePacket) -> Vec<gng_package::PacketDefinition> {
-    let version = source_packet.version.clone();
-
     source_packet
         .packets
         .iter()
         .map(|p| {
             let merged_facets = calculate_merged_facets(p, source_packet);
-            let metadata = generate_meta_data(p);
+            let data = generate_data(source_packet, p);
 
             gng_package::PacketDefinition::new(
-                p.name.clone(),
-                version.clone(),
+                data,
                 merged_facets,
-                metadata,
                 std::rc::Rc::new(gng_package::filter::GlobFilter::new(
                     gng_package::strings_to_globs(&p.files).expect("This was validated to be OK!"),
                 )),

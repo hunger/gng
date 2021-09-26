@@ -15,6 +15,8 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
 #![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
 
+use gng_core::{Name, Names, Version};
+
 // ----------------------------------------------------------------------
 // - Enums:
 // ----------------------------------------------------------------------
@@ -27,6 +29,53 @@ pub enum PacketPolicy {
     MayHaveContents,
     /// The packet must be empty
     MustStayEmpty,
+}
+
+// ----------------------------------------------------------------------
+// - BinaryFacetDefinition:
+// ----------------------------------------------------------------------
+
+/// A definition for `Packet` that should get built
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+pub struct BinaryFacetDefinition {
+    /// The mime types (as regexp matching `file` output) that belong into this `Facet`
+    #[serde(default)]
+    pub mime_types: Vec<String>,
+    /// Glob-patterns for `files` to include in this `Facet`
+    #[serde(default)]
+    pub files: Vec<String>,
+    /// This Facet extends an existing facet
+    pub extends: Option<Name>,
+    /// `true` is this facet *must* stay empty at all times
+    pub is_forbidden: bool,
+}
+
+// ----------------------------------------------------------------------
+// - BinaryPacketDefinition:
+// ----------------------------------------------------------------------
+
+/// A definition for `Packet` that should get built
+#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+pub struct BinaryPacketDefinition {
+    /// The `name` of the Packet.
+    pub name: Name,
+    /// The `name` of the Facet.
+    pub facet_name: Option<Name>,
+    /// The `name` of the Facet.
+    pub version: Version,
+    /// The packet description
+    pub description: String,
+    /// The packet URL
+    pub url: String,
+    /// The packet URL
+    pub bug_url: String,
+
+    /// The `dependencies` of the `Packet`
+    #[serde(default)]
+    pub dependencies: Names,
+
+    /// The `FacetDefinition`
+    pub facet: Option<BinaryFacetDefinition>,
 }
 
 // ----------------------------------------------------------------------
@@ -96,7 +145,7 @@ mod tests {
         metadata: Vec<u8>,
         test_data: &[u8],
     ) -> std::path::PathBuf {
-        let mut writer = crate::PacketWriter::new(
+        let mut writer = crate::PacketWriter::raw_new(
             directory,
             &Name::new("packet").unwrap(),
             &None,
@@ -142,7 +191,7 @@ mod tests {
         // Test metadata extraction:
         let mut reader = crate::PacketReader::new(&packet_path);
         assert_eq!(
-            reader.metadata().expect("Failed to get metadata"),
+            reader.raw_metadata().expect("Failed to get metadata"),
             meta_data
         );
     }

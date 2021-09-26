@@ -6,6 +6,8 @@
 use super::query_handler::SourcePacketHandle;
 use crate::handler::Handler;
 
+use gng_core::Name;
+
 use eyre::Result;
 
 // ----------------------------------------------------------------------
@@ -16,6 +18,7 @@ use eyre::Result;
 pub struct InstallHandler {
     source_packet: SourcePacketHandle,
     root_directory: std::path::PathBuf,
+    installed_packages: std::collections::HashSet<Name>,
 }
 
 impl InstallHandler {
@@ -24,6 +27,7 @@ impl InstallHandler {
         Self {
             source_packet,
             root_directory: root_directory.to_path_buf(),
+            installed_packages: std::collections::HashSet::new(),
         }
     }
 }
@@ -31,7 +35,7 @@ impl InstallHandler {
 impl Handler for InstallHandler {
     #[tracing::instrument(level = "trace", skip(self))]
     fn prepare(&mut self, mode: &crate::Mode) -> Result<()> {
-        if *mode == crate::Mode::Query {
+        if *mode != crate::Mode::Install && *mode != crate::Mode::Check {
             return Ok(());
         }
 
@@ -63,7 +67,10 @@ impl Handler for InstallHandler {
             &self.root_directory.to_string_lossy(),
         );
 
-        // FIXME: Actually install packets
+        while !to_install.is_empty() {
+            todo!()
+            // gng_packet_io::PacketReader::new(i)
+        }
 
         Ok(())
     }

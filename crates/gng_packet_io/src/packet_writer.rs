@@ -174,8 +174,31 @@ pub struct PacketWriter {
 
 impl PacketWriter {
     /// Constructor
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Errors out when serialization of `packet` to JSON fails.
     pub fn new(
+        packet_path: &std::path::Path,
+        packet: &crate::BinaryPacketDefinition,
+        policy: crate::PacketPolicy,
+    ) -> eyre::Result<Self> {
+        let meta_data = serde_json::to_vec(packet)
+            .wrap_err("Failed to serialize binary packet definition to JSON")?;
+
+        Ok(Self::raw_new(
+            packet_path,
+            &packet.name,
+            &packet.facet_name,
+            &packet.version,
+            meta_data,
+            policy,
+        ))
+    }
+
+    /// Constructor
+    #[must_use]
+    pub fn raw_new(
         packet_path: &std::path::Path,
         packet_name: &Name,
         facet_name: &Option<Name>,

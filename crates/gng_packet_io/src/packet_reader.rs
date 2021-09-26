@@ -8,6 +8,8 @@ use eyre::{eyre, WrapErr};
 use std::io::Read;
 use std::{convert::TryFrom, io::Write};
 
+use crate::BinaryPacketDefinition;
+
 // ----------------------------------------------------------------------
 // - Helper:
 // ----------------------------------------------------------------------
@@ -97,12 +99,12 @@ impl PacketReader {
         }
     }
 
-    /// Extract a packet's metadata
+    /// Extract a packet's raw metadata
     ///
     /// # Errors
     ///
     /// Returns an error if extraction fails.
-    pub fn metadata(&mut self) -> eyre::Result<Vec<u8>> {
+    pub fn raw_metadata(&mut self) -> eyre::Result<Vec<u8>> {
         let mut tarball = create_tarball(&self.packet_path)?;
         let mut entries = tarball
             .entries()
@@ -124,6 +126,16 @@ impl PacketReader {
                 self.packet_path.to_string_lossy()
             ))
         }
+    }
+
+    /// Extract a packet's metadata
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if extraction fails.
+    pub fn metadata(&mut self) -> eyre::Result<BinaryPacketDefinition> {
+        serde_json::from_slice(&self.raw_metadata()?)
+            .wrap_err("Failed to deserialize packet meta data")
     }
 
     /// Generate an overview of packet contents

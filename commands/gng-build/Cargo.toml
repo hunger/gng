@@ -12,6 +12,7 @@ repository = "https://github.com/hunger/gng"
 gng_build_shared = { path = "../../crates/gng_build_shared" }
 gng_contained_command = { path = "../../crates/gng_contained_command" }
 gng_core = { path = "../../crates/gng_core" }
+gng_packet_db = { path = "../../crates/gng_packet_db" }
 gng_package = { path = "../../crates/gng_package" }
 
 clap = { version = "3.0.0-beta.2" }
