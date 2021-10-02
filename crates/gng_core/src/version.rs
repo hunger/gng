@@ -161,6 +161,28 @@ impl std::fmt::Display for Version {
     }
 }
 
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let epoch_cmp = self.epoch.cmp(&other.epoch);
+        if epoch_cmp == std::cmp::Ordering::Equal {
+            let upstream_cmp = self.upstream.cmp(&other.upstream);
+            if upstream_cmp == std::cmp::Ordering::Equal {
+                self.release.cmp(&other.release)
+            } else {
+                upstream_cmp
+            }
+        } else {
+            epoch_cmp
+        }
+    }
+}
+
 // ----------------------------------------------------------------------
 // - Tests:
 // ----------------------------------------------------------------------
@@ -225,7 +247,7 @@ mod tests {
         assert!(Version::try_from("2.4.5!").is_err());
         assert!(Version::try_from("2.4.5!-arch1").is_err());
         assert!(Version::try_from("54:2.4.5!-arch1").is_err());
-        assert!(Version::try_from("54:2.4.5-ärch1").is_err());
+        assert!(Version::try_from("54:2.4.5-är1").is_err());
 
         assert!(Version::try_from("_2.4.5").is_err());
         assert!(Version::try_from("_2.4.5-arch1").is_err());

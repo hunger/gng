@@ -7,6 +7,8 @@ use gng_core::{Name, Version};
 
 use eyre::{eyre, WrapErr};
 
+use crate::BinaryFacetUsage;
+
 // ----------------------------------------------------------------------
 // - Helper:
 // ----------------------------------------------------------------------
@@ -186,10 +188,17 @@ impl PacketWriter {
         let meta_data = serde_json::to_vec(packet)
             .wrap_err("Failed to serialize binary packet definition to JSON")?;
 
+        let facet_name = if let crate::BinaryFacet::Usage(BinaryFacetUsage { name }) = &packet.facet
+        {
+            Some(name.clone())
+        } else {
+            None
+        };
+
         Ok(Self::raw_new(
             packet_path,
             &packet.name,
-            &packet.facet_name,
+            &facet_name,
             &packet.version,
             meta_data,
             policy,

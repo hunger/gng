@@ -18,7 +18,7 @@ use eyre::Result;
 pub struct InstallHandler {
     source_packet: SourcePacketHandle,
     root_directory: std::path::PathBuf,
-    installed_packages: std::collections::HashSet<Name>,
+    _installed_packages: std::collections::HashSet<Name>,
 }
 
 impl InstallHandler {
@@ -27,7 +27,7 @@ impl InstallHandler {
         Self {
             source_packet,
             root_directory: root_directory.to_path_buf(),
-            installed_packages: std::collections::HashSet::new(),
+            _installed_packages: std::collections::HashSet::new(),
         }
     }
 }

@@ -13,7 +13,11 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
-#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
+#![allow(
+    clippy::non_ascii_literal,
+    clippy::module_name_repetitions,
+    clippy::let_unit_value
+)]
 
 use eyre::{eyre, WrapErr};
 
@@ -25,10 +29,11 @@ pub(crate) mod deterministic_directory_iterator;
 pub mod filter;
 pub(crate) mod packager;
 pub(crate) mod path;
-pub(crate) mod storage_function;
 
 // Re-export:
-pub use gng_packet_io::{BinaryFacetDefinition, BinaryPacketDefinition};
+pub use gng_packet_io::{
+    BinaryFacet, BinaryFacetDefinition, BinaryFacetUsage, BinaryPacketDefinition,
+};
 
 // ----------------------------------------------------------------------
 // - Structures:

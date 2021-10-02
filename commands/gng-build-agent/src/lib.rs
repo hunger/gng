@@ -13,7 +13,11 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
-#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
+#![allow(
+    clippy::non_ascii_literal,
+    clippy::module_name_repetitions,
+    clippy::let_unit_value
+)]
 
 // ----------------------------------------------------------------------
 // - Helpers:

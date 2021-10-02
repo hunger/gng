@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn deterministic_iterator_empty_top_dir() {
         let tmp = tempfile::Builder::new()
-            .prefix("dirit-et-")
+            .prefix("dir-it-et-")
             .rand_bytes(8)
             .tempdir()
             .expect("Failed to create temporary directory.");
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn deterministic_iterator_sort_order() {
         let tmp = tempfile::Builder::new()
-            .prefix("dirit-so-")
+            .prefix("dir-it-so-")
             .rand_bytes(8)
             .tempdir()
             .expect("Failed to create temporary directory.");

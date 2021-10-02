@@ -27,19 +27,20 @@ fn generate_data(
     source: &SourcePacket,
     packet: &gng_build_shared::PacketDefinition,
 ) -> gng_package::BinaryPacketDefinition {
-    let facet = packet
-        .facet
-        .as_ref()
-        .map(|f| gng_package::BinaryFacetDefinition {
-            mime_types: f.mime_types.clone(),
-            files: f.files.clone(),
-            extends: f.extends.clone(),
-            is_forbidden: f.is_forbidden,
-        });
+    let facet = packet.facet.as_ref().map_or_else(
+        || gng_package::BinaryFacet::Main,
+        |f| {
+            gng_package::BinaryFacet::Definition(gng_package::BinaryFacetDefinition {
+                mime_types: f.mime_types.clone(),
+                files: f.files.clone(),
+                extends: f.extends.clone(),
+                is_forbidden: f.is_forbidden,
+            })
+        },
+    );
 
     gng_package::BinaryPacketDefinition {
         name: packet.name.clone(),
-        facet_name: None,
         version: source.version.clone(),
         description: packet.description.clone(),
         url: source.url.clone(),

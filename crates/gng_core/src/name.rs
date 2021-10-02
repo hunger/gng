@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn packet_name_not_ok() {
         assert!(Name::new("").is_err());
-        assert!(Name::new("töst").is_err());
+        assert!(Name::new("tö_st").is_err());
         assert!(Name::new("teSt").is_err());
         assert!(Name::new("Test").is_err());
         assert!(Name::new("_foobar").is_err());

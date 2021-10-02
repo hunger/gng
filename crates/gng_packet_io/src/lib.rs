@@ -13,7 +13,11 @@
 )]
 // Clippy:
 #![warn(clippy::all, clippy::nursery, clippy::pedantic)]
-#![allow(clippy::non_ascii_literal, clippy::module_name_repetitions)]
+#![allow(
+    clippy::non_ascii_literal,
+    clippy::module_name_repetitions,
+    clippy::let_unit_value
+)]
 
 use gng_core::{Name, Names, Version};
 
@@ -32,11 +36,22 @@ pub enum PacketPolicy {
 }
 
 // ----------------------------------------------------------------------
+// - BinaryFacetUsage:
+// ----------------------------------------------------------------------
+
+/// A definition for `Packet` that should get built
+#[derive(Clone, Debug, Eq, serde::Deserialize, Ord, PartialEq, PartialOrd, serde::Serialize)]
+pub struct BinaryFacetUsage {
+    /// The name of the facet that is used
+    pub name: Name,
+}
+
+// ----------------------------------------------------------------------
 // - BinaryFacetDefinition:
 // ----------------------------------------------------------------------
 
 /// A definition for `Packet` that should get built
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, serde::Deserialize, PartialEq, serde::Serialize)]
 pub struct BinaryFacetDefinition {
     /// The mime types (as regexp matching `file` output) that belong into this `Facet`
     #[serde(default)]
@@ -50,17 +65,67 @@ pub struct BinaryFacetDefinition {
     pub is_forbidden: bool,
 }
 
+impl PartialOrd for BinaryFacetDefinition {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BinaryFacetDefinition {
+    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
+    }
+}
+
+// ----------------------------------------------------------------------
+// - BinaryFacet:
+// ----------------------------------------------------------------------
+
+/// A binary facet.
+#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
+pub enum BinaryFacet {
+    /// Define a new binary facet
+    Definition(BinaryFacetDefinition),
+    /// Use an existing binary facet
+    Usage(BinaryFacetUsage),
+    /// Its the un-faceted packet
+    Main,
+}
+
+impl PartialEq for BinaryFacet {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl PartialOrd for BinaryFacet {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BinaryFacet {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (&self, &other) {
+            (Self::Main | Self::Definition(_), Self::Main | Self::Definition(_)) => {
+                std::cmp::Ordering::Equal
+            }
+            (Self::Main | Self::Definition(_), Self::Usage(_)) => std::cmp::Ordering::Less,
+            (Self::Usage(_), Self::Main | Self::Definition(_)) => std::cmp::Ordering::Greater,
+            (Self::Usage(lhs), &Self::Usage(rhs)) => lhs.name.cmp(&rhs.name),
+        }
+    }
+}
+
 // ----------------------------------------------------------------------
 // - BinaryPacketDefinition:
 // ----------------------------------------------------------------------
 
 /// A definition for `Packet` that should get built
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, serde::Deserialize, serde::Serialize)]
 pub struct BinaryPacketDefinition {
     /// The `name` of the Packet.
     pub name: Name,
-    /// The `name` of the Facet.
-    pub facet_name: Option<Name>,
     /// The `name` of the Facet.
     pub version: Version,
     /// The packet description
@@ -70,12 +135,40 @@ pub struct BinaryPacketDefinition {
     /// The packet URL
     pub bug_url: String,
 
-    /// The `dependencies` of the `Packet`
+    /// The `dependencies` of the (faceted) `Packet`
     #[serde(default)]
     pub dependencies: Names,
 
-    /// The `FacetDefinition`
-    pub facet: Option<BinaryFacetDefinition>,
+    /// The `Facet`
+    pub facet: BinaryFacet,
+}
+
+impl PartialEq for BinaryPacketDefinition {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.version == other.version && self.facet == other.facet
+    }
+}
+
+impl PartialOrd for BinaryPacketDefinition {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for BinaryPacketDefinition {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let name_cmp = self.name.cmp(&other.name);
+        if name_cmp == std::cmp::Ordering::Equal {
+            let facet_cmp = self.facet.cmp(&other.facet);
+            if facet_cmp == std::cmp::Ordering::Equal {
+                self.version.cmp(&other.version)
+            } else {
+                facet_cmp
+            }
+        } else {
+            name_cmp
+        }
+    }
 }
 
 // ----------------------------------------------------------------------

@@ -39,23 +39,16 @@ impl StoragePackager {
     ///
     /// Returns an error if one happens.
     pub fn new(packet: &PacketDefinition, facet: &FacetDefinition) -> eyre::Result<Self> {
-        let binary_packet_definition = gng_packet_io::BinaryPacketDefinition {
-            name: packet.data.name.clone(),
-            facet_name: facet.name.clone(),
-            version: packet.data.version.clone(),
-            description: packet.data.description.clone(),
-            url: packet.data.url.clone(),
-            bug_url: packet.data.bug_url.clone(),
-            dependencies: packet.data.dependencies.clone(),
-            facet: packet.data.facet.clone(),
-        };
+        let data = packet.data.clone();
+
+        // FIXME: Add Facets!
 
         Ok(Self {
             debug: packet.data.name.combine(&facet.name),
 
             writer: PacketWriter::new(
                 std::path::Path::new("."),
-                &binary_packet_definition,
+                &data,
                 find_policy(packet, facet),
             )?,
         })
