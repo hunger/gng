@@ -188,6 +188,7 @@ impl Ord for Version {
 // ----------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::non_ascii_literal)]
 mod tests {
     use std::convert::From;
     use std::convert::TryFrom;
