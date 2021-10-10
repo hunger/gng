@@ -3,6 +3,8 @@
 
 //! Lua support for `gng-build-agent`
 
+// spell-checker: ignore eval
+
 pub mod mod_fs;
 
 use gng_build_shared::constants::container as cc;
@@ -66,7 +68,7 @@ fn evaluate<T: serde::de::DeserializeOwned>(
     })
 }
 
-fn eval_pkgsrc_directory(lua: &mut rlua::Lua) -> eyre::Result<()> {
+fn eval_recipe_directory(lua: &mut rlua::Lua) -> eyre::Result<()> {
     let build_file = std::path::PathBuf::from(format!("/gng/{}", gng_build_shared::BUILD_SCRIPT));
 
     let script = format!(
@@ -149,7 +151,7 @@ impl LuaScriptSupport {
 
         setup_lua(&mut lua)?;
 
-        eval_pkgsrc_directory(&mut lua)?;
+        eval_recipe_directory(&mut lua)?;
 
         Ok(Self { lua })
     }

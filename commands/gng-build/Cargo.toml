@@ -12,11 +12,11 @@ repository = "https://github.com/hunger/gng"
 gng_build_shared = { path = "../../crates/gng_build_shared" }
 gng_contained_command = { path = "../../crates/gng_contained_command" }
 gng_core = { path = "../../crates/gng_core" }
-gng_packet_db = { path = "../../crates/gng_packet_db" }
+# gng_packet_db = { path = "../../crates/gng_packet_db" }
 gng_package = { path = "../../crates/gng_package" }
 
 clap = { version = "3.0.0-beta.2" }
-downloader = { version = "0.2", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
+# downloader = { version = "0.2", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
 eyre = { version = "0.6" }
 lazy_static = { version = "1.4" }
 rand = { version = "0.8" }

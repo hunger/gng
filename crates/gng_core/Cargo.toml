@@ -10,16 +10,11 @@ repository = "https://github.com/hunger/gng"
 
 [dependencies]
 clap = { version = "3.0.0-beta.2" }
-derive_builder = { version = "0.10" }
 faccess = { version = "0.2" }
 itertools = { version = "0.10" }
 nix = { version = "0.22" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
-sha3 = { version = "0.9" }
-tar = { version = "0.4" }
 thiserror = { version = "1.0" }
-toml = { version = "0.5" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.2" }
-zstd = { version = "0.9" }

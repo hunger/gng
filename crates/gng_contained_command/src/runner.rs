@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
+// spell-checker: ignore resolv setenv
+
 use crate::{Error, Result};
 
 use std::os::unix::fs::MetadataExt;
@@ -292,7 +294,7 @@ mod tests {
     // Name:
     #[test]
     fn runner_create() {
-        let runner = RunnerBuilder::new("/rootfs")
+        let runner = RunnerBuilder::new("/root_fs")
             .machine_id([b'a'; 32])
             .systemd_nspawn("/foo/bar/nspawn")
             .build();

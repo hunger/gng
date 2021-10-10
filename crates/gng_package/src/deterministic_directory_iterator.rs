@@ -58,10 +58,6 @@ fn populate_directory_stack(
 // ----------------------------------------------------------------------
 
 pub type PackagingIteration = eyre::Result<Path>;
-// FIXME: Remove this!
-// pub type PackagingIterator = dyn Iterator<Item = PackagingIteration>;
-// pub type PackagingIteratorFactory =
-//     dyn FnMut(&std::path::Path) -> eyre::Result<Box<PackagingIterator>>;
 
 // ----------------------------------------------------------------------
 // - DeterministicDirectoryIterator:

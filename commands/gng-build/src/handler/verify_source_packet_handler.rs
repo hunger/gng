@@ -14,16 +14,6 @@ use eyre::{eyre, Result, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
-// pub struct FacetDefinition {
-//     /// The `description_suffix` appended to packet descriptions
-//     pub description_suffix: String,
-//     /// The packet description
-//     #[serde(default)]
-//     pub mime_types: Vec<String>,
-//     /// Glob-patterns for `files` to include in the `Packet`
-//     #[serde(default)]
-//     pub files: Vec<String>,
-// }
 fn verify_facet(facet: &Option<FacetDefinition>) -> Result<()> {
     if let Some(facet) = &facet {
         if facet.description_suffix.is_empty() {

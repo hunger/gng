@@ -16,13 +16,13 @@ use eyre::{eyre, Result, WrapErr};
 // - Helper:
 // ----------------------------------------------------------------------
 
-fn build_script(pkgsrc_directory: &Path) -> Result<PathBuf> {
-    let build_file = pkgsrc_directory.join(gng_build_shared::BUILD_SCRIPT);
+fn build_script(recipes_directory: &Path) -> Result<PathBuf> {
+    let build_file = recipes_directory.join(gng_build_shared::BUILD_SCRIPT);
     if !build_file.is_file() {
         return Err(eyre!(
             "No {} file found in {}.",
             cc::GNG_BUILD_SCRIPT.to_str().unwrap(),
-            pkgsrc_directory.to_string_lossy()
+            recipes_directory.to_string_lossy()
         ));
     }
     Ok(build_file)
@@ -175,7 +175,7 @@ impl CaseOfficerBuilder {
     ///
     /// # Errors
     /// Generic Error
-    pub fn build(&mut self, pkgsrc_directory: &Path) -> Result<CaseOfficer> {
+    pub fn build(&mut self, recipes_directory: &Path) -> Result<CaseOfficer> {
         let mut temp_dirs = Vec::with_capacity(1);
 
         let scratch_directory =
@@ -205,7 +205,7 @@ impl CaseOfficerBuilder {
             &scratch_directory,
             &agent,
             &lua_directory,
-            &build_script(pkgsrc_directory)?,
+            &build_script(recipes_directory)?,
             &gng_core::validate_executable(&std::mem::take(&mut self.nspawn_binary))?,
         )?;
 
@@ -300,7 +300,7 @@ impl CaseOfficer {
         self.agent_runner.work_directory()
     }
 
-    /// Get the install directory used in the container
+    /// Get the installation directory used in the container
     #[must_use]
     pub fn install_directory(&self) -> std::path::PathBuf {
         self.agent_runner.install_directory()

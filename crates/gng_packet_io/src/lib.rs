@@ -277,7 +277,7 @@ mod tests {
 
         let packet_path = create_packet(tmp.path(), meta_data.clone(), test_data);
 
-        // Test metadata extraction:
+        // Test meta data extraction:
         let mut reader = crate::PacketReader::new(&packet_path);
         assert_eq!(
             reader.raw_metadata().expect("Failed to get metadata"),
@@ -303,7 +303,7 @@ mod tests {
 
         let packet_path = create_packet(tmp.path(), meta_data.clone(), test_data);
 
-        // Test metadata extraction:
+        // Test meta data extraction:
         let mut reader = crate::PacketReader::new(&packet_path);
         let (actual_meta_data, actual_contents) =
             reader.contents().expect("Failed to get metadata");
@@ -359,7 +359,7 @@ mod tests {
         std::fs::create_dir_all(extract_dir.join("usr/.gng"))
             .expect("Failed to set up extraction directory");
 
-        // Test full extraction incl. metadata and all file data.
+        // Test full extraction incl. meta data and all file data.
         let mut reader = crate::PacketReader::new(&packet_path);
         assert_eq!(
             reader
@@ -370,7 +370,7 @@ mod tests {
 
         let mut buf = Vec::new();
 
-        // validate metadata:
+        // validate meta data:
         let metadata_file = extract_dir.join("usr/.gng/packet.meta");
         assert!(metadata_file.is_file());
         std::fs::File::open(metadata_file)

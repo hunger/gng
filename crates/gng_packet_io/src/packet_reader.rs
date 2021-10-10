@@ -14,7 +14,7 @@ use crate::BinaryPacketDefinition;
 // - Helper:
 // ----------------------------------------------------------------------
 
-/// The packet Metadata
+/// The packet Meta data
 pub type Metadata = Vec<u8>;
 
 type DecompressedReader = zstd::Decoder<'static, std::io::BufReader<std::fs::File>>;
@@ -99,7 +99,7 @@ impl PacketReader {
         }
     }
 
-    /// Extract a packet's raw metadata
+    /// Extract a packet's raw meta data
     ///
     /// # Errors
     ///
@@ -128,7 +128,7 @@ impl PacketReader {
         }
     }
 
-    /// Extract a packet's metadata
+    /// Extract a packet's meta data
     ///
     /// # Errors
     ///
@@ -236,13 +236,13 @@ impl PacketReader {
             ))?;
 
             if meta_data.is_none() {
-                // read metadata:
+                // read meta data:
                 let (meta_file_name, tmp) = extract_metadata(&mut entry).wrap_err(eyre!(
                     "Failed to read metadata from packet \"{}\".",
                     self.packet_path.to_string_lossy(),
                 ))?;
 
-                // write metadata:
+                // write meta data:
                 let meta_file_path = usr_directory.join(".gng").join(meta_file_name);
                 std::fs::File::create(&meta_file_path)
                     .wrap_err(eyre!(

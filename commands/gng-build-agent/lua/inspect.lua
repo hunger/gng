@@ -1,3 +1,5 @@
+-- spell-checker: ignore ctype cota garcía userdata
+
 local inspect ={
   _VERSION = 'inspect.lua 3.1.0',
   _URL     = 'http://github.com/kikito/inspect.lua',
@@ -33,7 +35,7 @@ local function rawpairs(t)
   return next, t, nil
 end
 
--- Apostrophizes the string if it has quotes, but not aphostrophes
+-- Apostrophizes the string if it has quotes, but not apostrophes
 -- Otherwise, it returns a regular quoted string
 local function smartQuote(str)
   if str:match('"') and not str:match("'") then

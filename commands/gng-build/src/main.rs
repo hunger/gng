@@ -43,7 +43,7 @@ struct Args {
     )]
     agent: Option<PathBuf>,
 
-    /// the directory containing the Lua runtime environment
+    /// the directory containing the Lua run time environment
     #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
     lua_dir: Option<PathBuf>,
 
@@ -61,7 +61,7 @@ struct Args {
 
     /// The directory with the build information
     #[clap(parse(from_os_str), value_name = "DIR")]
-    pkgsrc_dir: PathBuf,
+    recipes_dir: PathBuf,
 
     /// Keep temporary directories after build
     #[clap(long)]
@@ -86,9 +86,9 @@ fn main() -> Result<()> {
 
     tracing::debug!("Command line arguments: {:#?}", args);
 
-    let pkgsrc_dir = std::env::current_dir()
+    let recipes_dir = std::env::current_dir()
         .wrap_err("Failed to get current work directory.")?
-        .join(args.pkgsrc_dir);
+        .join(args.recipes_dir);
 
     let mut case_officer = gng_build::CaseOfficerBuilder::default();
     if let Some(tmp) = &args.lua_dir {
@@ -102,7 +102,7 @@ fn main() -> Result<()> {
     }
 
     let mut case_officer = case_officer
-        .build(&pkgsrc_dir)
+        .build(&recipes_dir)
         .wrap_err("Failed to initialize build container environment.")?;
 
     gng_build::handler::run(&mut case_officer)

@@ -34,8 +34,8 @@ fn random_string(len: usize) -> String {
 }
 
 fn find_type_and_contents<'a>(message_prefix: &'a str, line: &'a str) -> (&'a str, &'a str) {
-    if line.len() < 4 /* "MSG_" */ + MESSAGE_PREFIX_LEN + 7
-    /* "_TYPE: " */
+    if line.len() < 4 + MESSAGE_PREFIX_LEN + 7
+    /* "MSG_XXXX_TYPE: " */
     {
         return ("", line);
     }
@@ -150,7 +150,7 @@ fn process_line(
 }
 
 fn root_directory(scratch: &std::path::Path) -> std::path::PathBuf {
-    scratch.join("rootfs")
+    scratch.join("root_fs")
 }
 fn work_directory(scratch: &std::path::Path) -> std::path::PathBuf {
     scratch.join("work")
@@ -183,7 +183,7 @@ impl AgentRunner {
     /// Constructor
     ///
     /// # Errors
-    /// May return an `Error` when some of the provided directories are not found
+    /// May return an `Error` when some provided directories are not found
     pub fn new(
         scratch_directory: &Path,
         agent_binary: &Path,
@@ -270,7 +270,7 @@ impl AgentRunner {
         work_directory(&self.scratch_directory)
     }
 
-    /// Get the install directory used in the container
+    /// Get the installation directory used in the container
     #[must_use]
     pub fn install_directory(&self) -> std::path::PathBuf {
         install_directory(&self.scratch_directory)

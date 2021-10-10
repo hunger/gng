@@ -4,7 +4,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/hunger/gng/badge.svg?branch=master)](https://coveralls.io/github/hunger/gng?branch=master)
 
 `gng` is yet another attempt to write a package manager for Linux. This one should
-be simpler than most: I am targetting stateless and immutable systems, so there
+be simpler than most: I am targeting stateless and immutable systems, so there
 is no need to upgrade packages nor to add or remove packages from already installed
 systems (they are immutable after all;-).
 
@@ -20,9 +20,9 @@ some interesting use-cases like building packets in an (almost;-) empty containe
 
 ### Cargo
 
-* Install the rust toolchain in order to have cargo installed by following
+- Install the rust toolchain in order to have cargo installed by following
   [this](https://www.rust-lang.org/tools/install) guide.
-* run `cargo install gng`
+- run `cargo install gng`
 
 ## Contribution
 

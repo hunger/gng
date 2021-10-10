@@ -39,7 +39,7 @@ impl Version {
                 message: "Package version must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
             });
         }
-        if !crate::start_alnum_char(upstream) {
+        if !crate::start_alphanumerical_char(upstream) {
             return Err(crate::Error::Conversion {
                 expression: upstream.to_string(),
                 typename: "Version".to_string(),
@@ -53,7 +53,7 @@ impl Version {
                 message: "Package version release must consist of numbers, lowercase letters, '.' or '_' characters only.".into(),
             });
         }
-        if !crate::start_alnum_char(release) {
+        if !crate::start_alphanumerical_char(release) {
             return Err(crate::Error::Conversion {
                 expression: release.to_string(),
                 typename: "Version".to_string(),

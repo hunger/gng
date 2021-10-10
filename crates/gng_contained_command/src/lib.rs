@@ -27,14 +27,14 @@ pub use gng_core::{Error, Result};
 // - Binding:
 // ----------------------------------------------------------------------
 
-/// A mapping of outside filesystem location to a in-container path
+/// A mapping of outside file system location to a in-container path
 #[derive(Clone, Debug)]
 pub struct BindMap {
     source: PathBuf,
     target: PathBuf,
 }
 
-/// A mapping for a overlay filesystem into the container
+/// A mapping for a overlay file system into the container
 #[derive(Clone, Debug)]
 pub struct OverlayMap {
     sources: Vec<PathBuf>,

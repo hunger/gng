@@ -3,6 +3,8 @@
 
 //! The `fs` module for Lua
 
+// spell-checker: ignore chdir currentdir mkdir
+
 #![allow(clippy::needless_pass_by_value)] // Lua can not pass &str!
 #![allow(dead_code)] // Dead code is called from Lua
 

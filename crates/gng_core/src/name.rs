@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
+// spell-checker: ignore dedup
+
 use itertools::Itertools;
 
 // ----------------------------------------------------------------------
@@ -27,7 +29,7 @@ impl Name {
                 message: "Packet name can not be empty.".into(),
             });
         }
-        if !crate::start_alnum_char(value) {
+        if !crate::start_alphanumerical_char(value) {
             return Err(crate::Error::Conversion {
                 expression: value.to_string(),
                 typename: "Name".to_string(),

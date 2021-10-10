@@ -3,7 +3,7 @@
 
 //! Basic functionality for all `gng` binaries.
 
-// cSpell:ignore faccess
+// spell-checker: ignore faccess, unistd
 
 // Setup warnings/errors:
 #![forbid(unsafe_code)]
@@ -66,7 +66,7 @@ pub enum Error {
         source: std::path::StripPrefixError,
     },
 
-    /// Runtime Error
+    /// Run time Error
     #[error("Runtime Error: {message}")]
     Runtime {
         /// Error message.
@@ -119,7 +119,7 @@ pub fn is_root() -> bool {
     nix::unistd::Uid::effective().is_root()
 }
 
-/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9' or '_'
+/// Return `true` if all characters are lowercase ASCII characters or the digits 0 to 9
 #[must_use]
 pub fn all_name_chars(input: &str) -> bool {
     input
@@ -127,7 +127,8 @@ pub fn all_name_chars(input: &str) -> bool {
         .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c) || (c == '_'))
 }
 
-/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9', '.' or '_'
+/// Return `true` if all characters are acceptable for a version string (all lowercase ASCII chars,
+/// the digits 0 to 9 and '_' or '-')
 #[must_use]
 pub fn all_version_chars(input: &str) -> bool {
     input
@@ -135,7 +136,8 @@ pub fn all_version_chars(input: &str) -> bool {
         .all(|c| ('a'..='z').contains(&c) || ('0'..='9').contains(&c) || (c == '_') || (c == '.'))
 }
 
-/// Return `true` if all characters are (lc) hex digits or separators like '-', ' ' or '_'
+/// Return `true` if all characters are (lowercase) hex digits or separators like '-', ' ' or '_'
+///
 #[must_use]
 pub fn all_hex_or_separator(input: &str) -> bool {
     input.chars().all(|c| {
@@ -147,9 +149,9 @@ pub fn all_hex_or_separator(input: &str) -> bool {
     })
 }
 
-/// Return `true` if all characters are lowercase 'a' to 'z', '0' to '9', '.' or '_'
+/// Return `true` if the first characters is lowercase ASCII or one of the digits 0 to 9
 #[must_use]
-pub fn start_alnum_char(input: &str) -> bool {
+pub fn start_alphanumerical_char(input: &str) -> bool {
     input
         .chars()
         .take(1)

@@ -34,11 +34,11 @@ enum SubCommand {
     Build,
     /// Run tests and other checks
     Check,
-    /// move the build results to their final location in the filesystem
+    /// move the build results to their final location in the file system
     Install,
-    /// polish up the filesystem before putting all the files into a packet
+    /// polish up the file system before putting all the files into a packet
     Polish,
-    /// package up the filesystem [NOOP on agent side]
+    /// package up the file system [NOOP on agent side]
     Package,
 }
 
