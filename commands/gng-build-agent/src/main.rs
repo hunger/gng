@@ -89,10 +89,6 @@ fn send_message(message_prefix: &str, message_type: &gng_build_shared::MessageTy
 // - Commands:
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
-// - Entry Point:
-// ----------------------------------------------------------------------
-
 fn run_subcommand(script_support: &mut impl ScriptSupport, subcommand: &SubCommand) -> Result<()> {
     match subcommand {
         SubCommand::Query | SubCommand::Package => Ok(()),
@@ -103,6 +99,10 @@ fn run_subcommand(script_support: &mut impl ScriptSupport, subcommand: &SubComma
         SubCommand::Polish => script_support.polish(),
     }
 }
+
+// ----------------------------------------------------------------------
+// - Entry Point:
+// ----------------------------------------------------------------------
 
 fn main() -> Result<()> {
     let args = Args::parse();
