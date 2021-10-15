@@ -93,7 +93,7 @@ impl Binding {
     #[must_use]
     pub fn overlay<P1: AsRef<std::ffi::OsStr>>(sources: &[P1], target: &Path) -> Self {
         Self::Overlay(OverlayMap {
-            sources: sources.iter().map(|s| s.into()).collect(),
+            sources: sources.iter().map(std::convert::Into::into).collect(),
             target: target.into(),
         })
     }
@@ -102,7 +102,7 @@ impl Binding {
     #[must_use]
     pub fn overlay_ro<P1: AsRef<std::ffi::OsStr>>(sources: &[P1], target: &Path) -> Self {
         Self::Overlay(OverlayMap {
-            sources: sources.iter().map(|s| s.into()).collect(),
+            sources: sources.iter().map(std::convert::Into::into).collect(),
             target: target.into(),
         })
     }
