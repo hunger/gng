@@ -7,7 +7,6 @@ use gng_build_shared::constants::container as cc;
 use gng_build_shared::constants::environment as ce;
 use gng_contained_command::{Binding, Runner, RunnerBuilder};
 
-use std::convert::TryFrom;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 

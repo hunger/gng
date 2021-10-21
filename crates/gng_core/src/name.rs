@@ -65,13 +65,13 @@ impl Name {
     }
 }
 
-impl std::convert::From<Name> for String {
+impl From<Name> for String {
     fn from(name: Name) -> Self {
         name.0
     }
 }
 
-impl std::convert::TryFrom<&str> for Name {
+impl TryFrom<&str> for Name {
     type Error = crate::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -79,7 +79,7 @@ impl std::convert::TryFrom<&str> for Name {
     }
 }
 
-impl std::convert::TryFrom<String> for Name {
+impl TryFrom<String> for Name {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -136,19 +136,19 @@ impl Names {
     }
 }
 
-impl std::convert::From<Names> for Vec<String> {
+impl From<Names> for Vec<String> {
     fn from(names: Names) -> Self {
         names.0.iter().map(Name::to_string).collect()
     }
 }
 
-impl std::convert::From<Name> for Names {
+impl From<Name> for Names {
     fn from(name: Name) -> Self {
         Self(vec![name])
     }
 }
 
-impl std::convert::From<&[Name]> for Names {
+impl From<&[Name]> for Names {
     fn from(names: &[Name]) -> Self {
         let mut result = Self(names.to_vec());
         result.fix();
@@ -156,7 +156,7 @@ impl std::convert::From<&[Name]> for Names {
     }
 }
 
-impl std::convert::TryFrom<Vec<&str>> for Names {
+impl TryFrom<Vec<&str>> for Names {
     type Error = crate::Error;
 
     fn try_from(values: Vec<&str>) -> Result<Self, Self::Error> {
@@ -169,7 +169,7 @@ impl std::convert::TryFrom<Vec<&str>> for Names {
     }
 }
 
-impl std::convert::TryFrom<&[String]> for Names {
+impl TryFrom<&[String]> for Names {
     type Error = crate::Error;
 
     fn try_from(values: &[String]) -> Result<Self, Self::Error> {
@@ -182,7 +182,7 @@ impl std::convert::TryFrom<&[String]> for Names {
     }
 }
 
-impl std::convert::TryFrom<Vec<String>> for Names {
+impl TryFrom<Vec<String>> for Names {
     type Error = crate::Error;
 
     fn try_from(values: Vec<String>) -> Result<Self, Self::Error> {
@@ -214,9 +214,6 @@ impl<'a> IntoIterator for &'a Names {
 #[cfg(test)]
 #[allow(clippy::non_ascii_literal)]
 mod tests {
-    use std::convert::From;
-    use std::convert::TryFrom;
-
     use super::Name;
 
     // Name:

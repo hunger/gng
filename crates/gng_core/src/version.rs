@@ -88,13 +88,13 @@ impl Version {
     }
 }
 
-impl std::convert::From<Version> for String {
+impl From<Version> for String {
     fn from(version: Version) -> Self {
         format!("{:}", &version)
     }
 }
 
-impl std::convert::TryFrom<&str> for Version {
+impl TryFrom<&str> for Version {
     type Error = crate::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -137,7 +137,7 @@ impl std::convert::TryFrom<&str> for Version {
     }
 }
 
-impl std::convert::TryFrom<String> for Version {
+impl TryFrom<String> for Version {
     type Error = crate::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -190,9 +190,6 @@ impl Ord for Version {
 #[cfg(test)]
 #[allow(clippy::non_ascii_literal)]
 mod tests {
-    use std::convert::From;
-    use std::convert::TryFrom;
-
     use super::Version;
 
     // Version:

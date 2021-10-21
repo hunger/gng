@@ -72,7 +72,7 @@ pub enum MessageType {
     Test,
 }
 
-impl std::convert::TryFrom<String> for MessageType {
+impl TryFrom<String> for MessageType {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -86,7 +86,7 @@ impl std::convert::TryFrom<String> for MessageType {
     }
 }
 
-impl std::convert::From<&MessageType> for String {
+impl From<&MessageType> for String {
     fn from(mt: &MessageType) -> Self {
         match mt {
             MessageType::Data => Self::from("DATA"),

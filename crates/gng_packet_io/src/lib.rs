@@ -225,7 +225,7 @@ pub use packet_writer::PacketWriter;
 mod tests {
     use gng_core::{Name, Version};
 
-    use std::{convert::TryFrom, io::Read};
+    use std::io::Read;
 
     use crate::ContentInfo;
 

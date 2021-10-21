@@ -1,3 +1,2 @@
 [workspace]
 members = ["crates/*", "commands/*"]
-resolver = "2"

@@ -5,8 +5,7 @@
 
 use eyre::{eyre, WrapErr};
 
-use std::io::Read;
-use std::{convert::TryFrom, io::Write};
+use std::io::{Read, Write};
 
 use crate::BinaryPacketDefinition;
 
