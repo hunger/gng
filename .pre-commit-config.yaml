@@ -46,3 +46,8 @@ repos:
         -   mdformat-rustfmt
         -   mdformat-tables
         -   mdformat-web
+-   repo: https://github.com/sirosen/check-jsonschema
+    rev: 0.5.1
+    hooks:
+    -   id: check-github-workflows
+    -   id: check-github-actions
