@@ -1,12 +1,14 @@
 [package]
 name = "gng-build-agent"
 version = "0.1.0"
-edition = "2021"
+
 authors = ["Tobias Hunger <tobias.hunger@gmail.com>"]
-license = "GPL-3.0-or-later"
 categories = ["tool", "packaging", "distribution", "linux", "cleanroom"]
+edition = "2021"
 keywords = ["tool", "packaging", "distribution", "linux", "cleanroom"]
+license = "GPL-3.0-or-later"
 repository = "https://github.com/hunger/gng"
+rust-version = "1.56"
 
 [dependencies]
 gng_build_shared = { path = "../../crates/gng_build_shared" }
