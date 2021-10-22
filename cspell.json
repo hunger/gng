@@ -36,6 +36,7 @@
         ".config/project.dict",
         ".pre-commit-config.yaml",
         ".github/workflows/*.yaml",
-        "Cargo.toml"
+        "Cargo.toml",
+        ".reuse"
     ]
 }

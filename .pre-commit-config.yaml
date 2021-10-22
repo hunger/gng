@@ -51,3 +51,7 @@ repos:
     hooks:
     -   id: check-github-workflows
     -   id: check-github-actions
+-   repo: https://github.com/fsfe/reuse-tool
+    rev: v0.13.0
+    hooks:
+    -   id: reuse
