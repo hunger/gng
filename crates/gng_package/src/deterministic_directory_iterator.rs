@@ -10,7 +10,7 @@ use std::os::unix::fs::MetadataExt;
 
 fn collect_contents(directory: &std::path::Path) -> eyre::Result<Vec<std::fs::DirEntry>> {
     let mut contents = std::fs::read_dir(directory)?
-        .map(|i| i.map_err(|e| e.into()))
+        .map(|i| i.map_err(Into::into))
         .filter(|i| {
             if let Ok(d) = i {
                 (d.file_name() != ".") && (d.file_name() != "..")
