@@ -18,13 +18,13 @@
 use gng_build_agent::script_support::ScriptSupport;
 use gng_build_shared::constants::environment as ce;
 
-use clap::Clap;
+use clap::Parser;
 use eyre::{eyre, Result, WrapErr};
 
 // - Helpers:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, Clap)]
+#[derive(Debug, Parser)]
 enum SubCommand {
     /// query packet definition file
     Query,
@@ -60,7 +60,7 @@ impl std::str::FromStr for SubCommand {
     }
 }
 
-#[derive(Debug, Clap)]
+#[derive(Debug, Parser)]
 #[clap(
     name = "gng-build-agent",
     about = "A packet build agent for GnG.",
