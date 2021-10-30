@@ -12,7 +12,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
           override: true
       - uses: actions-rs/cargo@v1
@@ -28,7 +28,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
           override: true
           components: rustfmt
@@ -47,7 +47,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
           override: true
           components: clippy
@@ -66,7 +66,7 @@ jobs:
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: stable
           profile: minimal
           override: true
       - name: Run cargo-tarpaulin
