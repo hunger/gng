@@ -55,3 +55,11 @@ repos:
     rev: v0.13.0
     hooks:
     -   id: reuse
+
+ci:
+  skip:
+  -   cargo-check
+  -   clippy
+  -   fmt
+  -   check-github-actions
+  -   check-github-workflows
