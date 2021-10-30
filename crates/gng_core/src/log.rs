@@ -3,7 +3,7 @@
 
 //! Logging setup code
 
-use clap::Clap;
+use clap::Parser;
 
 // ----------------------------------------------------------------------
 // - Helper:
@@ -107,7 +107,7 @@ impl std::str::FromStr for LogFormat {
 // ----------------------------------------------------------------------
 
 /// Logging related arguments for command line parsing
-#[derive(Debug, Clap)]
+#[derive(Debug, Parser)]
 pub struct LogArgs {
     /// Set the output format for
     #[clap(

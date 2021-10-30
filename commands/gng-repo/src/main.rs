@@ -17,13 +17,13 @@
 
 use std::path::PathBuf;
 
-use clap::Clap;
+use clap::Parser;
 use eyre::{Result, WrapErr};
 
 // - Helper:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, Clap)]
+#[derive(Debug, Parser)]
 #[clap(name = "gng-repo", about = "A repository manager for GnG.")]
 struct Args {
     /// configuration file to read
