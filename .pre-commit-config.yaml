@@ -1,6 +1,6 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.1.0
     hooks:
     -   id: check-added-large-files
     -   id: check-case-conflict
@@ -47,12 +47,12 @@ repos:
         -   mdformat-tables
         -   mdformat-web
 -   repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.8.2
+    rev: 0.9.1
     hooks:
     -   id: check-github-workflows
     -   id: check-github-actions
 -   repo: https://github.com/fsfe/reuse-tool
-    rev: v0.13.0
+    rev: v0.14.0
     hooks:
     -   id: reuse
 
