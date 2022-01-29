@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/hunger/gng/workflows/Continuous%20Integration/badge.svg)](https://github.com/hunger/gng/actions)
 [![Coverage Status](https://coveralls.io/repos/github/hunger/gng/badge.svg?branch=master)](https://coveralls.io/github/hunger/gng?branch=master)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/5582/badge)](https://bestpractices.coreinfrastructure.org/projects/5582)
 
 `gng` is yet another attempt to write a package manager for Linux. This one should
 be simpler than most: I am targeting stateless and immutable systems, so there
