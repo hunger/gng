@@ -685,9 +685,9 @@ checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
 
 [[package]]
 name = "spdx"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04add55f596508726f5ef009818259081075b7130dcf9b5d03dce7e269f23c76"
+checksum = "a31283ed7fe3bca10f3e5ec2fe2787f16764a4275949606fd48d4fc919a760e3"
 dependencies = [
  "smallvec",
 ]
