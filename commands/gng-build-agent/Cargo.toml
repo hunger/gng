@@ -17,7 +17,7 @@ rust-version = "1.56"
 gng_build_shared = { path = "../../crates/gng_build_shared" }
 gng_core = { path = "../../crates/gng_core" }
 
-clap = { version = "3.0.0-beta.5" }
+clap = { version = "3.0.14" }
 eyre = { version = "0.6" }
 rlua = { version = "0.17" }
 rlua_serde = { version = "0.4" }
