@@ -22,7 +22,7 @@ serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 tar = { version = "0.4" }
 tracing = { version = "0.1" }
-zstd = { version = "0.10" }
+zstd = { version = "0.11" }
 
 [dev-dependencies]
 tempfile = { version = "3.3" }
