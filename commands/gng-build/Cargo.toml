@@ -20,7 +20,7 @@ gng_core = { path = "../../crates/gng_core" }
 gng_package = { path = "../../crates/gng_package" }
 # gng_packet_db = { path = "../../crates/gng_packet_db" }
 
-clap = { version = "3.1.15" }
+clap = { version = "3.1.17" }
 # downloader = { version = "0.2", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
 eyre = { version = "0.6" }
 lazy_static = { version = "1.4" }
