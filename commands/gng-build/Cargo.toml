@@ -25,7 +25,7 @@ clap = { version = "3.2.14" }
 eyre = { version = "0.6" }
 lazy_static = { version = "1.4" }
 rand = { version = "0.8" }
-regex = { version = "1.5" }
+regex = { version = "1.6" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 spdx = { version = "0.8" }

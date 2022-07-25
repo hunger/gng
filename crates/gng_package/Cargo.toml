@@ -22,7 +22,7 @@ filemagic = { version = "0.12" }
 glob = { version = "0.3" }
 lazy_static = { version = "1.4" }
 nix = { version = "0.24" }
-regex = { version = "1.5" }
+regex = { version = "1.6" }
 tracing = { version = "0.1" }
 
 [dev-dependencies]
