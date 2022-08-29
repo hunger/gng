@@ -28,7 +28,7 @@ rand = { version = "0.8" }
 regex = { version = "1.6" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
-spdx = { version = "0.8" }
+spdx = { version = "0.9" }
 tempfile = { version = "3.3" }
 tracing = { version = "0.1" }
 url = { version = "2.2" }
