@@ -22,8 +22,8 @@ jobs:
           out-file-path: "."
       - name: Set up basic nix environment
         run: |
-          ls -alF
           mv nix-user-chroot* nix-user-chroot
+          chmod 755 nix-user-chroot
           ls -alF
           mkdir tmp-home
           mkdir nix
