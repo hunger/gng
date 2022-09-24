@@ -13,7 +13,23 @@ jobs:
   install-nix-user-env:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Validate that nix-user-chroot can work
-        run: unshare --user --pid echo YES
+      - name: "Download nix-user-chroot"
+        uses: robinraju/release-downloader@v1.5
+        with:
+          repository: "nix-community/nix-user-chroot"
+          latest: true
+          fileName: "nix-user-chroot-bin-*-x86_64-unknown-linux-musl"
+          out-file-path: "nix-user-chroot"
+      - name: Set up basic nix environment
+        run: |
+          mkdir tmp-home
+          mkdir nix
+          export HOME="$(pwd)/tmp-home"
+          export NIX="$(pwd)/nix"
+          ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
+          ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
+      - name: Upload nix store
+        uses: actions/upload-artifact@v2
+        with:
+          name: bootstrap-nix
+          path: nix
