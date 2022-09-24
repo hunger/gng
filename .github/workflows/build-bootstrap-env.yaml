@@ -37,7 +37,7 @@ jobs:
           ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
       - name: Clean out cruft not needed for bootstrapping
         run: |
-          rm -rf var/log/nix store/*/share/doc/* store/*/share/man/* store/*/share/locale/* store/*-nixpkgs
+          ./nix-user-chroot "${NIX}" rm -rf /nix/var/log/nix /nix/store/*/share/doc/* /nix/store/*/share/man/* /nix/store/*/share/locale/* /nix/store/*-nixpkgs
         working-directory: nix
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix usr gng
