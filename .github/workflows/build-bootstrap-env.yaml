@@ -35,7 +35,8 @@ jobs:
           export HOME="$(pwd)/tmp-home"
           export NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
-          ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
+          ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash"
+          ## ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix usr gng
       - name: Upload nix store artifact
@@ -43,6 +44,7 @@ jobs:
         with:
           name: nix-store
           path: nix-store.tar.zst
+          retention-days: 1
 
   build-gng-agent:
     runs-on: ubuntu-latest
@@ -61,6 +63,7 @@ jobs:
         with:
           name: gng-agent
           path: gng/agent
+          retention-days: 1
 
   build-container-image:
     runs-on: ubuntu-latest
