@@ -78,10 +78,13 @@ jobs:
         with:
           name: gng-agent
           path: ./bootstrap
+
+      - name: Check bootstrap directory
+        run: ls -alRF bootstrap
+
       - name: Unpack nix store
-        run: tar --zstd -xC bootstrap nix-store.tar.zst
-      - name: Place build agent
-        run: touch bootstrap/gng/agent
+        run: tar --zstd -xf nix-store.tar.zst
+        working-directory: bootstrap
 
       - name: Set up Docker Buildx
         id: buildx
