@@ -2,7 +2,7 @@
 ## Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
 
 ---
-name: Build a bootstrap environment for GNG
+name: Build a bootstrap environment for GnG
 
 on:
   workflow_dispatch:
