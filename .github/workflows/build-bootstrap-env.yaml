@@ -22,6 +22,9 @@ jobs:
           out-file-path: "."
       - name: Set up basic nix environment
         run: |
+          ls -alF
+          mv nix-user-chroot* nix-user-chroot
+          ls -alF
           mkdir tmp-home
           mkdir nix
           export HOME="$(pwd)/tmp-home"
