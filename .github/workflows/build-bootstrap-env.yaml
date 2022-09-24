@@ -10,8 +10,9 @@ on:
     - cron: "42 2 * * *"
 
 jobs:
-  install-nix-user-env:
+  install-nix-bootstrap-env:
     runs-on: ubuntu-latest
+
     steps:
       - name: "Download nix-user-chroot"
         uses: robinraju/release-downloader@v1.5
@@ -29,14 +30,74 @@ jobs:
         run: |
           mkdir tmp-home
           mkdir nix
+          mkdir usr
+          mkdir gng
           export HOME="$(pwd)/tmp-home"
           export NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
           ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
       - name: Tar up nix store
-        run: tar -c --zstd -f nix-store.tar.zst nix
-      - name: Upload nix store
+        run: tar -c --zstd -f nix-store.tar.zst nix usr gng
+      - name: Upload nix store artifact
         uses: actions/upload-artifact@v3
         with:
-          name: bootstrap-nix
+          name: nix-store
           path: nix-store.tar.zst
+
+  build-gng-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build gng-agent
+        ## FIXME: Build the actual agent!
+        run: |
+          mkdir gng
+          echo "#!/nix/store/var/profiles/bootstrap/bin/bash" > gng/agent
+          echo "" >> gng/agent
+          echo "echo \"Dummy agent was run\"" >> gng/agent
+          echo "exit 0" >> gng/agent
+      - name: Upload gng agent artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gng-agent
+          path: gng/agent
+
+  build-container-image:
+    runs-on: ubuntu-latest
+    needs: [install-nix-bootstrap-env, build-gng-agent]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download nix-bootstrap environment
+        uses: actions/download-artifact@v3
+        with:
+          name: nix-store
+          path: ./bootstrap
+      - name: Download gng-agent
+        uses: actions/download-artifact@v3
+        with:
+          name: gng-agent
+          path: ./bootstrap
+      - name: Unpack nix store
+        run: tar --zstd -xC bootstrap nix-store.tar.zst
+      - name: Place build agent
+        run: touch bootstrap/gng/agent
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Github Packages
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image and push to Docker Hub and GitHub Container Registry
+        uses: docker/build-push-action@v2
+        with:
+          context: ./bootstrap
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
