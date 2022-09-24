@@ -38,7 +38,7 @@ jobs:
         run: |
           ./nix-user-chroot "$(pwd)/nix" rm -rf /nix/var/log/nix /nix/store/*/share/doc/* /nix/store/*/share/man/* /nix/store/*/share/locale/* /nix/store/*-nixpkgs
       - name: Tar up nix store
-        run: tar -c --zstd -f nix-store.tar.zst nix usr gng
+        run: tar -c --zstd -f nix-store.tar.zst nix
       - name: Upload nix store artifact
         uses: actions/upload-artifact@v3
         with:
@@ -87,6 +87,10 @@ jobs:
         with:
           name: gng-agent
           path: ./bootstrap/gng
+
+      - name: Remove git .keep files
+        run: find . -name .keep -exec rm {} \;
+        working-directory: ./bootstrap
 
       - name: Set up Docker Buildx
         id: buildx
