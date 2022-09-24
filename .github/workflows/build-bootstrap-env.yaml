@@ -31,12 +31,14 @@ jobs:
           mkdir tmp-home
           mkdir nix
           mkdir usr
-          mkdir gng
           export HOME="$(pwd)/tmp-home"
           export NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
-          ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash"
-          #### ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
+          ./nix-user-chroot "${NIX}" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"${NIX}/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
+      - name: Clean out cruft not needed for bootstrapping
+        run: |
+          rm -rf var/log/nix store/*/share/doc/* store/*/share/man/* store/*/share/locale/* store/*-nixpkgs
+        working-directory: nix
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix usr gng
       - name: Upload nix store artifact
@@ -50,7 +52,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Build gng-agent
+      - uses: actions/checkout@v3
+      - name: Fake gng-agent
         ## FIXME: Build the actual agent!
         run: |
           mkdir gng
@@ -58,6 +61,7 @@ jobs:
           echo "" >> gng/agent
           echo "echo \"Dummy agent was run\"" >> gng/agent
           echo "exit 0" >> gng/agent
+          chmod 755 gng/agent
       - name: Upload gng agent artifact
         uses: actions/upload-artifact@v3
         with:
@@ -78,13 +82,13 @@ jobs:
       - name: Unpack nix store
         run: |
           tar --zstd -xf ../nix-store.tar.zst
-        working-directory: bootstrap
+        working-directory: ./bootstrap
 
       - name: Download gng-agent
         uses: actions/download-artifact@v3
         with:
           name: gng-agent
-          path: ./bootstrap
+          path: ./bootstrap/gng
 
       - name: Set up Docker Buildx
         id: buildx

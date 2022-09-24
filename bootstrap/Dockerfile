@@ -14,4 +14,6 @@ ADD --chown=0:0 usr gng /
 
 LABEL org.opencontainers.image.authors="tobias.hunger@gmail.com"
 
+ENV PATH /usr/bin:/nix/var/profiles/bootstrap/bin
+
 ENTRYPOINT ["/gng/agent"]
