@@ -102,7 +102,7 @@ fn clean_up(handlers: &HandlerList, mode: &crate::Mode) -> eyre::Result<()> {
 /// Constructor
 #[must_use]
 fn create_handlers(case_officer: &crate::case_officer::CaseOfficer) -> HandlerList {
-    let query_handler = Box::new(QueryHandler::default());
+    let query_handler = Box::<QueryHandler>::default();
     let verify_source_packet_handler = Box::new(VerifySourcePacketHandler::new(
         query_handler.source_packet(),
     ));

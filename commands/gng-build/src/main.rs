@@ -17,7 +17,7 @@
 
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{builder::ValueParser, Parser};
 use eyre::{Result, WrapErr};
 
 // - Helper:
@@ -27,7 +27,7 @@ use eyre::{Result, WrapErr};
 #[clap(name = "gng-build", about = "A packet builder for GnG.")]
 struct Args {
     /// configuration file to read
-    #[clap(long, parse(from_os_str), value_name = "FILE")]
+    #[clap(long, value_parser(ValueParser::os_string()), value_name = "FILE")]
     config: Option<PathBuf>,
 
     /// the repository to use
@@ -37,30 +37,35 @@ struct Args {
     /// The build agent to use
     #[clap(
         long,
-        parse(from_os_str),
+        value_parser(ValueParser::os_string()),
         value_name = "EXECUTABLE",
         env = "GNG_AGENT_EXECUTABLE"
     )]
     agent: Option<PathBuf>,
 
     /// the directory containing the Lua run time environment
-    #[clap(long, parse(from_os_str), env = "GNG_LUA_DIR", value_name = "DIR")]
+    #[clap(
+        long,
+        value_parser(ValueParser::os_string()),
+        env = "GNG_LUA_DIR",
+        value_name = "DIR"
+    )]
     lua_dir: Option<PathBuf>,
 
     /// the directory to store temporary data
-    #[clap(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, value_parser(ValueParser::os_string()), value_name = "DIR")]
     scratch_dir: Option<PathBuf>,
 
     /// the directory the build agent script will work in [DEBUG OPTION]
-    #[clap(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, value_parser(ValueParser::os_string()), value_name = "DIR")]
     work_dir: Option<PathBuf>,
 
     /// the directory the build agent script will install into [DEBUG OPTION]
-    #[clap(long, parse(from_os_str), value_name = "DIR")]
+    #[clap(long, value_parser(ValueParser::os_string()), value_name = "DIR")]
     install_dir: Option<PathBuf>,
 
     /// The directory with the build information
-    #[clap(parse(from_os_str), value_name = "DIR")]
+    #[clap(value_parser(ValueParser::os_string()), value_name = "DIR")]
     recipes_dir: PathBuf,
 
     /// Keep temporary directories after build

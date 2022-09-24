@@ -73,7 +73,7 @@ fn setup_json_logger() -> crate::Result<()> {
 // ----------------------------------------------------------------------
 
 /// The output format to be used for log messages
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum LogFormat {
     /// Pretty, human-readable output of log messages.
     Pretty,
@@ -107,7 +107,7 @@ impl std::str::FromStr for LogFormat {
 // ----------------------------------------------------------------------
 
 /// Logging related arguments for command line parsing
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 pub struct LogArgs {
     /// Set the output format for
     #[clap(

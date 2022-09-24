@@ -64,7 +64,7 @@ impl Runner {
             .chain(command.environment.iter())
             .map(|e| {
                 let mut result = OsString::from("--setenv=");
-                result.push(&e);
+                result.push(e);
                 result
             })
             .collect()

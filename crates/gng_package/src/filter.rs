@@ -28,7 +28,7 @@ pub struct GlobFilter {
 impl GlobFilter {
     /// Constructor
     #[must_use]
-    pub fn new(globs: Vec<glob::Pattern>) -> Self {
+    pub const fn new(globs: Vec<glob::Pattern>) -> Self {
         Self { globs }
     }
 }
@@ -54,7 +54,7 @@ pub struct AndFilter<L: Filter, R: Filter> {
 impl<L: Filter, R: Filter> AndFilter<L, R> {
     /// Constructor
     #[must_use]
-    pub fn new(left: L, right: R) -> Self {
+    pub const fn new(left: L, right: R) -> Self {
         Self { left, right }
     }
 }
@@ -78,7 +78,7 @@ pub struct OrFilter<L: Filter, R: Filter> {
 impl<L: Filter, R: Filter> OrFilter<L, R> {
     /// Constructor
     #[must_use]
-    pub fn new(left: L, right: R) -> Self {
+    pub const fn new(left: L, right: R) -> Self {
         Self { left, right }
     }
 }

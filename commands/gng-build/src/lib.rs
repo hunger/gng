@@ -20,7 +20,7 @@
 // ----------------------------------------------------------------------
 
 /// The `Mode` of operation
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Mode {
     /// The `gng-build-agent` is run in `query` mode
     Query,

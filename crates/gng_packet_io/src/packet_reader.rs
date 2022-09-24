@@ -243,7 +243,7 @@ impl PacketReader {
 
                 // write meta data:
                 let meta_file_path = usr_directory.join(".gng").join(meta_file_name);
-                std::fs::File::create(&meta_file_path)
+                std::fs::File::create(meta_file_path)
                     .wrap_err(eyre!(
                         "Failed to open meta data for writing in packet \"{}\".",
                         self.packet_path.to_string_lossy()

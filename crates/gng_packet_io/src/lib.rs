@@ -172,7 +172,7 @@ impl Ord for BinaryPacketDefinition {
 // ----------------------------------------------------------------------
 
 /// The type of content that is reported
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ContentType {
     /// A file
     File {
@@ -189,7 +189,7 @@ pub enum ContentType {
 }
 
 /// A piece of Contents of the packet
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ContentInfo {
     /// The path
     pub path: std::path::PathBuf,

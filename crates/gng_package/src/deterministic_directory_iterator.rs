@@ -12,11 +12,8 @@ fn collect_contents(directory: &std::path::Path) -> eyre::Result<Vec<std::fs::Di
     let mut contents = std::fs::read_dir(directory)?
         .map(|i| i.map_err(Into::into))
         .filter(|i| {
-            if let Ok(d) = i {
-                (d.file_name() != ".") && (d.file_name() != "..")
-            } else {
-                true
-            }
+            i.as_ref()
+                .map_or(true, |d| (d.file_name() != ".") && (d.file_name() != ".."))
         })
         .collect::<eyre::Result<Vec<std::fs::DirEntry>>>()?;
     contents.sort_by_key(std::fs::DirEntry::file_name);

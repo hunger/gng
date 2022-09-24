@@ -160,10 +160,10 @@ fn install_directory(scratch: &std::path::Path) -> std::path::PathBuf {
 }
 
 fn create_directory_tree(scratch: &std::path::Path) -> Result<()> {
-    std::fs::create_dir(&root_directory(scratch))?;
-    std::fs::create_dir(&root_directory(scratch).join("usr"))?;
-    std::fs::create_dir(&work_directory(scratch))?;
-    std::fs::create_dir(&install_directory(scratch))?;
+    std::fs::create_dir(root_directory(scratch))?;
+    std::fs::create_dir(root_directory(scratch).join("usr"))?;
+    std::fs::create_dir(work_directory(scratch))?;
+    std::fs::create_dir(install_directory(scratch))?;
 
     Ok(())
 }
@@ -202,10 +202,10 @@ impl AgentRunner {
         create_directory_tree(&scratch_directory)?;
 
         let mut builder = RunnerBuilder::new(root_directory(&scratch_directory))
-            .systemd_nspawn(&gng_core::validate_executable(nspawn_binary)?)
+            .systemd_nspawn(gng_core::validate_executable(nspawn_binary)?)
             .add_binding(Binding::tmpfs(&cc::GNG_DIR))
             .add_binding(Binding::ro(
-                &gng_core::validate_executable(agent_binary)?,
+                gng_core::validate_executable(agent_binary)?,
                 &cc::GNG_BUILD_AGENT_EXECUTABLE,
             ))
             .add_binding(Binding::ro(build_script, &cc::GNG_BUILD_SCRIPT))
@@ -291,33 +291,33 @@ impl AgentRunner {
 
         let builder = match mode {
             crate::Mode::Query => builder
-                .add_argument(&"query")
-                .add_binding(Binding::ro(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_argument("query")
+                .add_binding(Binding::ro(self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Prepare => builder
-                .add_argument(&"prepare")
-                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_argument("prepare")
+                .add_binding(Binding::rw(self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Build => builder
-                .add_argument(&"build")
-                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_argument("build")
+                .add_binding(Binding::rw(self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Check => builder
-                .add_argument(&"check")
-                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_argument("check")
+                .add_binding(Binding::rw(self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR)),
             crate::Mode::Install => builder
-                .add_argument(&"install")
-                .add_binding(Binding::ro(&self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_argument("install")
+                .add_binding(Binding::ro(self.work_directory(), &cc::GNG_WORK_DIR))
                 .add_binding(Binding::tmpfs(&cc::GNG_INST_DIR))
                 .add_binding(Binding::overlay(
-                    &[&usr_directory, &self.install_directory()],
+                    &[usr_directory, self.install_directory()],
                     &PathBuf::from("/usr"),
                 )),
             crate::Mode::Package => builder
-                .add_argument(&"package")
-                .add_binding(Binding::rw(&self.work_directory(), &cc::GNG_WORK_DIR))
-                .add_binding(Binding::rw(&self.install_directory(), &cc::GNG_INST_DIR)),
+                .add_argument("package")
+                .add_binding(Binding::rw(self.work_directory(), &cc::GNG_WORK_DIR))
+                .add_binding(Binding::rw(self.install_directory(), &cc::GNG_INST_DIR)),
         };
         builder.build()
     }

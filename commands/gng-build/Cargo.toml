@@ -20,7 +20,7 @@ gng_core = { path = "../../crates/gng_core" }
 gng_package = { path = "../../crates/gng_package" }
 # gng_packet_db = { path = "../../crates/gng_packet_db" }
 
-clap = { version = "4.0.8" }
+clap = { version = "4.0", features = ["derive"] }
 # downloader = { version = "0.2", default-features = false, features = [ "tui", "verify", "rustls-tls" ] }
 eyre = { version = "0.6" }
 lazy_static = { version = "1.4" }
@@ -28,7 +28,7 @@ rand = { version = "0.8" }
 regex = { version = "1.6" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
-spdx = { version = "0.9" }
+spdx = { version = "0.10" }
 tempfile = { version = "3.3" }
 tracing = { version = "0.1" }
 url = { version = "2.3" }

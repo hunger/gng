@@ -48,7 +48,7 @@ fn relative_file_path(
     let file_path = if file_path.is_relative() {
         file_path
     } else {
-        file_path.strip_prefix(&base_dir).wrap_err(eyre!(
+        file_path.strip_prefix(base_dir).wrap_err(eyre!(
             "\"{}\" must be inside \"{}\".",
             file_path.to_string_lossy(),
             &base_dir.to_string_lossy(),

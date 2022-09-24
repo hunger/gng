@@ -51,7 +51,7 @@ fn mkdir(
     lua_context: rlua::Context,
     path: String,
 ) -> std::result::Result<rlua::MultiValue, rlua::Error> {
-    match std::fs::create_dir(&path) {
+    match std::fs::create_dir(path) {
         Err(e) => (
             rlua::Value::Nil,
             lua_context.pack(format!("Can not create directory: {}", e))?,
@@ -68,7 +68,7 @@ fn rmdir(
     lua_context: rlua::Context,
     path: String,
 ) -> std::result::Result<rlua::MultiValue, rlua::Error> {
-    match std::fs::remove_dir(&path) {
+    match std::fs::remove_dir(path) {
         Err(e) => (
             rlua::Value::Nil,
             lua_context.pack(format!("Can not remove directory: {}", e))?,

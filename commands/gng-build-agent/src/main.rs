@@ -24,7 +24,7 @@ use eyre::{eyre, Result, WrapErr};
 // - Helpers:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 enum SubCommand {
     /// query packet definition file
     Query,

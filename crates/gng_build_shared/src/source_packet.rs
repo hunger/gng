@@ -8,7 +8,7 @@ use gng_core::{Name, Names, Version};
 // ----------------------------------------------------------------------
 
 /// A `Source` that needs building
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct SourceDefinition {
     /// A `Url` To get the `Source` from
     pub source: String,
@@ -37,7 +37,7 @@ impl std::fmt::Display for SourceDefinition {
 // ----------------------------------------------------------------------
 
 /// A definition for `Packet` that should get built
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct FacetDefinition {
     /// The `description_suffix` appended to packet descriptions
     pub description_suffix: String,
@@ -60,7 +60,7 @@ pub struct FacetDefinition {
 // ----------------------------------------------------------------------
 
 /// A definition for `Packet` that should get built
-#[derive(Clone, Debug, serde::Deserialize, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PacketDefinition {
     /// The `name` of the Packet.
     pub name: Name,
@@ -83,7 +83,7 @@ pub struct PacketDefinition {
 // ----------------------------------------------------------------------
 
 /// A description of a `SourcePacket`
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct SourcePacket {
     /// `name` of the sources
     pub name: Name,

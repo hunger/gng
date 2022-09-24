@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
-
 [package]
 name = "gng_contained_command"
 version = "0.1.0"

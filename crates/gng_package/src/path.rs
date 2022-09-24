@@ -27,7 +27,7 @@ fn create_cookie() -> eyre::Result<filemagic::Magic> {
 // ----------------------------------------------------------------------
 
 /// The file contents
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum FileContents {
     /// `FileContents` is taken from a buffer
     Buffer(Vec<u8>),
@@ -51,8 +51,8 @@ impl FileContents {
                 .expect("COOKIE was set before, so this should not be None");
 
             Ok(match self {
-                FileContents::OnDisk(p) => c.file(p).unwrap_or_default(),
-                FileContents::Buffer(b) => c.buffer(b).unwrap_or_default(),
+                Self::OnDisk(p) => c.file(p).unwrap_or_default(),
+                Self::Buffer(b) => c.buffer(b).unwrap_or_default(),
             })
         })
     }

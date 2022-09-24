@@ -64,7 +64,7 @@ pub mod constants {
 }
 
 /// Types of messages going from `gng-build-agent` back to `gng-build`
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MessageType {
     /// Source packet data
     Data,

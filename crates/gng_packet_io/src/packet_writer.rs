@@ -44,12 +44,11 @@ fn versioned_full_packet_name(
     facet_data: &Option<Name>,
     version: &Version,
 ) -> String {
-    let facet_name_string = match facet_data {
-        Some(n) => format!(":{}", n),
-        None => String::new(),
-    };
+    let facet_name_string = facet_data
+        .as_ref()
+        .map_or_else(String::new, |n| format!(":{n}"));
 
-    format!("{}{}-{}", packet_name, facet_name_string, version)
+    format!("{packet_name}{facet_name_string}-{version}")
 }
 
 fn add_directory_raw(
@@ -63,7 +62,7 @@ fn add_directory_raw(
     header.set_entry_type(tar::EntryType::Directory);
 
     writer
-        .append_data(&mut header, &packet_path, std::io::empty())
+        .append_data(&mut header, packet_path, std::io::empty())
         .wrap_err("Failed to package a directory.")
 }
 fn add_buffer_raw(
@@ -78,7 +77,7 @@ fn add_buffer_raw(
     header.set_entry_type(tar::EntryType::Regular);
 
     writer
-        .append_data(&mut header, &packet_path, std::io::Cursor::new(data))
+        .append_data(&mut header, packet_path, std::io::Cursor::new(data))
         .wrap_err("Failed to package a buffer.")
 }
 
@@ -94,11 +93,11 @@ fn add_file_raw(
     let mut header = create_header(size, mode, user_id, group_id)?;
     header.set_entry_type(tar::EntryType::Regular);
 
-    let data = std::fs::OpenOptions::new().read(true).open(&on_disk_path)?;
+    let data = std::fs::OpenOptions::new().read(true).open(on_disk_path)?;
     let data = std::io::BufReader::new(data);
 
     writer
-        .append_data(&mut header, &packet_path, data)
+        .append_data(&mut header, packet_path, data)
         .wrap_err("Failed to package a file.")
 }
 
@@ -109,10 +108,10 @@ fn add_link_raw(
 ) -> eyre::Result<()> {
     let mut header = create_header(0, 0o777, 0, 0)?;
     header.set_entry_type(tar::EntryType::Symlink);
-    header.set_link_name(&target_path)?;
+    header.set_link_name(target_path)?;
 
     writer
-        .append_data(&mut header, &packet_path, std::io::empty())
+        .append_data(&mut header, packet_path, std::io::empty())
         .wrap_err("Failed to package a symlink.")
 }
 
@@ -130,7 +129,7 @@ fn persist(
     let mut tarball = tar::Builder::new(tarball);
 
     let metadata_path = {
-        let mut tmp = std::path::PathBuf::from(".gng").join(&full_packet_name);
+        let mut tmp = std::path::PathBuf::from(".gng").join(full_packet_name);
         tmp.set_extension("meta");
         tmp
     };
@@ -218,8 +217,8 @@ impl PacketWriter {
         // TODO: Make this configurable to support e.g. different compression formats?
         let file_name = versioned_full_packet_name(packet_name, facet_name, version);
 
-        let mut full_packet_path = packet_path.join(&file_name);
-        full_packet_path.set_extension(&"gng");
+        let mut full_packet_path = packet_path.join(file_name);
+        full_packet_path.set_extension("gng");
 
         Self {
             full_packet_path,
@@ -368,7 +367,10 @@ impl PacketWriter {
                     );
 
                     if matches!(&self.policy, crate::PacketPolicy::MustHaveContents) {
-                        Err(eyre!("Packet \"{}\" stayed empty, but must have contents."))
+                        Err(eyre!(
+                            "Packet \"{}\" stayed empty, but must have contents.",
+                            &self.full_packet_path.to_string_lossy()
+                        ))
                     } else {
                         Ok(None)
                     }
@@ -382,7 +384,8 @@ impl PacketWriter {
 
                 if matches!(&self.policy, crate::PacketPolicy::MustStayEmpty) {
                     Err(eyre!(
-                        "Packet \"{}\" has contents, but should have stayed empty."
+                        "Packet \"{}\" has contents, but should have stayed empty.",
+                        &self.full_packet_path.to_string_lossy(),
                     ))
                 } else {
                     close(tarball, &self.full_packet_path)

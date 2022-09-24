@@ -17,17 +17,17 @@
 
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{builder::ValueParser, Parser};
 use eyre::{Result, WrapErr};
 
 // - Helper:
 // ----------------------------------------------------------------------
 
-#[derive(Debug, Parser)]
+#[derive(Clone, Debug, Parser)]
 #[clap(name = "gng-repo", about = "A repository manager for GnG.")]
 struct Args {
     /// configuration file to read
-    #[clap(long, parse(from_os_str), value_name = "FILE")]
+    #[clap(long, value_parser(ValueParser::os_string()), value_name = "FILE")]
     config: Option<PathBuf>,
 
     /// Start from scratch: It is OK if there is no `repository.json` file
@@ -39,11 +39,11 @@ struct Args {
     clear: bool,
 
     /// the repository to use
-    #[clap(parse(from_os_str), value_name = "REPO_DIR")]
+    #[clap(value_parser(ValueParser::os_string()), value_name = "REPO_DIR")]
     repository_directory: PathBuf,
 
     /// the packets to add to the repository
-    #[clap(parse(from_os_str), value_name = "GNG_FILE")]
+    #[clap(value_parser(ValueParser::os_string()), value_name = "GNG_FILE")]
     packets: Vec<PathBuf>,
 
     #[clap(flatten)]
