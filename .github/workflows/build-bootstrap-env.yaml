@@ -1,0 +1,19 @@
+## SPDX-License-Identifier: GPL-3.0-or-later
+## Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
+
+---
+name: Build a bootstrap environment for GNG
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "42 2 * * *"
+
+jobs:
+  install-nix-user-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Validate that nix-user-chroot can work
+        run: unshare --user --pid echo YES
