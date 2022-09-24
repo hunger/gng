@@ -19,7 +19,7 @@ jobs:
           repository: "nix-community/nix-user-chroot"
           latest: true
           fileName: "nix-user-chroot-bin-*-x86_64-unknown-linux-musl"
-          out-file-path: "nix-user-chroot"
+          out-file-path: "."
       - name: Set up basic nix environment
         run: |
           mkdir tmp-home
