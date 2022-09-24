@@ -77,13 +77,13 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: gng-agent
-          path: ./bootstrap
 
       - name: Check bootstrap directory
         run: ls -alRF bootstrap
 
       - name: Unpack nix store
-        run: tar --zstd -xf nix-store.tar.zst
+        run: |
+          tar --zstd -xf ../nix-store.tar.zst
         working-directory: bootstrap
 
       - name: Set up Docker Buildx
@@ -102,6 +102,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./bootstrap
+          push: true
+          tags: ghcr.io/hunger/gng/bootstrap:latest
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
