@@ -1,0 +1,5 @@
+## SPDX-License-Identifier: GPL-3.0-or-later
+## Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
+
+nix/var
+nix/store

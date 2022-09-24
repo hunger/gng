@@ -1,0 +1,37 @@
+## SPDX-License-Identifier: GPL-3.0-or-later
+## Copyright (C) 2020 Tobias Hunger <tobias.hunger@gmail.com>
+
+---
+name: Build the gng agent
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-gng-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Fake gng-agent
+        ## FIXME: Build the actual agent!
+        run: |
+          mkdir gng
+          echo "#!/nix/var/nix/profiles/bootstrap/bin/bash" > gng/agent
+          echo "" >> gng/agent
+          echo "echo \"Dummy agent was run\"" >> gng/agent
+          echo "exit 0" >> gng/agent
+          chmod 755 gng/agent
+      - name: Tar up gng-agent
+        run: tar -c --zstd -f gng-agent.tar.zst gng
+      - name: Upload gng agent artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: gng-agent
+          path: gng-agent.tar.zst
+          retention-days: 1

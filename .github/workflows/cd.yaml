@@ -3,7 +3,11 @@ name: Continuous Deployment
 on:
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+'
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   publish:
@@ -31,7 +35,6 @@ jobs:
             architecture: i686
             binary-postfix: ""
             use-cross: true
-
 
     steps:
       - name: Installing Rust toolchain
