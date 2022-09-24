@@ -38,7 +38,6 @@ jobs:
       - name: Clean out cruft not needed for bootstrapping
         run: |
           ./nix-user-chroot "${NIX}" rm -rf /nix/var/log/nix /nix/store/*/share/doc/* /nix/store/*/share/man/* /nix/store/*/share/locale/* /nix/store/*-nixpkgs
-        working-directory: nix
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix usr gng
       - name: Upload nix store artifact
