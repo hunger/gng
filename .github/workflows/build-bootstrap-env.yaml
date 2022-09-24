@@ -72,19 +72,16 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: nix-store
-          path: ./bootstrap
-      - name: Download gng-agent
-        uses: actions/download-artifact@v3
-        with:
-          name: gng-agent
-
-      - name: Check bootstrap directory
-        run: ls -alRF bootstrap
-
       - name: Unpack nix store
         run: |
           tar --zstd -xf ../nix-store.tar.zst
         working-directory: bootstrap
+
+      - name: Download gng-agent
+        uses: actions/download-artifact@v3
+        with:
+          name: gng-agent
+          path: ./bootstrap
 
       - name: Set up Docker Buildx
         id: buildx
