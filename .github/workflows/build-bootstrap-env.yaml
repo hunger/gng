@@ -57,11 +57,13 @@ jobs:
           echo "echo \"Dummy agent was run\"" >> gng/agent
           echo "exit 0" >> gng/agent
           chmod 755 gng/agent
+      - name: Tar up gng-agent
+        run: tar -c --zstd -f gng-agent.tar.zst gng
       - name: Upload gng agent artifact
         uses: actions/upload-artifact@v3
         with:
           name: gng-agent
-          path: gng/agent
+          path: gng-agent.tar.zst
           retention-days: 1
 
   build-container-image:
@@ -75,28 +77,19 @@ jobs:
         with:
           name: nix-store
       - name: Unpack nix store
-        run: |
-          tar --zstd -xf ../nix-store.tar.zst
+        run: tar --zstd -xf ../nix-store.tar.zst
         working-directory: ./bootstrap
 
       - name: Download gng-agent
         uses: actions/download-artifact@v3
         with:
           name: gng-agent
-      - name: Install gng-agent
-        run: |
-          ecjo Parent directory
-          ls -alF ..
-          echo bootstrap directory
-          ls -alF .
-          mv agent ./gng
-          echo bootstrap/gng directory
-          ls -alF ./gng
-        working-directory: ./bootstrao
+      - name: Unpack gng-agent
+        run: tar --zstd -xf ../gng-agent.tar.zst
+        working-directory: ./bootstrap
 
       - name: Remove git .keep files
-        run: find . -name .keep -exec rm {} \;
-        working-directory: ./bootstrap
+        run: find ./bootstrap -name .keep -exec rm {} \;
 
       - name: Set up Docker Buildx
         id: buildx
