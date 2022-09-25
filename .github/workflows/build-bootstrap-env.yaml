@@ -35,14 +35,17 @@ jobs:
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux nixpkgs.nix"
-      - name: Shrink Nix store
+      - name: Delete old generations
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
-          rm -rf "${NIX}"/var/nix/profiles/per-user" "${NIX}/var/nix/gcroots/"*
+      - name: Garbadge-collect Nix store
+        run: |
+          NIX="$(pwd)/nix"
+          rm -rf "${NIX}/var/nix/profiles/per-user" "${NIX}/var/nix/gcroots/"*
           ( cd "${NIX}/var/nix/gcroots"; ln -s /nix/var/nix/profiles/bootstrap-1-link . )
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc"
-      - name: Deduplicate Nix store
+      - name: Optimize Nix store
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimse"
