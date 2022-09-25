@@ -83,7 +83,16 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: gng-agent
-          path: ./bootstrap/gng
+      - name: Install gng-agent
+        run: |
+          ecjo Parent directory
+          ls -alF ..
+          echo bootstrap directory
+          ls -alF .
+          mv agent ./gng
+          echo bootstrap/gng directory
+          ls -alF ./gng
+        working-directory: ./bootstrao
 
       - name: Remove git .keep files
         run: find . -name .keep -exec rm {} \;
