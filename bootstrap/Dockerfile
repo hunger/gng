@@ -9,8 +9,8 @@
 
 FROM scratch
 
-ADD --chown=0:0 nix /
-ADD --chown=0:0 usr gng /
+COPY --chown=0:0 nix /
+COPY --chown=0:0 usr gng /
 
 LABEL org.opencontainers.image.authors="tobias.hunger@gmail.com"
 

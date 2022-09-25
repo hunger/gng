@@ -35,7 +35,7 @@ jobs:
           ./nix-user-chroot "$(pwd)/nix" bash -c "curl -L https://nixos.org/nix/install | bash"
           ./nix-user-chroot "$(pwd)/nix" bash -c "source \"${HOME}/.nix-profile/etc/profile.d/nix.sh\" && nix-env -p \"$(pwd)/nix/var/nix/profiles/bootstrap\" -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux"
       - name: Tar up nix store
-        run: tar -cv --zstd -f nix-store.tar.zst nix
+        run: tar -c --zstd -f nix-store.tar.zst nix
       - name: Upload nix store artifact
         uses: actions/upload-artifact@v3
         with:
@@ -58,7 +58,7 @@ jobs:
           echo "exit 0" >> gng/agent
           chmod 755 gng/agent
       - name: Tar up gng-agent
-        run: tar -cv --zstd -f gng-agent.tar.zst gng
+        run: tar -c --zstd -f gng-agent.tar.zst gng
       - name: Upload gng agent artifact
         uses: actions/upload-artifact@v3
         with:
@@ -77,7 +77,7 @@ jobs:
         with:
           name: nix-store
       - name: Unpack nix store
-        run: tar --zstd -xvf ../nix-store.tar.zst
+        run: tar --zstd -xf ../nix-store.tar.zst
         working-directory: ./bootstrap
 
       - name: Download gng-agent
@@ -85,7 +85,7 @@ jobs:
         with:
           name: gng-agent
       - name: Unpack gng-agent
-        run: tar --zstd -xvf ../gng-agent.tar.zst
+        run: tar --zstd -xf ../gng-agent.tar.zst
         working-directory: ./bootstrap
 
       - name: Set up Docker Buildx
