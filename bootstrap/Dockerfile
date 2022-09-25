@@ -9,10 +9,8 @@
 
 FROM scratch
 
-COPY --chown=0:0 nix /
-COPY --chown=0:0 usr gng /
-
-LABEL org.opencontainers.image.authors="tobias.hunger@gmail.com"
+ADD nix-store.tar.zst /
+ADD gng-agent.tar-zst /
 
 ENV PATH /usr/bin:/nix/var/profiles/bootstrap/bin
 
