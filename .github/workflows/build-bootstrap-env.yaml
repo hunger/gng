@@ -44,11 +44,11 @@ jobs:
           NIX="$(pwd)/nix"
           rm -rf "${NIX}/var/nix/profiles/per-user" "${NIX}/var/nix/gcroots/"*
           ( cd "${NIX}/var/nix/gcroots"; ln -s /nix/var/nix/profiles/bootstrap-1-link . )
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc"
-      - name: Optimize Nix store
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc --print-roots --print-live --print-dead"
+      - name: Optimise Nix store
         run: |
           NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimse"
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimise"
 
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix
