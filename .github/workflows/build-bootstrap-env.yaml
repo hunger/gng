@@ -14,18 +14,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # - name: "Download nix-user-chroot"
-      #   uses: robinraju/release-downloader@v1.5
-      #   with:
-      #     repository: "nix-community/nix-user-chroot"
-      #     latest: true
-      #     fileName: "nix-user-chroot-bin-*-x86_64-unknown-linux-musl"
-      #     out-file-path: "."
-      # - name: Make nix-user-chroot executable
-      #   run: |
-      #     mv nix-user-chroot* nix-user-chroot
-      #     chmod 755 nix-user-chroot
-      #     ls -alF
+      - name: "Download nix-user-chroot"
+        uses: robinraju/release-downloader@v1.5
+        with:
+          repository: "nix-community/nix-user-chroot"
+          latest: true
+          fileName: "nix-user-chroot-bin-*-x86_64-unknown-linux-musl"
+          out-file-path: "."
+      - name: Make nix-user-chroot executable
+        run: |
+          mv nix-user-chroot* nix-user-chroot
+          chmod 755 nix-user-chroot
       - name: Set up basic nix environment
         run: |
           mkdir tmp-home
