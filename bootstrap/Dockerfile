@@ -10,7 +10,7 @@
 FROM scratch
 
 ADD nix-store.tar.zst /
-ADD gng-agent.tar-zst /
+ADD gng-agent.tar.zst /
 
 ENV PATH /usr/bin:/nix/var/profiles/bootstrap/bin
 
