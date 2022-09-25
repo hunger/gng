@@ -39,6 +39,10 @@ jobs:
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
+      - name: Delete extra packages
+        run: |
+          NIX="$(pwd)/nix"
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix store delete /nix/store/*-debug /nix/store/*-doc i/nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
       - name: Garbadge-collect Nix store
         run: |
           NIX="$(pwd)/nix"
