@@ -33,6 +33,7 @@ jobs:
           HOME="$(pwd)/tmp-home"
           export HOME
           ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
+          ./nix-user-chroot "${NIX}" bash -c "source /nix/var/nix/profiles/per-user/runner/profile/etc/profile.d/nix.sh && nix-env --switch-profile /nix/var/nix/profiles/bootstrap"
           ./nix-user-chroot "${NIX}" bash -c "source /nix/var/nix/profiles/per-user/runner/profile/etc/profile.d/nix.sh && nix-env -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux nixpkgs.nix"
           ./nix-user-chroot "${NIX}" bash -c 'rm -rf /nix/var/nix/profiles/per-user/* /nix/var/nix/gcroots/auto/*'
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc"
@@ -55,7 +56,7 @@ jobs:
         ## FIXME: Build the actual agent!
         run: |
           mkdir gng
-          echo "#!/nix/store/var/profiles/bootstrap/bin/bash" > gng/agent
+          echo "#!/nix/var/nix/profiles/bootstrap/bin/bash" > gng/agent
           echo "" >> gng/agent
           echo "echo \"Dummy agent was run\"" >> gng/agent
           echo "exit 0" >> gng/agent
