@@ -39,8 +39,8 @@ jobs:
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
-          ./nix-user-chroot "${NIX}" bash -c 'ls -alF /nix/var/nix/profiles && rm -rf /nix/var/nix/profiles/per-user* /nix/var/nix/gcroots/*'
-          ./nix-user-chroot "${NIX}" bash -c 'cd /nix/var/nix/gcroots && ln -s /nix/var/nix/profiles/profiles .'
+          rm -rf "${NIX}"/var/nix/profiles/per-user" "${NIX}/var/nix/gcroots/"*
+          ( cd "${NIX}/var/nix/gcroots"; ln -s /nix/var/nix/profiles/bootstrap-1-link . )
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc"
       - name: Deduplicate Nix store
         run: |
