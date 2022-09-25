@@ -27,17 +27,26 @@ jobs:
           chmod 755 nix-user-chroot
       - name: Set up basic nix environment
         run: |
-          mkdir tmp-home
           mkdir nix
           NIX="$(pwd)/nix"
-          HOME="$(pwd)/tmp-home"
-          export HOME
           ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env --switch-profile /nix/var/nix/profiles/bootstrap"
+      - name: Install specific Nix packages
+        run: |
+          NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux nixpkgs.nix"
-          ./nix-user-chroot "${NIX}" bash -c 'rm -rf /nix/var/nix/profiles/per-user/* /nix/var/nix/gcroots/auto/*'
+      - name: Shrink Nix store
+        run: |
+          NIX="$(pwd)/nix"
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
+          ./nix-user-chroot "${NIX}" bash -c 'ls -alF /nix/var/nix/profiles && rm -rf /nix/var/nix/profiles/per-user* /nix/var/nix/gcroots/*'
+          ./nix-user-chroot "${NIX}" bash -c 'cd /nix/var/nix/gcroots && ln -s /nix/var/nix/profiles/profiles .'
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimze"
+      - name: Deduplicate Nix store
+        run: |
+          NIX="$(pwd)/nix"
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimse"
+
       - name: Tar up nix store
         run: tar -c --zstd -f nix-store.tar.zst nix
       - name: Upload nix store artifact
