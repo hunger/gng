@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir nix
           NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "curl -L https://nixos.org/nix/install | bash"
+          ./nix-user-chroot "${NIX}" bash <(curl -L https://nixos.org/nix/install) --no-daemon"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env --switch-profile /nix/var/nix/profiles/bootstrap"
       - name: Install specific Nix packages
         run: |
@@ -39,10 +39,10 @@ jobs:
         run: |
           NIX="$(pwd)/nix"
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
-      - name: Delete extra packages
-        run: |
-          NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix --extra-experimental-features nix-command store delete --ignore-liveness /nix/store/*-debug /nix/store/*-doc /nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
+      # - name: Delete extra packages
+      #   run: |
+      #     NIX="$(pwd)/nix"
+      #     ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix --extra-experimental-features nix-command store delete --ignore-liveness /nix/store/*-debug /nix/store/*-doc /nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
       - name: Garbadge-collect Nix store
         run: |
           NIX="$(pwd)/nix"
