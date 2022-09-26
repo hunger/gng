@@ -5,6 +5,7 @@
 name: Build a Nix store tarball
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 jobs:

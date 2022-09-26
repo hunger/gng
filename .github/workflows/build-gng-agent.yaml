@@ -5,6 +5,7 @@
 name: Build the gng agent
 
 on:
+  workflow_call:
   workflow_dispatch:
 
 jobs:
