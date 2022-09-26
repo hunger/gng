@@ -10,85 +10,15 @@ on:
     - cron: "42 2 * * *"
 
 jobs:
-  install-nix-bootstrap-env:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: "Download nix-user-chroot"
-        uses: robinraju/release-downloader@v1.5
-        with:
-          repository: "nix-community/nix-user-chroot"
-          latest: true
-          fileName: "nix-user-chroot-bin-*-x86_64-unknown-linux-musl"
-          out-file-path: "."
-      - name: Make nix-user-chroot executable
-        run: |
-          mv nix-user-chroot* nix-user-chroot
-          chmod 755 nix-user-chroot
-      - name: Set up basic nix environment
-        run: |
-          mkdir nix
-          NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash <(curl -L https://nixos.org/nix/install) --no-daemon
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env --switch-profile /nix/var/nix/profiles/bootstrap"
-      - name: Install specific Nix packages
-        run: |
-          NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env -iA nixpkgs.bash nixpkgs.bison nixpkgs.coreutils nixpkgs.diffutils nixpkgs.file nixpkgs.findutils nixpkgs.gawk nixpkgs.gcc nixpkgs.gettext nixpkgs.gnugrep nixpkgs.gnum4 nixpkgs.gnumake nixpkgs.gnused nixpkgs.patch nixpkgs.perl nixpkgs.python3 nixpkgs.texinfo nixpkgs.util-linux nixpkgs.nix"
-      - name: Delete old generations
-        run: |
-          NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-env --delete-generations old"
-      # - name: Delete extra packages
-      #   run: |
-      #     NIX="$(pwd)/nix"
-      #     ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix --extra-experimental-features nix-command store delete --ignore-liveness /nix/store/*-debug /nix/store/*-doc /nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
-      - name: Garbadge-collect Nix store
-        run: |
-          NIX="$(pwd)/nix"
-          rm -rf "${NIX}/var/nix/profiles/per-user" "${NIX}/var/nix/gcroots/"*
-          ( cd "${NIX}/var/nix/gcroots"; ln -s /nix/var/nix/profiles/bootstrap-1-link . )
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --gc --print-roots --print-live --print-dead"
-      - name: Optimise Nix store
-        run: |
-          NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix-store --optimise"
-
-      - name: Tar up nix store
-        run: tar -c --zstd -f nix-store.tar.zst nix
-      - name: Upload nix store artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: nix-store
-          path: nix-store.tar.zst
-          retention-days: 1
+  build-nix-store:
+    uses: ./.github/workflows/build-nix-store.yaml
 
   build-gng-agent:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - name: Fake gng-agent
-        ## FIXME: Build the actual agent!
-        run: |
-          mkdir gng
-          echo "#!/nix/var/nix/profiles/bootstrap/bin/bash" > gng/agent
-          echo "" >> gng/agent
-          echo "echo \"Dummy agent was run\"" >> gng/agent
-          echo "exit 0" >> gng/agent
-          chmod 755 gng/agent
-      - name: Tar up gng-agent
-        run: tar -c --zstd -f gng-agent.tar.zst gng
-      - name: Upload gng agent artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: gng-agent
-          path: gng-agent.tar.zst
-          retention-days: 1
+    uses: ./.github/workflows/build-gng-agent.yaml
 
   build-container-image:
     runs-on: ubuntu-latest
-    needs: [install-nix-bootstrap-env, build-gng-agent]
+    needs: [build-nix-store, build-gng-agent]
 
     steps:
       - uses: actions/checkout@v3
