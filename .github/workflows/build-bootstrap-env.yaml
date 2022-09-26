@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir nix
           NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash <(curl -L https://nixos.org/nix/install) --no-daemon"
+          ./nix-user-chroot "${NIX}" bash <(curl -L https://nixos.org/nix/install) --no-daemon
           ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/per-user/runner/profile/bin nix-env --switch-profile /nix/var/nix/profiles/bootstrap"
       - name: Install specific Nix packages
         run: |
