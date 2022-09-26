@@ -42,7 +42,7 @@ jobs:
       - name: Delete extra packages
         run: |
           NIX="$(pwd)/nix"
-          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix  --extra-experimental-features store delete /nix/store/*-debug /nix/store/*-doc i/nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
+          ./nix-user-chroot "${NIX}" bash -c "PATH=/nix/var/nix/profiles/bootstrap/bin nix --extra-experimental-features nix-command store delete /nix/store/*-debug /nix/store/*-doc i/nix/store/*-devdoc /nix/store/*-man /nix/store/*-info"
       - name: Garbadge-collect Nix store
         run: |
           NIX="$(pwd)/nix"
