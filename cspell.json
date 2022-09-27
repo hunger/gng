@@ -1,42 +1,35 @@
 {
-    "version": "0.2",
-    "language": "en",
-    "languageSettings": [
-        {
-            "languageId": "rust",
-            "words": [
-                "canonicalize",
-                "rlua",
-                "itertools",
-                "serde",
-                "tempdir",
-                "tempfile",
-                "zstd",
-                "thiserror",
-                "tmpfs",
-                "nspawn"
-            ]
-        },
-        {
-          "languageId": "lua",
-          "words": [
-              "metatable",
-              "rawpairs",
-              "tabify"
-          ]
-        }
-    ],
-    "words": [
-        "clippy",
-        "rustfmt"
-    ],
-    "ignorePaths": [
-        "cspell.json",
-        ".config/spellcheck.toml",
-        ".config/project.dict",
-        ".pre-commit-config.yaml",
-        ".github/workflows/*.yaml",
-        "Cargo.toml",
-        ".reuse"
-    ]
+  "version": "0.2",
+  "language": "en",
+  "languageSettings": [
+    {
+      "languageId": "rust",
+      "words": [
+        "canonicalize",
+        "rlua",
+        "itertools",
+        "serde",
+        "tempdir",
+        "tempfile",
+        "zstd",
+        "thiserror",
+        "tmpfs",
+        "nspawn"
+      ]
+    },
+    {
+      "languageId": "lua",
+      "words": ["metatable", "rawpairs", "tabify"]
+    }
+  ],
+  "words": ["clippy", "rustfmt"],
+  "ignorePaths": [
+    "cspell.json",
+    ".config/spellcheck.toml",
+    ".config/project.dict",
+    ".pre-commit-config.yaml",
+    ".github/workflows/*.yaml",
+    "Cargo.toml",
+    ".reuse"
+  ]
 }
