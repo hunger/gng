@@ -9,6 +9,10 @@ on:
   schedule:
     - cron: "42 2 * * *"
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-nix-store:
     uses: ./.github/workflows/build-nix-store.yaml

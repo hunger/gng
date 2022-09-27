@@ -8,6 +8,10 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-gng-agent:
     runs-on: ubuntu-latest
