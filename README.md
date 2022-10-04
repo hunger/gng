@@ -15,7 +15,7 @@ fast about it!
 This is written in rust to easily create a self-contained binary. This should allow
 some interesting use-cases like building packets in an (almost;-) empty container.
 
-*!!! `Gng` is an experiment, do not use (yet?) !!!*
+_!!! `Gng` is an experiment, do not use (yet?) !!!_
 
 ## Installation
 
