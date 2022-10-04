@@ -13,7 +13,6 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/hunger/gng"
 rust-version = "1.56"
 
-[dependencies]
 clap = { version = "4.0.9" }
 faccess = { version = "0.2" }
 itertools = { version = "0.10" }
