@@ -29,6 +29,6 @@ regex = { version = "1.7" }
 serde = { version = "1.0" }
 serde_json = { version = "1.0" }
 spdx = { version = "0.10" }
-tempfile = { version = "3.3" }
+tempfile = { version = "3.4" }
 tracing = { version = "0.1" }
 url = { version = "2.3" }
