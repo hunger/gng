@@ -25,4 +25,4 @@ tracing = { version = "0.1" }
 zstd = { version = "0.12" }
 
 [dev-dependencies]
-tempfile = { version = "3.3" }
+tempfile = { version = "3.4" }
